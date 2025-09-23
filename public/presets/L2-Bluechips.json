@@ -1,0 +1,30 @@
+{
+  "version": "3.6.0",
+  "min_ev_net_usd": 25.0,
+  "min_roi_bps": 15,
+  "max_slippage_bps": 40,
+  "min_prob_exec_priv": 0.75,
+  "mev_haircut_factor": 0.08,
+  "max_gas_cost_usd": 35.0,
+  "enabled_chains": [42161, 10, 8453],
+  "preferred_relays": ["flashbots_protect", "mev_share"],
+  "asset_safety": {
+    "min_safety_score": 80,
+    "min_age_days": 60,
+    "min_liquidity_usd": 2000000,
+    "deny_fee_on_transfer": true,
+    "require_oracle_price": true
+  },
+  "execution": {
+    "max_position_usd": 75000,
+    "max_drawdown_usd": 7000,
+    "max_gas_price_gwei": {
+      "42161": 0.8,
+      "10": 0.4,
+      "8453": 0.25
+    },
+    "max_daily_executions": 75,
+    "bundle_privacy_level": "high"
+  },
+  "kill_switch": false
+}

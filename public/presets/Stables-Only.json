@@ -1,0 +1,49 @@
+{
+  "version": "3.6.0",
+  "min_ev_net_usd": 15.0,
+  "min_roi_bps": 8,
+  "max_slippage_bps": 30,
+  "min_prob_exec_priv": 0.85,
+  "mev_haircut_factor": 0.05,
+  "max_gas_cost_usd": 40.0,
+  "enabled_chains": [1, 42161, 10, 8453, 137],
+  "preferred_relays": ["flashbots_protect", "mev_share", "eden"],
+  "asset_safety": {
+    "min_safety_score": 90,
+    "min_age_days": 90,
+    "min_liquidity_usd": 5000000,
+    "deny_fee_on_transfer": true,
+    "require_oracle_price": true
+  },
+  "token_filters": {
+    "whitelist_only": true,
+    "allowed_tokens": [
+      {"symbol": "USDC", "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "chain_id": 1},
+      {"symbol": "USDT", "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7", "chain_id": 1},
+      {"symbol": "DAI", "address": "0x6B175474E89094C44Da98b954EedeAC495271d0F", "chain_id": 1},
+      {"symbol": "USDC.e", "address": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8", "chain_id": 42161},
+      {"symbol": "USDT", "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", "chain_id": 42161},
+      {"symbol": "DAI", "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1", "chain_id": 42161},
+      {"symbol": "USDC", "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", "chain_id": 42161},
+      {"symbol": "USDC", "address": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607", "chain_id": 10},
+      {"symbol": "DAI", "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1", "chain_id": 10},
+      {"symbol": "USDC", "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "chain_id": 8453},
+      {"symbol": "USDbC", "address": "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", "chain_id": 8453},
+      {"symbol": "DAI", "address": "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", "chain_id": 8453}
+    ]
+  },
+  "execution": {
+    "max_position_usd": 100000,
+    "max_drawdown_usd": 5000,
+    "max_gas_price_gwei": {
+      "1": 80,
+      "42161": 0.7,
+      "10": 0.4,
+      "8453": 0.25,
+      "137": 150
+    },
+    "max_daily_executions": 100,
+    "bundle_privacy_level": "high"
+  },
+  "kill_switch": false
+}
