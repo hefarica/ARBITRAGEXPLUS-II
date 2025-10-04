@@ -2,7 +2,7 @@ import express from "express";
 import next from "next";
 import cors from "cors";
 import { db } from "./server/db";
-import { opportunities, assetSafety, executions, engineConfig } from "@shared/schema";
+import { opportunities, assetSafety, executions, engineConfig, wallets, walletBalances, walletTransactions } from "@shared/schema";
 import { desc, eq, and, sql } from "drizzle-orm";
 import { 
   getTestnetConfig, 
@@ -469,6 +469,200 @@ app.prepare().then(() => {
     } catch (error) {
       console.error("Error fetching RPC stats:", error);
       res.status(500).json({ error: "Failed to fetch RPC stats" });
+    }
+  });
+
+  // Wallet Management API Endpoints
+  server.get("/api/wallets", async (req, res) => {
+    try {
+      const walletsData = await db
+        .select()
+        .from(wallets)
+        .orderBy(desc(wallets.createdAt));
+      
+      res.json(walletsData);
+    } catch (error) {
+      console.error("Error fetching wallets:", error);
+      res.status(500).json({ error: "Failed to fetch wallets" });
+    }
+  });
+
+  server.post("/api/wallets", async (req, res) => {
+    try {
+      const { address, name, privateKey } = req.body;
+      
+      if (!address || !name) {
+        return res.status(400).json({ error: "Address and name are required" });
+      }
+      
+      const [newWallet] = await db
+        .insert(wallets)
+        .values({
+          address,
+          name,
+          privateKey,
+          isActive: true,
+        })
+        .returning();
+      
+      res.json(newWallet);
+    } catch (error: any) {
+      console.error("Error creating wallet:", error);
+      if (error.code === '23505') { // Unique constraint violation
+        res.status(409).json({ error: "Wallet with this address already exists" });
+      } else {
+        res.status(500).json({ error: "Failed to create wallet" });
+      }
+    }
+  });
+
+  server.put("/api/wallets/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, isActive } = req.body;
+      
+      const [updatedWallet] = await db
+        .update(wallets)
+        .set({
+          name,
+          isActive,
+          updatedAt: new Date(),
+        })
+        .where(eq(wallets.id, parseInt(id)))
+        .returning();
+      
+      if (!updatedWallet) {
+        return res.status(404).json({ error: "Wallet not found" });
+      }
+      
+      res.json(updatedWallet);
+    } catch (error) {
+      console.error("Error updating wallet:", error);
+      res.status(500).json({ error: "Failed to update wallet" });
+    }
+  });
+
+  server.delete("/api/wallets/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const [deletedWallet] = await db
+        .delete(wallets)
+        .where(eq(wallets.id, parseInt(id)))
+        .returning();
+      
+      if (!deletedWallet) {
+        return res.status(404).json({ error: "Wallet not found" });
+      }
+      
+      res.json({ success: true, wallet: deletedWallet });
+    } catch (error) {
+      console.error("Error deleting wallet:", error);
+      res.status(500).json({ error: "Failed to delete wallet" });
+    }
+  });
+
+  server.get("/api/wallets/:id/balances", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const balances = await db
+        .select()
+        .from(walletBalances)
+        .where(eq(walletBalances.walletId, parseInt(id)))
+        .orderBy(desc(walletBalances.recordedAt))
+        .limit(100);
+      
+      res.json(balances);
+    } catch (error) {
+      console.error("Error fetching wallet balances:", error);
+      res.status(500).json({ error: "Failed to fetch wallet balances" });
+    }
+  });
+
+  server.get("/api/wallets/:id/transactions", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { type } = req.query;
+      
+      const conditions = [eq(walletTransactions.walletId, parseInt(id))];
+      if (type) {
+        conditions.push(eq(walletTransactions.type, type as string));
+      }
+      
+      const transactions = await db
+        .select()
+        .from(walletTransactions)
+        .where(and(...conditions))
+        .orderBy(desc(walletTransactions.timestamp))
+        .limit(50);
+      
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching wallet transactions:", error);
+      res.status(500).json({ error: "Failed to fetch wallet transactions" });
+    }
+  });
+
+  server.post("/api/wallets/:id/refresh-balance", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // This endpoint will trigger balance refresh
+      // The actual balance fetching will be done on the client side
+      // due to RPC provider requirements
+      
+      res.json({ 
+        success: true, 
+        message: "Balance refresh triggered",
+        walletId: id 
+      });
+    } catch (error) {
+      console.error("Error refreshing balance:", error);
+      res.status(500).json({ error: "Failed to refresh balance" });
+    }
+  });
+
+  // Import wallet from environment variable
+  server.post("/api/wallets/import-from-env", async (req, res) => {
+    try {
+      const testWalletAddress = process.env.TEST_WALLET_ADDRESS;
+      
+      if (!testWalletAddress) {
+        return res.status(404).json({ error: "TEST_WALLET_ADDRESS not found in environment" });
+      }
+      
+      // Check if wallet already exists
+      const existingWallet = await db
+        .select()
+        .from(wallets)
+        .where(eq(wallets.address, testWalletAddress))
+        .limit(1);
+      
+      if (existingWallet.length > 0) {
+        return res.json({ 
+          wallet: existingWallet[0],
+          message: "Wallet already imported" 
+        });
+      }
+      
+      // Create new wallet
+      const [newWallet] = await db
+        .insert(wallets)
+        .values({
+          address: testWalletAddress,
+          name: "Test Wallet (ENV)",
+          isActive: true,
+        })
+        .returning();
+      
+      res.json({ 
+        wallet: newWallet,
+        message: "Wallet imported successfully" 
+      });
+    } catch (error) {
+      console.error("Error importing wallet from env:", error);
+      res.status(500).json({ error: "Failed to import wallet from environment" });
     }
   });
 

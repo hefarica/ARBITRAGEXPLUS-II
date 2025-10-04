@@ -73,3 +73,55 @@ export type InsertEngineConfig = typeof engineConfig.$inferInsert;
 
 export type RpcHealth = typeof rpcHealth.$inferSelect;
 export type InsertRpcHealth = typeof rpcHealth.$inferInsert;
+
+// Wallet Management Tables
+export const wallets = pgTable("wallets", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  address: varchar("address", { length: 42 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  privateKey: text("private_key"), // Should be encrypted in production
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const walletBalances = pgTable("wallet_balances", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  walletId: integer("wallet_id").notNull().references(() => wallets.id, { onDelete: "cascade" }),
+  chainId: integer("chain_id").notNull(),
+  chainName: varchar("chain_name", { length: 50 }).notNull(),
+  balance: text("balance").notNull(), // Store as string for precision
+  balanceUsd: doublePrecision("balance_usd"),
+  gasBalance: text("gas_balance"), // Native token balance
+  gasBalanceUsd: doublePrecision("gas_balance_usd"),
+  tokenBalances: jsonb("token_balances").default("[]"), // Array of token balances
+  recordedAt: timestamp("recorded_at").notNull().defaultNow(),
+});
+
+export const walletTransactions = pgTable("wallet_transactions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  walletId: integer("wallet_id").notNull().references(() => wallets.id, { onDelete: "cascade" }),
+  txHash: varchar("tx_hash", { length: 66 }).notNull(),
+  chainId: integer("chain_id").notNull(),
+  type: varchar("type", { length: 20 }).notNull(), // 'in', 'out', 'swap'
+  from: varchar("from_address", { length: 42 }).notNull(),
+  to: varchar("to_address", { length: 42 }).notNull(),
+  value: text("value").notNull(),
+  valueUsd: doublePrecision("value_usd"),
+  gasUsed: text("gas_used"),
+  gasPrice: text("gas_price"),
+  gasCost: text("gas_cost"),
+  gasCostUsd: doublePrecision("gas_cost_usd"),
+  blockNumber: bigint("block_number", { mode: "number" }),
+  timestamp: bigint("timestamp", { mode: "number" }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+});
+
+export type Wallet = typeof wallets.$inferSelect;
+export type InsertWallet = typeof wallets.$inferInsert;
+
+export type WalletBalance = typeof walletBalances.$inferSelect;
+export type InsertWalletBalance = typeof walletBalances.$inferInsert;
+
+export type WalletTransaction = typeof walletTransactions.$inferSelect;
+export type InsertWalletTransaction = typeof walletTransactions.$inferInsert;
