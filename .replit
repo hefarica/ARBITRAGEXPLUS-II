@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "rust-stable", "web"]
+modules = ["nodejs-20", "rust-stable", "web", "postgresql-16"]
 [agent]
 expertMode = true
 integrations = ["javascript_database:1.0.0"]
@@ -38,3 +38,7 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 37967
+externalPort = 3000
