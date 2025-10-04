@@ -8,8 +8,8 @@
 import { ValidationError } from "./errors";
 
 // URL base para las solicitudes a la API
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-const CF_BASE_URL = process.env.NEXT_PUBLIC_CF_URL || "https://arbitragex-supreme.workers.dev";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+const CF_BASE_URL = process.env.NEXT_PUBLIC_CF_URL || "";
 
 /**
  * Interfaz para las opciones de las solicitudes fetch

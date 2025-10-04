@@ -3,14 +3,17 @@
   "version": "3.6.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 5000 -H 0.0.0.0",
-    "dev:local": "next dev",
+    "dev": "tsx server.ts",
+    "dev:local": "tsx server.ts",
     "build": "next build",
-    "start": "next start -p 5000 -H 0.0.0.0",
-    "start:local": "next start",
+    "start": "NODE_ENV=production tsx server.ts",
+    "start:local": "NODE_ENV=production tsx server.ts",
     "lint": "next lint",
     "format": "prettier --write \"**/*.{js,ts,tsx,md}\"",
-    "test": "jest --coverage"
+    "test": "jest --coverage",
+    "db:push": "drizzle-kit push",
+    "db:push:force": "drizzle-kit push --force",
+    "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.5.2",
@@ -37,6 +40,9 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "@tanstack/react-query": "^5.15.0",
     "@tanstack/react-query-devtools": "^5.15.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/ws": "^8.18.1",
     "axios": "^1.6.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
@@ -44,7 +50,7 @@
     "date-fns": "^2.30.0",
     "drizzle-kit": "^0.31.5",
     "drizzle-orm": "^0.44.6",
-    "express": "^5.1.0",
+    "express": "^4.21.2",
     "lucide-react": "^0.303.0",
     "next": "14.0.4",
     "next-themes": "^0.2.1",
@@ -55,6 +61,7 @@
     "sonner": "^1.3.1",
     "tailwind-merge": "^2.2.0",
     "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.20.6",
     "zod": "^3.22.4"
   },
   "devDependencies": {
