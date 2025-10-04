@@ -125,3 +125,46 @@ export type InsertWalletBalance = typeof walletBalances.$inferInsert;
 
 export type WalletTransaction = typeof walletTransactions.$inferSelect;
 export type InsertWalletTransaction = typeof walletTransactions.$inferInsert;
+
+// Trading Simulator Tables
+export const simulations = pgTable("simulations", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  strategy: varchar("strategy", { length: 50 }).notNull(),
+  tokenPair: varchar("token_pair", { length: 100 }).notNull(),
+  tokenA: varchar("token_a", { length: 42 }).notNull(),
+  tokenB: varchar("token_b", { length: 42 }).notNull(),
+  dex: varchar("dex", { length: 50 }).notNull(),
+  amount: decimal("amount", { precision: 20, scale: 6 }).notNull(),
+  estimatedProfit: decimal("estimated_profit", { precision: 20, scale: 6 }).notNull(),
+  profitAfterFees: decimal("profit_after_fees", { precision: 20, scale: 6 }),
+  slippage: decimal("slippage", { precision: 5, scale: 4 }).notNull(),
+  priceImpact: decimal("price_impact", { precision: 10, scale: 6 }),
+  gasEstimate: decimal("gas_estimate", { precision: 20, scale: 6 }).notNull(),
+  gasPrice: text("gas_price"),
+  poolLiquidity: text("pool_liquidity"),
+  volume24h: text("volume_24h"),
+  isPaperTrade: boolean("is_paper_trade").notNull().default(false),
+  successProbability: integer("success_probability"), // 0-100
+  executedAt: timestamp("executed_at").notNull().defaultNow(),
+  chainId: integer("chain_id").notNull().default(1),
+});
+
+export const paperTradingAccounts = pgTable("paper_trading_accounts", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id", { length: 100 }).notNull().default("default"),
+  balance: decimal("balance", { precision: 20, scale: 6 }).notNull().default("10000.00"),
+  initialBalance: decimal("initial_balance", { precision: 20, scale: 6 }).notNull().default("10000.00"),
+  totalTrades: integer("total_trades").notNull().default(0),
+  winningTrades: integer("winning_trades").notNull().default(0),
+  losingTrades: integer("losing_trades").notNull().default(0),
+  totalProfit: decimal("total_profit", { precision: 20, scale: 6 }).notNull().default("0"),
+  totalLoss: decimal("total_loss", { precision: 20, scale: 6 }).notNull().default("0"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastResetAt: timestamp("last_reset_at").notNull().defaultNow(),
+});
+
+export type Simulation = typeof simulations.$inferSelect;
+export type InsertSimulation = typeof simulations.$inferInsert;
+
+export type PaperTradingAccount = typeof paperTradingAccounts.$inferSelect;
+export type InsertPaperTradingAccount = typeof paperTradingAccounts.$inferInsert;

@@ -14,7 +14,8 @@ import {
   Wallet,
   Menu,
   X,
-  Network
+  Network,
+  Brain
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -118,6 +119,14 @@ export function Sidebar() {
             isCollapsed={isCollapsed}
           >
             RPC Monitor
+          </SidebarLink>
+          
+          <SidebarLink
+            href="/simulator"
+            icon={<Brain className="h-5 w-5" />}
+            isCollapsed={isCollapsed}
+          >
+            Simulador
           </SidebarLink>
           
           <SidebarLink

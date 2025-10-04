@@ -2,7 +2,7 @@ import express from "express";
 import next from "next";
 import cors from "cors";
 import { db } from "./server/db";
-import { opportunities, assetSafety, executions, engineConfig, wallets, walletBalances, walletTransactions } from "@shared/schema";
+import { opportunities, assetSafety, executions, engineConfig, wallets, walletBalances, walletTransactions, simulations, paperTradingAccounts } from "@shared/schema";
 import { desc, eq, and, sql } from "drizzle-orm";
 import { 
   getTestnetConfig, 
