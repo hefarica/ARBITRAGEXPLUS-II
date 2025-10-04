@@ -294,6 +294,175 @@ app.prepare().then(() => {
     }
   });
 
+  // RPC Health API Endpoints
+  server.get("/api/rpc/health", async (req, res) => {
+    try {
+      // Mock data for now - would be replaced with actual Rust API call
+      const rpcHealth = {
+        rpcs: [
+          {
+            id: "ethereum_cloudflare",
+            url: "https://cloudflare-eth.com",
+            chainId: 1,
+            status: "healthy",
+            healthScore: 95,
+            latencyP50: 45,
+            latencyP95: 120,
+            errorRate: 0.01,
+            lastCheck: Date.now() - 5000,
+            totalRequests: 15234,
+            failedRequests: 152,
+          },
+          {
+            id: "ethereum_ankr",
+            url: "https://rpc.ankr.com/eth",
+            chainId: 1,
+            status: "healthy",
+            healthScore: 88,
+            latencyP50: 62,
+            latencyP95: 180,
+            errorRate: 0.02,
+            lastCheck: Date.now() - 5000,
+            totalRequests: 12543,
+            failedRequests: 251,
+          },
+          {
+            id: "arbitrum_official",
+            url: "https://arb1.arbitrum.io/rpc",
+            chainId: 42161,
+            status: "degraded",
+            healthScore: 65,
+            latencyP50: 120,
+            latencyP95: 350,
+            errorRate: 0.08,
+            lastCheck: Date.now() - 5000,
+            totalRequests: 8932,
+            failedRequests: 714,
+          },
+          {
+            id: "optimism_mainnet",
+            url: "https://mainnet.optimism.io",
+            chainId: 10,
+            status: "healthy",
+            healthScore: 92,
+            latencyP50: 55,
+            latencyP95: 140,
+            errorRate: 0.015,
+            lastCheck: Date.now() - 5000,
+            totalRequests: 10234,
+            failedRequests: 153,
+          },
+        ],
+        summary: {
+          totalRpcs: 100,
+          healthyCount: 85,
+          degradedCount: 12,
+          quarantinedCount: 3,
+          averageLatency: 72.5,
+          averageErrorRate: 0.025,
+        },
+      };
+
+      res.json(rpcHealth);
+    } catch (error) {
+      console.error("Error fetching RPC health:", error);
+      res.status(500).json({ error: "Failed to fetch RPC health" });
+    }
+  });
+
+  server.get("/api/rpc/metrics", async (req, res) => {
+    try {
+      const metrics = {
+        totalRequests: 1234567,
+        successRate: 0.975,
+        averageLatency: 72.5,
+        p50Latency: 45,
+        p95Latency: 180,
+        p99Latency: 350,
+        requestsPerSecond: 128.5,
+        errorsByType: {
+          timeout: 1234,
+          connection: 567,
+          rateLimit: 890,
+          other: 234,
+        },
+        requestsByChain: {
+          ethereum: 456789,
+          arbitrum: 234567,
+          optimism: 189234,
+          base: 156789,
+          polygon: 134567,
+          bsc: 63245,
+        },
+      };
+
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching RPC metrics:", error);
+      res.status(500).json({ error: "Failed to fetch RPC metrics" });
+    }
+  });
+
+  server.post("/api/rpc/toggle/:rpcId", async (req, res) => {
+    try {
+      const { rpcId } = req.params;
+      const { enabled } = req.body;
+
+      // Mock response - would be replaced with actual Rust API call
+      res.json({ 
+        success: true, 
+        rpcId, 
+        enabled,
+        message: `RPC ${rpcId} ${enabled ? 'enabled' : 'disabled'} successfully`
+      });
+    } catch (error) {
+      console.error("Error toggling RPC:", error);
+      res.status(500).json({ error: "Failed to toggle RPC" });
+    }
+  });
+
+  server.get("/api/rpc/stats", async (req, res) => {
+    try {
+      const stats = {
+        totalRpcs: 100,
+        activeRpcs: 97,
+        totalRequestsToday: 12345678,
+        totalRequestsHour: 512340,
+        averageResponseTime: 72.5,
+        successRate: 0.975,
+        chainDistribution: {
+          ethereum: 25,
+          arbitrum: 15,
+          optimism: 15,
+          base: 15,
+          polygon: 15,
+          bsc: 10,
+          testnets: 5,
+        },
+        statusDistribution: {
+          healthy: 85,
+          degraded: 12,
+          quarantined: 3,
+        },
+        topPerformers: [
+          { id: "ethereum_cloudflare", score: 95, latency: 45 },
+          { id: "base_publicnode", score: 94, latency: 48 },
+          { id: "optimism_mainnet", score: 92, latency: 55 },
+        ],
+        poorPerformers: [
+          { id: "bsc_dataseed", score: 45, latency: 450 },
+          { id: "polygon_rpc", score: 48, latency: 380 },
+          { id: "arbitrum_backup", score: 52, latency: 320 },
+        ],
+      };
+
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching RPC stats:", error);
+      res.status(500).json({ error: "Failed to fetch RPC stats" });
+    }
+  });
+
   server.get("/api/version", (req, res) => {
     res.json({ version: "3.6.0" });
   });

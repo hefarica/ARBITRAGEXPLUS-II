@@ -1,4 +1,5 @@
-import { pgTable, text, integer, decimal, timestamp, boolean, jsonb, doublePrecision, bigint } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, decimal, timestamp, boolean, jsonb, doublePrecision, bigint, varchar, real } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const opportunities = pgTable("opportunities", {
   id: text("id").primaryKey(),
@@ -40,6 +41,21 @@ export const engineConfig = pgTable("engine_config", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const rpcHealth = pgTable("rpc_health", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  url: text("url").notNull(),
+  chainId: integer("chain_id").notNull(),
+  status: text("status").notNull(),
+  healthScore: integer("health_score").notNull(),
+  latencyP50: real("latency_p50"),
+  latencyP95: real("latency_p95"),
+  errorRate: real("error_rate"),
+  totalRequests: bigint("total_requests", { mode: "number" }),
+  failedRequests: bigint("failed_requests", { mode: "number" }),
+  lastCheck: bigint("last_check", { mode: "number" }),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+});
+
 export type Opportunity = typeof opportunities.$inferSelect;
 export type InsertOpportunity = typeof opportunities.$inferInsert;
 
@@ -51,3 +67,6 @@ export type InsertExecution = typeof executions.$inferInsert;
 
 export type EngineConfig = typeof engineConfig.$inferSelect;
 export type InsertEngineConfig = typeof engineConfig.$inferInsert;
+
+export type RpcHealth = typeof rpcHealth.$inferSelect;
+export type InsertRpcHealth = typeof rpcHealth.$inferInsert;

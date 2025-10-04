@@ -13,6 +13,7 @@ mod mev_scanner;
 mod monitoring;
 mod multicall;
 mod opportunity_detector;
+mod rpc_health;
 mod rpc_manager;
 
 use config::Config;

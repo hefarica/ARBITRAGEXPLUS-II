@@ -1,0 +1,810 @@
+# RPC Infrastructure Configuration
+# ArbitrageX Supreme V3.6 - 100 Free RPC Endpoints
+# Last Updated: 2025-01-04
+
+# Ethereum Mainnet (25 endpoints)
+[[ethereum]]
+url = "https://cloudflare-eth.com"
+chainId = 1
+rateLimit = 10
+priority = 1
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://rpc.ankr.com/eth"
+chainId = 1
+rateLimit = 100
+priority = 2
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://eth.llamarpc.com"
+chainId = 1
+rateLimit = 50
+priority = 3
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://ethereum.publicnode.com"
+chainId = 1
+rateLimit = 30
+priority = 4
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://gateway.tenderly.co/public/mainnet"
+chainId = 1
+rateLimit = 20
+priority = 5
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://ethereum.blockpi.network/v1/rpc/public"
+chainId = 1
+rateLimit = 30
+priority = 6
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://1rpc.io/eth"
+chainId = 1
+rateLimit = 50
+priority = 7
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://eth-mainnet.gateway.pokt.network/v1/lb/629b6bfac8e38d003831dd5e"
+chainId = 1
+rateLimit = 100
+priority = 8
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://eth.api.onfinality.io/public"
+chainId = 1
+rateLimit = 30
+priority = 9
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://eth-rpc.gateway.pokt.network"
+chainId = 1
+rateLimit = 30
+priority = 10
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://rpc.flashbots.net"
+chainId = 1
+rateLimit = 20
+priority = 11
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://api.mycryptoapi.com/eth"
+chainId = 1
+rateLimit = 10
+priority = 12
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://eth-mainnet.public.blastapi.io"
+chainId = 1
+rateLimit = 40
+priority = 13
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
+chainId = 1
+rateLimit = 100
+priority = 14
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://rpc.eth.gateway.fm"
+chainId = 1
+rateLimit = 30
+priority = 15
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://ethereum.meowrpc.com"
+chainId = 1
+rateLimit = 30
+priority = 16
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://eth.nodeconnect.org"
+chainId = 1
+rateLimit = 20
+priority = 17
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://rpc.payload.de"
+chainId = 1
+rateLimit = 20
+priority = 18
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://api.zmok.io/mainnet/oaen6dy8ff6hju9k"
+chainId = 1
+rateLimit = 20
+priority = 19
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://uk.rpc.blxrbdn.com"
+chainId = 1
+rateLimit = 30
+priority = 20
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://virginia.rpc.blxrbdn.com"
+chainId = 1
+rateLimit = 30
+priority = 21
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://singapore.rpc.blxrbdn.com"
+chainId = 1
+rateLimit = 30
+priority = 22
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://eth.omniatech.io"
+chainId = 1
+rateLimit = 20
+priority = 23
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://endpoints.omniatech.io/v1/eth/mainnet/public"
+chainId = 1
+rateLimit = 20
+priority = 24
+healthScore = 100
+status = "healthy"
+
+[[ethereum]]
+url = "https://rpc.ankr.com/eth_goerli"
+chainId = 1
+rateLimit = 30
+priority = 25
+healthScore = 100
+status = "healthy"
+
+# Arbitrum (15 endpoints)
+[[arbitrum]]
+url = "https://arb1.arbitrum.io/rpc"
+chainId = 42161
+rateLimit = 50
+priority = 1
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://rpc.ankr.com/arbitrum"
+chainId = 42161
+rateLimit = 100
+priority = 2
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://arbitrum-one.public.blastapi.io"
+chainId = 42161
+rateLimit = 40
+priority = 3
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://1rpc.io/arb"
+chainId = 42161
+rateLimit = 50
+priority = 4
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://arbitrum.llamarpc.com"
+chainId = 42161
+rateLimit = 50
+priority = 5
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://arbitrum-mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
+chainId = 42161
+rateLimit = 100
+priority = 6
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://arb-mainnet.g.alchemy.com/v2/demo"
+chainId = 42161
+rateLimit = 30
+priority = 7
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://arbitrum.blockpi.network/v1/rpc/public"
+chainId = 42161
+rateLimit = 30
+priority = 8
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://arbitrum.publicnode.com"
+chainId = 42161
+rateLimit = 30
+priority = 9
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://arb-pokt.nodies.app"
+chainId = 42161
+rateLimit = 100
+priority = 10
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://arbitrum.meowrpc.com"
+chainId = 42161
+rateLimit = 30
+priority = 11
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://arbitrum-one.publicnode.com"
+chainId = 42161
+rateLimit = 30
+priority = 12
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://arbitrum.gateway.tenderly.co"
+chainId = 42161
+rateLimit = 20
+priority = 13
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://rpc.arb1.arbitrum.gateway.fm"
+chainId = 42161
+rateLimit = 30
+priority = 14
+healthScore = 100
+status = "healthy"
+
+[[arbitrum]]
+url = "https://endpoints.omniatech.io/v1/arbitrum/one/public"
+chainId = 42161
+rateLimit = 20
+priority = 15
+healthScore = 100
+status = "healthy"
+
+# Optimism (15 endpoints)
+[[optimism]]
+url = "https://mainnet.optimism.io"
+chainId = 10
+rateLimit = 50
+priority = 1
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://rpc.ankr.com/optimism"
+chainId = 10
+rateLimit = 100
+priority = 2
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://optimism-mainnet.public.blastapi.io"
+chainId = 10
+rateLimit = 40
+priority = 3
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://1rpc.io/op"
+chainId = 10
+rateLimit = 50
+priority = 4
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://optimism.llamarpc.com"
+chainId = 10
+rateLimit = 50
+priority = 5
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://optimism-mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
+chainId = 10
+rateLimit = 100
+priority = 6
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://opt-mainnet.g.alchemy.com/v2/demo"
+chainId = 10
+rateLimit = 30
+priority = 7
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://optimism.blockpi.network/v1/rpc/public"
+chainId = 10
+rateLimit = 30
+priority = 8
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://optimism.publicnode.com"
+chainId = 10
+rateLimit = 30
+priority = 9
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://optimism.api.onfinality.io/public"
+chainId = 10
+rateLimit = 30
+priority = 10
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://optimism.meowrpc.com"
+chainId = 10
+rateLimit = 30
+priority = 11
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://optimism.gateway.tenderly.co"
+chainId = 10
+rateLimit = 20
+priority = 12
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://optimism-rpc.publicnode.com"
+chainId = 10
+rateLimit = 30
+priority = 13
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://rpc.optimism.gateway.fm"
+chainId = 10
+rateLimit = 30
+priority = 14
+healthScore = 100
+status = "healthy"
+
+[[optimism]]
+url = "https://endpoints.omniatech.io/v1/op/mainnet/public"
+chainId = 10
+rateLimit = 20
+priority = 15
+healthScore = 100
+status = "healthy"
+
+# Base (15 endpoints)
+[[base]]
+url = "https://mainnet.base.org"
+chainId = 8453
+rateLimit = 50
+priority = 1
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://base.llamarpc.com"
+chainId = 8453
+rateLimit = 50
+priority = 2
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://base-mainnet.public.blastapi.io"
+chainId = 8453
+rateLimit = 40
+priority = 3
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://1rpc.io/base"
+chainId = 8453
+rateLimit = 50
+priority = 4
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://base.blockpi.network/v1/rpc/public"
+chainId = 8453
+rateLimit = 30
+priority = 5
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://base.publicnode.com"
+chainId = 8453
+rateLimit = 30
+priority = 6
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://base-rpc.publicnode.com"
+chainId = 8453
+rateLimit = 30
+priority = 7
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://base.meowrpc.com"
+chainId = 8453
+rateLimit = 30
+priority = 8
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://base-pokt.nodies.app"
+chainId = 8453
+rateLimit = 100
+priority = 9
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://base.gateway.tenderly.co"
+chainId = 8453
+rateLimit = 20
+priority = 10
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://rpc.notadegen.com/base"
+chainId = 8453
+rateLimit = 20
+priority = 11
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://base-mainnet.diamondswap.org/rpc"
+chainId = 8453
+rateLimit = 20
+priority = 12
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://base.api.onfinality.io/public"
+chainId = 8453
+rateLimit = 30
+priority = 13
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://developer-access-mainnet.base.org"
+chainId = 8453
+rateLimit = 30
+priority = 14
+healthScore = 100
+status = "healthy"
+
+[[base]]
+url = "https://base-rpc.tornadoeth.cash"
+chainId = 8453
+rateLimit = 20
+priority = 15
+healthScore = 100
+status = "healthy"
+
+# Polygon (15 endpoints)
+[[polygon]]
+url = "https://polygon-rpc.com"
+chainId = 137
+rateLimit = 50
+priority = 1
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://rpc.ankr.com/polygon"
+chainId = 137
+rateLimit = 100
+priority = 2
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://polygon-mainnet.public.blastapi.io"
+chainId = 137
+rateLimit = 40
+priority = 3
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://1rpc.io/matic"
+chainId = 137
+rateLimit = 50
+priority = 4
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://polygon.llamarpc.com"
+chainId = 137
+rateLimit = 50
+priority = 5
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://polygon-mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
+chainId = 137
+rateLimit = 100
+priority = 6
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://polygon-mainnet.g.alchemy.com/v2/demo"
+chainId = 137
+rateLimit = 30
+priority = 7
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://polygon.blockpi.network/v1/rpc/public"
+chainId = 137
+rateLimit = 30
+priority = 8
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://polygon-bor-rpc.publicnode.com"
+chainId = 137
+rateLimit = 30
+priority = 9
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://polygon-pokt.nodies.app"
+chainId = 137
+rateLimit = 100
+priority = 10
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://polygon.meowrpc.com"
+chainId = 137
+rateLimit = 30
+priority = 11
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://polygon.gateway.tenderly.co"
+chainId = 137
+rateLimit = 20
+priority = 12
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://rpc-mainnet.matic.network"
+chainId = 137
+rateLimit = 30
+priority = 13
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://rpc.polygon.gateway.fm"
+chainId = 137
+rateLimit = 30
+priority = 14
+healthScore = 100
+status = "healthy"
+
+[[polygon]]
+url = "https://endpoints.omniatech.io/v1/matic/mainnet/public"
+chainId = 137
+rateLimit = 20
+priority = 15
+healthScore = 100
+status = "healthy"
+
+# BSC (10 endpoints)
+[[bsc]]
+url = "https://bsc-dataseed.binance.org"
+chainId = 56
+rateLimit = 50
+priority = 1
+healthScore = 100
+status = "healthy"
+
+[[bsc]]
+url = "https://bsc-dataseed1.binance.org"
+chainId = 56
+rateLimit = 50
+priority = 2
+healthScore = 100
+status = "healthy"
+
+[[bsc]]
+url = "https://rpc.ankr.com/bsc"
+chainId = 56
+rateLimit = 100
+priority = 3
+healthScore = 100
+status = "healthy"
+
+[[bsc]]
+url = "https://bsc-mainnet.public.blastapi.io"
+chainId = 56
+rateLimit = 40
+priority = 4
+healthScore = 100
+status = "healthy"
+
+[[bsc]]
+url = "https://1rpc.io/bnb"
+chainId = 56
+rateLimit = 50
+priority = 5
+healthScore = 100
+status = "healthy"
+
+[[bsc]]
+url = "https://binance.llamarpc.com"
+chainId = 56
+rateLimit = 50
+priority = 6
+healthScore = 100
+status = "healthy"
+
+[[bsc]]
+url = "https://bsc.blockpi.network/v1/rpc/public"
+chainId = 56
+rateLimit = 30
+priority = 7
+healthScore = 100
+status = "healthy"
+
+[[bsc]]
+url = "https://bsc-rpc.publicnode.com"
+chainId = 56
+rateLimit = 30
+priority = 8
+healthScore = 100
+status = "healthy"
+
+[[bsc]]
+url = "https://bsc.meowrpc.com"
+chainId = 56
+rateLimit = 30
+priority = 9
+healthScore = 100
+status = "healthy"
+
+[[bsc]]
+url = "https://bsc-pokt.nodies.app"
+chainId = 56
+rateLimit = 100
+priority = 10
+healthScore = 100
+status = "healthy"
+
+# Testnets (5 endpoints)
+[[testnets]]
+url = "https://rpc.ankr.com/eth_sepolia"
+chainId = 11155111
+rateLimit = 100
+priority = 1
+healthScore = 100
+status = "healthy"
+
+[[testnets]]
+url = "https://ethereum-sepolia.publicnode.com"
+chainId = 11155111
+rateLimit = 30
+priority = 2
+healthScore = 100
+status = "healthy"
+
+[[testnets]]
+url = "https://rpc.ankr.com/polygon_mumbai"
+chainId = 80001
+rateLimit = 100
+priority = 3
+healthScore = 100
+status = "healthy"
+
+[[testnets]]
+url = "https://rpc.ankr.com/arbitrum_sepolia"
+chainId = 421614
+rateLimit = 100
+priority = 4
+healthScore = 100
+status = "healthy"
+
+[[testnets]]
+url = "https://rpc.ankr.com/optimism_testnet"
+chainId = 420
+rateLimit = 100
+priority = 5
+healthScore = 100
+status = "healthy"

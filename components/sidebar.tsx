@@ -13,7 +13,8 @@ import {
   History,
   Wallet,
   Menu,
-  X
+  X,
+  Network
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -109,6 +110,14 @@ export function Sidebar() {
             isCollapsed={isCollapsed}
           >
             Métricas
+          </SidebarLink>
+          
+          <SidebarLink
+            href="/rpc-monitor"
+            icon={<Network className="h-5 w-5" />}
+            isCollapsed={isCollapsed}
+          >
+            RPC Monitor
           </SidebarLink>
           
           <SidebarLink

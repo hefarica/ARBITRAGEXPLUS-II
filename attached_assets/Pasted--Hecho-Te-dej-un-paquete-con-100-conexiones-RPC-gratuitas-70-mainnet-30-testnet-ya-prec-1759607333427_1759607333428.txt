@@ -1,0 +1,56 @@
+¡Hecho! Te dejé un paquete con **100 conexiones RPC gratuitas** (70 mainnet + 30 testnet), ya **precargadas** y listas para usar, con límites, backoff, quorum y campos para **healthchecks** continuos.
+
+* [Descargar `rpc_free_100.toml`](sandbox:/mnt/data/rpc_free_100.toml)
+* [Descargar `README-rpc_free_100.txt`](sandbox:/mnt/data/README-rpc_free_100.txt)
+
+## Cómo activarlas con tu Motor/Backend
+
+1. Monta el archivo y arranca tu proceso con algo como:
+
+```
+--rpc rpc_free_100.toml
+```
+
+Los bloques `[global]` y `[policy]` ya traen:
+
+* `quorum = 3` (responde con 2/3 consistentes).
+* `rps_limit_per_host = 25`, `max_inflight_per_host = 16`.
+* `backoff_initial_ms` / `backoff_max_ms` y `health_interval_s = 20`.
+
+2. Expón en tu API un **health loop** (cada 20 s):
+
+* Pings `eth_blockNumber`, `net_version` y `eth_getBlockByNumber(latest,false)`.
+* Calcula **health-score** (latencia p50/p95, %errores, reconexiones).
+* Si cae < 50 → **quarentena** temporal y **auto-mute**; si se recupera, **half-open** y reintroducción gradual.
+
+3. En tu dashboard:
+
+* Tabla “RPCs activos” con **score**, p50/p95, error-rate y estado (Healthy/Degraded/Open/Half-Open).
+* Toggle para **deshabilitar** manualmente endpoints tóxicos.
+* Sparklines de latencia y % fallos.
+
+> Nota operativa: la mayoría de **públicos** no ofrece WebSocket; son perfectos para **lecturas/simulaciones** y como *fallback*. Para **mempool/MEV** real usa relays + WS gestionados (cuando corresponda).
+
+## Fuentes (directorios oficiales de RPC públicos)
+
+* **Cloudflare Ethereum Gateway** (ETH público de lectura/escritura). ([Cloudflare Docs][1])
+* **Ankr – 75+ redes con endpoints públicos.** ([Ankr][2])
+* **Chainlist – directorio de RPC por red (Mainnet/Testnets).** ([ChainList][3])
+* **Arbitrum** (info/redes y nota: públicos sin WS). ([Arbitrum Docs][4])
+* **Optimism / Superchain** (listados y advertencias de rate-limit). ([Optimism Docs][5])
+* **Base** (mainnet/testnet endpoints gratuitos). ([Base Documentation][6])
+* **Polygon** (PoS y Amoy). ([docs.polygon.technology][7])
+* **BNB Chain** (BSC JSON-RPC, mainnet/testnet). ([BNB Chain][8])
+* **Avalanche C-Chain** (mainnet/Fuji). ([Alchemy][9])
+
+¿Quieres que también te deje un **endpoint `/api/rpc/validate`** (Go/Rust/TS) que lea este TOML, haga los checks y devuelva el **health-score** listo para el UI? Te lo puedo generar de una vez.
+
+[1]: https://developers.cloudflare.com/web3/ethereum-gateway/?utm_source=chatgpt.com "Ethereum Gateway · Cloudflare Web3 docs"
+[2]: https://www.ankr.com/rpc/?utm_source=chatgpt.com "Free Blockchain RPC Endpoints for 75+ Networks"
+[3]: https://chainlist.org/?utm_source=chatgpt.com "ChainList"
+[4]: https://docs.arbitrum.io/build-decentralized-apps/reference/node-providers?utm_source=chatgpt.com "RPC endpoints and providers"
+[5]: https://docs.optimism.io/superchain/networks?utm_source=chatgpt.com "OP Stack networks and public RPC endpoints"
+[6]: https://docs.base.org/network-information?utm_source=chatgpt.com "Connecting to Base - Base Documentation"
+[7]: https://docs.polygon.technology/pos/reference/rpc-endpoints/?utm_source=chatgpt.com "RPC endpoints - Amoy"
+[8]: https://docs.bnbchain.org/bnb-smart-chain/developers/json_rpc/json-rpc-endpoint/?utm_source=chatgpt.com "JSON-RPC-Endpoint - BSC Develop"
+[9]: https://www.alchemy.com/chain-connect/chain/polygon-pos?utm_source=chatgpt.com "Polygon PoS RPC URL & devtools"

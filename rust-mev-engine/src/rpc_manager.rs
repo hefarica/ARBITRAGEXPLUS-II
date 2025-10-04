@@ -3,16 +3,19 @@ use dashmap::DashMap;
 use ethers::providers::{Provider, Ws, Http, Middleware};
 use governor::{Quota, RateLimiter};
 use parking_lot::RwLock;
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, VecDeque};
+use std::fs;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{AtomicUsize, AtomicU64, AtomicBool, Ordering};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::time;
 use tracing::{info, warn, error, debug};
 use futures::future::join_all;
 use nonzero_ext::nonzero;
 
 use crate::config::RpcEndpoint;
+use crate::rpc_health::{HealthChecker, HealthMetrics, HealthStatus};
 
 #[derive(Debug, Clone)]
 pub struct RpcHealth {
