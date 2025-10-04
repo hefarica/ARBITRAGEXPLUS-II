@@ -1,0 +1,196 @@
+# ArbitrageX MEV Engine - Alertmanager Configuration
+global:
+  # SMTP configuration for email alerts
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'alerts@arbitragex.com'
+  smtp_auth_username: '${SMTP_USERNAME}'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+  
+  # Default settings
+  resolve_timeout: 5m
+  
+  # Telegram configuration
+  telegram_api_url: 'https://api.telegram.org'
+  
+  # Discord webhook URL
+  discord_webhook_url: '${DISCORD_WEBHOOK_URL}'
+
+# Route tree for alerts
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'default-receiver'
+  
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical-receiver'
+      group_wait: 10s
+      repeat_interval: 10m
+      continue: true
+    
+    # High priority alerts
+    - match:
+        severity: high
+      receiver: 'high-priority-receiver'
+      group_wait: 30s
+      repeat_interval: 30m
+    
+    # MEV specific alerts
+    - match:
+        component: mev-engine
+      receiver: 'mev-team'
+      group_by: ['alertname', 'strategy', 'chain']
+    
+    # Database alerts
+    - match:
+        component: database
+      receiver: 'database-team'
+      group_wait: 1m
+      repeat_interval: 1h
+    
+    # RPC alerts
+    - match:
+        component: rpc
+      receiver: 'rpc-monitor'
+      group_by: ['chain', 'endpoint']
+      group_wait: 30s
+    
+    # System alerts
+    - match:
+        component: system
+      receiver: 'system-admin'
+      group_wait: 5m
+      repeat_interval: 4h
+
+# Alert receivers
+receivers:
+  - name: 'default-receiver'
+    email_configs:
+      - to: 'alerts@arbitragex.com'
+        headers:
+          Subject: 'ArbitrageX Alert: {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>🚨 Alert: {{ .GroupLabels.alertname }}</h2>
+          <p><b>Severity:</b> {{ .CommonLabels.severity }}</p>
+          <p><b>Summary:</b> {{ .CommonAnnotations.summary }}</p>
+          <p><b>Description:</b> {{ .CommonAnnotations.description }}</p>
+          <h3>Labels:</h3>
+          <ul>
+          {{ range .CommonLabels.SortedPairs }}
+            <li><b>{{ .Name }}:</b> {{ .Value }}</li>
+          {{ end }}
+          </ul>
+          <p><a href="{{ .ExternalURL }}">View in Alertmanager</a></p>
+  
+  - name: 'critical-receiver'
+    email_configs:
+      - to: 'critical@arbitragex.com,oncall@arbitragex.com'
+        headers:
+          Priority: 'Urgent'
+          Subject: '🔴 CRITICAL: {{ .GroupLabels.alertname }}'
+    telegram_configs:
+      - chat_id: '${TELEGRAM_CRITICAL_CHAT_ID}'
+        bot_token: '${TELEGRAM_BOT_TOKEN}'
+        api_url: 'https://api.telegram.org'
+        parse_mode: 'HTML'
+        message: |
+          🔴 <b>CRITICAL ALERT</b>
+          <b>{{ .GroupLabels.alertname }}</b>
+          {{ .CommonAnnotations.summary }}
+          
+          <b>Details:</b>
+          {{ .CommonAnnotations.description }}
+          
+          <a href="{{ .ExternalURL }}">View in Alertmanager</a>
+    webhook_configs:
+      - url: '${DISCORD_CRITICAL_WEBHOOK_URL}'
+        send_resolved: true
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_KEY}'
+        description: '{{ .GroupLabels.alertname }}'
+        severity: 'critical'
+  
+  - name: 'high-priority-receiver'
+    email_configs:
+      - to: 'high-priority@arbitragex.com'
+        headers:
+          Subject: '⚠️ HIGH: {{ .GroupLabels.alertname }}'
+    telegram_configs:
+      - chat_id: '${TELEGRAM_ALERTS_CHAT_ID}'
+        bot_token: '${TELEGRAM_BOT_TOKEN}'
+        parse_mode: 'HTML'
+        message: |
+          ⚠️ <b>HIGH PRIORITY</b>
+          <b>{{ .GroupLabels.alertname }}</b>
+          {{ .CommonAnnotations.summary }}
+    webhook_configs:
+      - url: '${DISCORD_ALERTS_WEBHOOK_URL}'
+  
+  - name: 'mev-team'
+    email_configs:
+      - to: 'mev-team@arbitragex.com'
+        headers:
+          Subject: 'MEV Engine Alert: {{ .GroupLabels.alertname }}'
+    telegram_configs:
+      - chat_id: '${TELEGRAM_MEV_CHAT_ID}'
+        bot_token: '${TELEGRAM_BOT_TOKEN}'
+        parse_mode: 'Markdown'
+        message: |
+          💰 *MEV Engine Alert*
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Chain:* {{ .CommonLabels.chain }}
+          *Strategy:* {{ .CommonLabels.strategy }}
+          *Summary:* {{ .CommonAnnotations.summary }}
+  
+  - name: 'database-team'
+    email_configs:
+      - to: 'database@arbitragex.com'
+    webhook_configs:
+      - url: '${SLACK_DATABASE_WEBHOOK_URL}'
+        send_resolved: true
+  
+  - name: 'rpc-monitor'
+    email_configs:
+      - to: 'rpc-monitor@arbitragex.com'
+    telegram_configs:
+      - chat_id: '${TELEGRAM_RPC_CHAT_ID}'
+        bot_token: '${TELEGRAM_BOT_TOKEN}'
+        message: |
+          🌐 RPC Alert
+          Chain: {{ .CommonLabels.chain }}
+          Endpoint: {{ .CommonLabels.endpoint }}
+          Status: {{ .CommonAnnotations.summary }}
+  
+  - name: 'system-admin'
+    email_configs:
+      - to: 'sysadmin@arbitragex.com'
+    webhook_configs:
+      - url: '${SLACK_SYSADMIN_WEBHOOK_URL}'
+
+# Inhibition rules to suppress notifications
+inhibit_rules:
+  # Suppress non-critical alerts when critical alerts are firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']
+  
+  # Suppress RPC warnings when the entire chain is down
+  - source_match:
+      alertname: 'ChainDown'
+    target_match:
+      alertname: 'RPCEndpointDown'
+    equal: ['chain']
+  
+  # Suppress execution alerts when MEV engine is down
+  - source_match:
+      alertname: 'MEVEngineDown'
+    target_match:
+      alertname: 'ExecutionFailed'
+    equal: ['instance']

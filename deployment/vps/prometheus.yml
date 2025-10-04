@@ -1,0 +1,203 @@
+# ArbitrageX MEV Engine - Prometheus Configuration
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'mev-engine'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+      scheme: http
+      timeout: 10s
+      api_version: v2
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - /etc/prometheus/rules.yml
+  - /etc/prometheus/alerts/*.yml
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # MEV Engine metrics
+  - job_name: 'mev-engine'
+    static_configs:
+      - targets: 
+          - 'localhost:8080'
+          - 'localhost:8081'
+    metrics_path: /metrics
+    scrape_interval: 5s
+    scrape_timeout: 5s
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: '(mev_.*|engine_.*|opportunity_.*|execution_.*)'
+        action: keep
+
+  # Rust MEV Engine specific metrics
+  - job_name: 'rust-mev-engine'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /rust-metrics
+    scrape_interval: 10s
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: '(rust_.*|tokio_.*|hyper_.*)'
+        action: keep
+
+  # Node Exporter (system metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'node_(cpu_.*|memory_.*|disk_.*|network_.*|filesystem_.*|load.*)'
+        action: keep
+
+  # PostgreSQL Exporter
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 30s
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'pg_(.*|postgresql_.*)'
+        action: keep
+
+  # Redis Exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'redis_.*'
+        action: keep
+
+  # Nginx metrics (if nginx-prometheus-exporter is installed)
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['localhost:9113']
+    scrape_interval: 30s
+
+  # Grafana metrics
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # Cloudflare Workers metrics endpoint
+  - job_name: 'cloudflare-workers'
+    static_configs:
+      - targets: ['api.arbitragex.com']
+    scheme: https
+    metrics_path: /cf/metrics
+    scrape_interval: 60s
+    scrape_timeout: 10s
+    bearer_token: '${CF_METRICS_TOKEN}'
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'cf_worker_.*'
+        action: keep
+
+  # Ethereum RPC endpoints health
+  - job_name: 'ethereum-rpc'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://eth-mainnet.alchemyapi.io/v2/health
+          - https://mainnet.infura.io/v3/health
+          - https://api.flashbots.net/health
+        labels:
+          chain: 'ethereum'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Arbitrum RPC endpoints health
+  - job_name: 'arbitrum-rpc'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://arb-mainnet.alchemyapi.io/v2/health
+          - https://arbitrum-mainnet.infura.io/v3/health
+        labels:
+          chain: 'arbitrum'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Optimism RPC endpoints health
+  - job_name: 'optimism-rpc'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://opt-mainnet.alchemyapi.io/v2/health
+          - https://optimism-mainnet.infura.io/v3/health
+        labels:
+          chain: 'optimism'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Docker containers monitoring
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['localhost:9323']
+    scrape_interval: 30s
+
+  # Loki metrics (if using Loki for logs)
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+# Remote write configuration (optional - for long-term storage)
+remote_write:
+  - url: "https://prometheus-prod-us-central-0.grafana.net/api/prom/push"
+    basic_auth:
+      username: "${GRAFANA_CLOUD_USER}"
+      password: "${GRAFANA_CLOUD_API_KEY}"
+    write_relabel_configs:
+      - source_labels: [__name__]
+        regex: '(up|.*_total|.*_count|.*_sum|.*_bucket)'
+        action: keep
+
+# Remote read configuration (optional - for querying historical data)
+remote_read:
+  - url: "https://prometheus-prod-us-central-0.grafana.net/api/prom/query"
+    basic_auth:
+      username: "${GRAFANA_CLOUD_USER}"
+      password: "${GRAFANA_CLOUD_API_KEY}"
+    read_recent: true

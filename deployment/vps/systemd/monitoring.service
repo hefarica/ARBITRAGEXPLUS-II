@@ -1,0 +1,38 @@
+[Unit]
+Description=ArbitrageX Monitoring Stack
+Documentation=https://github.com/arbitragex/monitoring
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStartPre=/usr/bin/docker-compose -f /opt/monitoring/docker-compose.yml pull
+ExecStart=/usr/bin/docker-compose -f /opt/monitoring/docker-compose.yml up -d
+ExecStop=/usr/bin/docker-compose -f /opt/monitoring/docker-compose.yml down
+ExecReload=/usr/bin/docker-compose -f /opt/monitoring/docker-compose.yml restart
+Restart=always
+RestartSec=30
+TimeoutStartSec=300
+TimeoutStopSec=60
+
+# Working directory
+WorkingDirectory=/opt/monitoring
+
+# Environment
+EnvironmentFile=/etc/mev-engine.env
+
+# Resource limits
+LimitNOFILE=65535
+LimitNPROC=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mev-monitoring
+
+# Health check script
+ExecHealthCheck=/usr/bin/docker-compose -f /opt/monitoring/docker-compose.yml ps
+
+[Install]
+WantedBy=multi-user.target

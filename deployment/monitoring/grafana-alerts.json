@@ -1,0 +1,490 @@
+{
+  "alerts": [
+    {
+      "uid": "mev-profit-alert",
+      "title": "MEV Profit Alert",
+      "condition": "A",
+      "data": [
+        {
+          "refId": "A",
+          "queryType": "",
+          "model": {
+            "expr": "sum(rate(mev_profit_total_usd[5m])) < 10",
+            "interval": "",
+            "refId": "A",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus-uid"
+            }
+          },
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          }
+        }
+      ],
+      "noDataState": "NoData",
+      "execErrState": "Alerting",
+      "for": "5m",
+      "annotations": {
+        "description": "MEV profit rate has dropped below $10/5min",
+        "runbook_url": "https://wiki.arbitragex.com/runbooks/low-profit",
+        "summary": "Low MEV profit detected"
+      },
+      "labels": {
+        "severity": "warning",
+        "team": "mev"
+      },
+      "folderUID": "mev-folder",
+      "ruleGroup": "mev-alerts"
+    },
+    {
+      "uid": "execution-failure-alert",
+      "title": "High Execution Failure Rate",
+      "condition": "A",
+      "data": [
+        {
+          "refId": "A",
+          "queryType": "",
+          "model": {
+            "expr": "sum(rate(mev_executions_total{status=\"failed\"}[5m])) / sum(rate(mev_executions_total[5m])) > 0.3",
+            "interval": "",
+            "refId": "A",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus-uid"
+            }
+          },
+          "relativeTimeRange": {
+            "from": 300,
+            "to": 0
+          }
+        }
+      ],
+      "noDataState": "NoData",
+      "execErrState": "Alerting",
+      "for": "3m",
+      "annotations": {
+        "description": "Execution failure rate is above 30%",
+        "runbook_url": "https://wiki.arbitragex.com/runbooks/execution-failures",
+        "summary": "High execution failure rate detected"
+      },
+      "labels": {
+        "severity": "high",
+        "team": "mev"
+      },
+      "folderUID": "mev-folder",
+      "ruleGroup": "execution-alerts"
+    },
+    {
+      "uid": "rpc-latency-alert",
+      "title": "High RPC Latency",
+      "condition": "A",
+      "data": [
+        {
+          "refId": "A",
+          "queryType": "",
+          "model": {
+            "expr": "histogram_quantile(0.95, rate(rpc_request_duration_seconds_bucket[5m])) > 0.5",
+            "interval": "",
+            "refId": "A",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus-uid"
+            }
+          },
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          }
+        }
+      ],
+      "noDataState": "NoData",
+      "execErrState": "Alerting",
+      "for": "5m",
+      "annotations": {
+        "description": "RPC p95 latency is above 500ms",
+        "runbook_url": "https://wiki.arbitragex.com/runbooks/rpc-latency",
+        "summary": "High RPC latency detected"
+      },
+      "labels": {
+        "severity": "warning",
+        "team": "infrastructure"
+      },
+      "folderUID": "infra-folder",
+      "ruleGroup": "rpc-alerts"
+    },
+    {
+      "uid": "database-connections-alert",
+      "title": "Database Connection Pool Alert",
+      "condition": "A",
+      "data": [
+        {
+          "refId": "A",
+          "queryType": "",
+          "model": {
+            "expr": "pg_stat_database_numbackends / pg_settings_max_connections > 0.8",
+            "interval": "",
+            "refId": "A",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus-uid"
+            }
+          },
+          "relativeTimeRange": {
+            "from": 300,
+            "to": 0
+          }
+        }
+      ],
+      "noDataState": "NoData",
+      "execErrState": "Alerting",
+      "for": "3m",
+      "annotations": {
+        "description": "Database connection pool usage is above 80%",
+        "runbook_url": "https://wiki.arbitragex.com/runbooks/db-connections",
+        "summary": "High database connection usage"
+      },
+      "labels": {
+        "severity": "warning",
+        "team": "database"
+      },
+      "folderUID": "database-folder",
+      "ruleGroup": "database-alerts"
+    },
+    {
+      "uid": "gas-price-spike-alert",
+      "title": "Gas Price Spike",
+      "condition": "A",
+      "data": [
+        {
+          "refId": "A",
+          "queryType": "",
+          "model": {
+            "expr": "(eth_gas_price_gwei - eth_gas_price_gwei offset 5m) / eth_gas_price_gwei offset 5m > 0.3",
+            "interval": "",
+            "refId": "A",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus-uid"
+            }
+          },
+          "relativeTimeRange": {
+            "from": 300,
+            "to": 0
+          }
+        }
+      ],
+      "noDataState": "NoData",
+      "execErrState": "Alerting",
+      "for": "1m",
+      "annotations": {
+        "description": "Gas price increased by more than 30% in 5 minutes",
+        "runbook_url": "https://wiki.arbitragex.com/runbooks/gas-spike",
+        "summary": "Gas price spike detected"
+      },
+      "labels": {
+        "severity": "info",
+        "team": "mev"
+      },
+      "folderUID": "mev-folder",
+      "ruleGroup": "gas-alerts"
+    },
+    {
+      "uid": "opportunity-discovery-alert",
+      "title": "Low Opportunity Discovery Rate",
+      "condition": "A",
+      "data": [
+        {
+          "refId": "A",
+          "queryType": "",
+          "model": {
+            "expr": "sum(rate(mev_opportunities_discovered_total[15m])) < 1",
+            "interval": "",
+            "refId": "A",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus-uid"
+            }
+          },
+          "relativeTimeRange": {
+            "from": 900,
+            "to": 0
+          }
+        }
+      ],
+      "noDataState": "NoData",
+      "execErrState": "Alerting",
+      "for": "10m",
+      "annotations": {
+        "description": "Less than 1 opportunity per 15 minutes",
+        "runbook_url": "https://wiki.arbitragex.com/runbooks/low-opportunities",
+        "summary": "Low opportunity discovery rate"
+      },
+      "labels": {
+        "severity": "warning",
+        "team": "mev"
+      },
+      "folderUID": "mev-folder",
+      "ruleGroup": "opportunity-alerts"
+    },
+    {
+      "uid": "system-cpu-alert",
+      "title": "High System CPU Usage",
+      "condition": "A",
+      "data": [
+        {
+          "refId": "A",
+          "queryType": "",
+          "model": {
+            "expr": "(1 - avg(irate(node_cpu_seconds_total{mode=\"idle\"}[5m]))) > 0.9",
+            "interval": "",
+            "refId": "A",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus-uid"
+            }
+          },
+          "relativeTimeRange": {
+            "from": 300,
+            "to": 0
+          }
+        }
+      ],
+      "noDataState": "NoData",
+      "execErrState": "Alerting",
+      "for": "5m",
+      "annotations": {
+        "description": "CPU usage is above 90%",
+        "runbook_url": "https://wiki.arbitragex.com/runbooks/high-cpu",
+        "summary": "High CPU usage detected"
+      },
+      "labels": {
+        "severity": "high",
+        "team": "infrastructure"
+      },
+      "folderUID": "system-folder",
+      "ruleGroup": "system-alerts"
+    },
+    {
+      "uid": "system-memory-alert",
+      "title": "High System Memory Usage",
+      "condition": "A",
+      "data": [
+        {
+          "refId": "A",
+          "queryType": "",
+          "model": {
+            "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.9",
+            "interval": "",
+            "refId": "A",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus-uid"
+            }
+          },
+          "relativeTimeRange": {
+            "from": 300,
+            "to": 0
+          }
+        }
+      ],
+      "noDataState": "NoData",
+      "execErrState": "Alerting",
+      "for": "5m",
+      "annotations": {
+        "description": "Memory usage is above 90%",
+        "runbook_url": "https://wiki.arbitragex.com/runbooks/high-memory",
+        "summary": "High memory usage detected"
+      },
+      "labels": {
+        "severity": "high",
+        "team": "infrastructure"
+      },
+      "folderUID": "system-folder",
+      "ruleGroup": "system-alerts"
+    },
+    {
+      "uid": "disk-space-alert",
+      "title": "Low Disk Space",
+      "condition": "A",
+      "data": [
+        {
+          "refId": "A",
+          "queryType": "",
+          "model": {
+            "expr": "(node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"}) < 0.1",
+            "interval": "",
+            "refId": "A",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus-uid"
+            }
+          },
+          "relativeTimeRange": {
+            "from": 300,
+            "to": 0
+          }
+        }
+      ],
+      "noDataState": "NoData",
+      "execErrState": "Alerting",
+      "for": "3m",
+      "annotations": {
+        "description": "Less than 10% disk space remaining on root partition",
+        "runbook_url": "https://wiki.arbitragex.com/runbooks/low-disk",
+        "summary": "Low disk space alert"
+      },
+      "labels": {
+        "severity": "high",
+        "team": "infrastructure"
+      },
+      "folderUID": "system-folder",
+      "ruleGroup": "system-alerts"
+    },
+    {
+      "uid": "redis-memory-alert",
+      "title": "Redis Memory Usage High",
+      "condition": "A",
+      "data": [
+        {
+          "refId": "A",
+          "queryType": "",
+          "model": {
+            "expr": "redis_memory_used_bytes / redis_memory_max_bytes > 0.85",
+            "interval": "",
+            "refId": "A",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus-uid"
+            }
+          },
+          "relativeTimeRange": {
+            "from": 300,
+            "to": 0
+          }
+        }
+      ],
+      "noDataState": "NoData",
+      "execErrState": "Alerting",
+      "for": "3m",
+      "annotations": {
+        "description": "Redis memory usage is above 85%",
+        "runbook_url": "https://wiki.arbitragex.com/runbooks/redis-memory",
+        "summary": "High Redis memory usage"
+      },
+      "labels": {
+        "severity": "warning",
+        "team": "database"
+      },
+      "folderUID": "database-folder",
+      "ruleGroup": "cache-alerts"
+    }
+  ],
+  "contactPoints": [
+    {
+      "uid": "email-contact",
+      "name": "Email",
+      "type": "email",
+      "settings": {
+        "addresses": "alerts@arbitragex.com;oncall@arbitragex.com",
+        "singleEmail": false
+      },
+      "disableResolveMessage": false
+    },
+    {
+      "uid": "telegram-contact",
+      "name": "Telegram",
+      "type": "telegram",
+      "settings": {
+        "bottoken": "${TELEGRAM_BOT_TOKEN}",
+        "chatid": "${TELEGRAM_CHAT_ID}"
+      },
+      "disableResolveMessage": false
+    },
+    {
+      "uid": "discord-contact",
+      "name": "Discord",
+      "type": "discord",
+      "settings": {
+        "url": "${DISCORD_WEBHOOK_URL}",
+        "avatar_url": "https://arbitragex.com/logo.png",
+        "use_discord_username": false
+      },
+      "disableResolveMessage": false
+    },
+    {
+      "uid": "pagerduty-contact",
+      "name": "PagerDuty",
+      "type": "pagerduty",
+      "settings": {
+        "integrationKey": "${PAGERDUTY_KEY}",
+        "severity": "critical",
+        "class": "mev-engine",
+        "component": "production",
+        "group": "arbitragex"
+      },
+      "disableResolveMessage": false
+    }
+  ],
+  "notificationPolicies": [
+    {
+      "uid": "default-policy",
+      "receiver": "email-contact",
+      "group_by": ["alertname", "grafana_folder"],
+      "group_wait": "30s",
+      "group_interval": "5m",
+      "repeat_interval": "12h",
+      "routes": [
+        {
+          "receiver": "pagerduty-contact",
+          "matchers": [
+            "severity = critical"
+          ],
+          "continue": true,
+          "group_wait": "10s",
+          "repeat_interval": "5m"
+        },
+        {
+          "receiver": "telegram-contact",
+          "matchers": [
+            "severity =~ high|critical"
+          ],
+          "continue": true,
+          "group_wait": "30s"
+        },
+        {
+          "receiver": "discord-contact",
+          "matchers": [
+            "team = mev"
+          ],
+          "continue": false
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "uid": "alert-template",
+      "name": "Default Alert Template",
+      "template": "{{ define \"alert.title\" }}[{{ .Labels.severity | toUpper }}] {{ .Labels.alertname }}{{ end }}\n{{ define \"alert.message\" }}\n{{ range .Alerts }}\n{{ if gt (len .Annotations) 0 }}\nSummary: {{ .Annotations.summary }}\nDescription: {{ .Annotations.description }}\n{{ end }}\nLabels:\n{{ range .Labels.SortedPairs }}  - {{ .Name }}: {{ .Value }}\n{{ end }}\n{{ if gt (len .GeneratorURL) 0 }}Source: {{ .GeneratorURL }}{{ end }}\n{{ end }}\n{{ end }}"
+    }
+  ],
+  "muteTimings": [
+    {
+      "uid": "maintenance-window",
+      "name": "Maintenance Window",
+      "time_intervals": [
+        {
+          "weekdays": ["sunday"],
+          "times": [
+            {
+              "start_time": "02:00",
+              "end_time": "04:00"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

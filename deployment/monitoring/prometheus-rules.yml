@@ -1,0 +1,371 @@
+# ArbitrageX MEV Engine - Prometheus Alert Rules
+groups:
+  - name: mev_engine_alerts
+    interval: 30s
+    rules:
+      # MEV Engine is down
+      - alert: MEVEngineDown
+        expr: up{job="mev-engine"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: mev-engine
+        annotations:
+          summary: "MEV Engine is down on {{ $labels.instance }}"
+          description: "MEV Engine has been down for more than 2 minutes. Immediate action required."
+          dashboard: "https://grafana.arbitragex.com/d/mev-engine"
+      
+      # No opportunities discovered
+      - alert: NoOpportunitiesDiscovered
+        expr: rate(mev_opportunities_discovered_total[15m]) == 0
+        for: 15m
+        labels:
+          severity: high
+          component: mev-engine
+        annotations:
+          summary: "No MEV opportunities discovered in 15 minutes"
+          description: "The MEV engine hasn't discovered any opportunities for {{ $labels.chain }} - {{ $labels.strategy }}"
+      
+      # Low execution success rate
+      - alert: LowExecutionSuccessRate
+        expr: |
+          (
+            sum(rate(mev_executions_total{status="success"}[5m])) /
+            sum(rate(mev_executions_total[5m]))
+          ) < 0.7
+        for: 10m
+        labels:
+          severity: high
+          component: mev-engine
+        annotations:
+          summary: "MEV execution success rate below 70%"
+          description: "Current success rate: {{ $value | humanizePercentage }}. Check gas prices and RPC health."
+      
+      # High revert rate
+      - alert: HighRevertRate
+        expr: |
+          (
+            sum(rate(mev_executions_total{status="reverted"}[5m])) /
+            sum(rate(mev_executions_total[5m]))
+          ) > 0.2
+        for: 5m
+        labels:
+          severity: high
+          component: mev-engine
+        annotations:
+          summary: "High transaction revert rate (>20%)"
+          description: "{{ $value | humanizePercentage }} of transactions are reverting. Check simulation accuracy."
+      
+      # Low profit margin
+      - alert: LowProfitMargin
+        expr: |
+          (
+            sum(rate(mev_profit_total_usd[1h])) /
+            sum(rate(mev_gas_costs_usd[1h]))
+          ) < 1.5
+        for: 30m
+        labels:
+          severity: warning
+          component: mev-engine
+        annotations:
+          summary: "Profit margin below 150% of gas costs"
+          description: "Current profit/gas ratio: {{ $value }}. Consider adjusting minimum profit thresholds."
+      
+      # Negative profit
+      - alert: NegativeProfit
+        expr: sum(increase(mev_profit_total_usd[1h])) < 0
+        for: 5m
+        labels:
+          severity: critical
+          component: mev-engine
+        annotations:
+          summary: "MEV Engine is losing money!"
+          description: "Negative profit detected: ${{ $value }}. Stop trading immediately."
+
+  - name: rpc_alerts
+    interval: 30s
+    rules:
+      # RPC endpoint down
+      - alert: RPCEndpointDown
+        expr: up{job=~".*-rpc"} == 0
+        for: 2m
+        labels:
+          severity: high
+          component: rpc
+        annotations:
+          summary: "RPC endpoint {{ $labels.instance }} is down"
+          description: "RPC endpoint for {{ $labels.chain }} has been down for 2 minutes"
+      
+      # High RPC failure rate
+      - alert: HighRPCFailureRate
+        expr: |
+          (
+            sum(rate(rpc_request_failures_total[5m])) by (endpoint) /
+            sum(rate(rpc_requests_total[5m])) by (endpoint)
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: high
+          component: rpc
+        annotations:
+          summary: "RPC failure rate >10% for {{ $labels.endpoint }}"
+          description: "Current failure rate: {{ $value | humanizePercentage }}"
+      
+      # High RPC latency
+      - alert: HighRPCLatency
+        expr: |
+          histogram_quantile(0.95, 
+            rate(rpc_request_duration_seconds_bucket[5m])
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+          component: rpc
+        annotations:
+          summary: "High RPC latency (p95 > 1s)"
+          description: "95th percentile latency: {{ $value }}s for {{ $labels.endpoint }}"
+      
+      # All RPC endpoints for a chain are down
+      - alert: ChainDown
+        expr: |
+          count(up{job=~".*-rpc"} == 1) by (chain) == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: rpc
+        annotations:
+          summary: "All RPC endpoints down for {{ $labels.chain }}"
+          description: "No working RPC endpoints available for {{ $labels.chain }}. Trading halted."
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # PostgreSQL down
+      - alert: PostgreSQLDown
+        expr: up{job="postgresql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "Main database has been down for 1 minute. All operations affected."
+      
+      # Database connection pool exhausted
+      - alert: DatabaseConnectionPoolExhausted
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.9
+        for: 5m
+        labels:
+          severity: high
+          component: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "{{ $value | humanizePercentage }} of connections in use"
+      
+      # Slow queries
+      - alert: SlowDatabaseQueries
+        expr: pg_stat_statements_mean_exec_time_seconds > 1
+        for: 10m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Average query time: {{ $value }}s"
+      
+      # High database lock wait time
+      - alert: HighDatabaseLockWaitTime
+        expr: rate(pg_stat_database_blk_read_time[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "High database lock wait time"
+          description: "Lock wait time: {{ $value }}ms"
+      
+      # Redis down
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: high
+          component: database
+        annotations:
+          summary: "Redis cache is down"
+          description: "Redis has been down for 2 minutes. Performance degradation expected."
+      
+      # Redis memory usage high
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Redis memory usage >90%"
+          description: "Current usage: {{ $value | humanizePercentage }}"
+
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: |
+          (1 - avg(irate(node_cpu_seconds_total{mode="idle"}[5m]))) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "CPU usage above 85%"
+          description: "Current CPU usage: {{ $value }}%"
+      
+      # Critical CPU usage
+      - alert: CriticalCPUUsage
+        expr: |
+          (1 - avg(irate(node_cpu_seconds_total{mode="idle"}[5m]))) * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "CPU usage above 95%"
+          description: "Critical CPU usage: {{ $value }}%. System may become unresponsive."
+      
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Memory usage above 85%"
+          description: "Current memory usage: {{ $value }}%"
+      
+      # Critical memory usage
+      - alert: CriticalMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Memory usage above 95%"
+          description: "Critical memory usage: {{ $value }}%. OOM killer may activate."
+      
+      # Disk space low
+      - alert: DiskSpaceLow
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / 
+           node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Disk space below 15%"
+          description: "Only {{ $value }}% disk space remaining on root partition"
+      
+      # Critical disk space
+      - alert: CriticalDiskSpace
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / 
+           node_filesystem_size_bytes{mountpoint="/"}) * 100 < 5
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "CRITICAL: Disk space below 5%"
+          description: "Only {{ $value }}% disk space remaining. System will fail soon."
+      
+      # High network traffic
+      - alert: HighNetworkTraffic
+        expr: |
+          (rate(node_network_receive_bytes_total[5m]) + 
+           rate(node_network_transmit_bytes_total[5m])) > 100000000
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High network traffic (>100MB/s)"
+          description: "Current network traffic: {{ $value | humanize }}B/s"
+
+  - name: gas_price_alerts
+    interval: 30s
+    rules:
+      # High gas prices
+      - alert: HighGasPrice
+        expr: eth_gas_price_gwei > 150
+        for: 5m
+        labels:
+          severity: warning
+          component: mev-engine
+        annotations:
+          summary: "High gas price on {{ $labels.chain }}"
+          description: "Gas price: {{ $value }} gwei. Consider pausing low-margin strategies."
+      
+      # Very high gas prices
+      - alert: VeryHighGasPrice
+        expr: eth_gas_price_gwei > 300
+        for: 2m
+        labels:
+          severity: high
+          component: mev-engine
+        annotations:
+          summary: "Very high gas price on {{ $labels.chain }}"
+          description: "Gas price: {{ $value }} gwei. Only high-value opportunities profitable."
+      
+      # Gas price spike
+      - alert: GasPriceSpike
+        expr: |
+          (eth_gas_price_gwei - eth_gas_price_gwei offset 5m) / 
+          eth_gas_price_gwei offset 5m > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          component: mev-engine
+        annotations:
+          summary: "Gas price spike detected (>50% increase)"
+          description: "Gas price increased by {{ $value | humanizePercentage }} in 5 minutes"
+
+  - name: monitoring_alerts
+    interval: 60s
+    rules:
+      # Prometheus down
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: monitoring
+        annotations:
+          summary: "Prometheus is down"
+          description: "Monitoring system is offline. Alerts may not fire."
+      
+      # Grafana down
+      - alert: GrafanaDown
+        expr: up{job="grafana"} == 0
+        for: 5m
+        labels:
+          severity: high
+          component: monitoring
+        annotations:
+          summary: "Grafana is down"
+          description: "Dashboard visualization unavailable"
+      
+      # Alertmanager down
+      - alert: AlertmanagerDown
+        expr: up{job="alertmanager"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: monitoring
+        annotations:
+          summary: "Alertmanager is down"
+          description: "Alert notifications will not be sent!"

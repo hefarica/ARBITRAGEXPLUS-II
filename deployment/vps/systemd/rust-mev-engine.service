@@ -1,0 +1,98 @@
+[Unit]
+Description=ArbitrageX Rust MEV Engine
+Documentation=https://github.com/arbitragex/mev-engine
+After=network.target postgresql.service redis.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=notify
+ExecStartPre=/usr/bin/env bash -c 'until pg_isready -h localhost -U mevengine; do sleep 1; done'
+ExecStart=/opt/mev-engine/target/release/rust-mev-engine
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+Restart=always
+RestartSec=10
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# User and group
+User=mevengine
+Group=mevengine
+
+# Working directory
+WorkingDirectory=/opt/mev-engine
+
+# Environment variables
+EnvironmentFile=/etc/mev-engine.env
+Environment="RUST_LOG=info"
+Environment="RUST_BACKTRACE=1"
+Environment="MEV_ENGINE_CONFIG=/opt/mev-engine/config/config.toml"
+
+# Resource limits
+LimitNOFILE=65535
+LimitNPROC=4096
+LimitCORE=infinity
+
+# Memory limits (adjust based on your VPS)
+MemoryMax=4G
+MemoryHigh=3G
+MemoryLow=2G
+
+# CPU limits (adjust based on your VPS)
+CPUWeight=100
+CPUQuota=200%
+
+# Disk I/O limits
+IOWeight=50
+IOReadBandwidthMax=/dev/sda 100M
+IOWriteBandwidthMax=/dev/sda 50M
+
+# Security hardening
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RemoveIPC=true
+PrivateMounts=true
+ProtectHostname=true
+ProtectClock=true
+ProtectKernelLogs=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+
+# Capabilities
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Directories
+ReadWritePaths=/opt/mev-engine/logs /var/log/mev-engine
+ReadOnlyPaths=/opt/mev-engine/config
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mev-engine
+
+# Health check
+ExecHealthCheck=/usr/local/bin/health-check-mev.sh
+HealthCheckInterval=30s
+HealthCheckTimeout=10s
+HealthCheckStartPeriod=60s
+HealthCheckRetries=3
+
+# Watchdog (if the application supports sd_notify)
+WatchdogSec=30s
+NotifyAccess=main
+
+[Install]
+WantedBy=multi-user.target
