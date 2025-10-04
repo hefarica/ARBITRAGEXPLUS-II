@@ -1023,6 +1023,192 @@ app.prepare().then(() => {
     }
   });
 
+  // Simulator API Endpoints
+  server.post("/api/simulator/calculate", async (req, res) => {
+    try {
+      const { 
+        strategy, 
+        tokenPair, 
+        tokenA, 
+        tokenB, 
+        amount, 
+        dex, 
+        slippage, 
+        isPaperTrade 
+      } = req.body;
+      
+      // Calculate estimated profit (simplified calculation)
+      const dexFees: Record<string, number> = {
+        "uniswap-v3": 0.003,
+        "uniswap-v2": 0.003,
+        "sushiswap": 0.003,
+        "curve": 0.0004,
+        "balancer": 0.002,
+        "pancakeswap": 0.0025,
+      };
+      
+      const fee = dexFees[dex] || 0.003;
+      const gasCosts: Record<string, number> = {
+        "arbitrage": 45,
+        "sandwich": 60,
+        "liquidation": 80,
+        "backrun": 35,
+        "jit-liquidity": 55,
+        "atomic": 40,
+      };
+      
+      const gasCost = gasCosts[strategy] || 30;
+      const baseProfit = amount * 0.02; // 2% base profit assumption
+      const feeImpact = amount * fee;
+      const slippageImpact = amount * (slippage / 100);
+      const estimatedProfit = baseProfit - feeImpact - gasCost - slippageImpact;
+      
+      // Save simulation to database
+      const [simulation] = await db.insert(simulations).values({
+        strategy,
+        tokenPair,
+        tokenA,
+        tokenB,
+        dex,
+        amount: amount.toString(),
+        estimatedProfit: estimatedProfit.toString(),
+        profitAfterFees: (estimatedProfit - feeImpact).toString(),
+        slippage: slippage.toString(),
+        priceImpact: ((amount / 1000000) * 100).toString(), // Simplified price impact
+        gasEstimate: gasCost.toString(),
+        isPaperTrade,
+        successProbability: Math.floor(Math.random() * 30) + 70, // 70-100% success rate
+        chainId: 1,
+      }).returning();
+      
+      // Update paper trading account if applicable
+      if (isPaperTrade) {
+        const [account] = await db.select().from(paperTradingAccounts)
+          .where(eq(paperTradingAccounts.userId, "default"))
+          .limit(1);
+        
+        if (account) {
+          const newBalance = parseFloat(account.balance) + estimatedProfit;
+          const isWin = estimatedProfit > 0;
+          
+          await db.update(paperTradingAccounts)
+            .set({
+              balance: newBalance.toString(),
+              totalTrades: account.totalTrades + 1,
+              winningTrades: isWin ? account.winningTrades + 1 : account.winningTrades,
+              losingTrades: !isWin ? account.losingTrades + 1 : account.losingTrades,
+              totalProfit: isWin ? (parseFloat(account.totalProfit) + estimatedProfit).toString() : account.totalProfit,
+              totalLoss: !isWin ? (parseFloat(account.totalLoss) + Math.abs(estimatedProfit)).toString() : account.totalLoss,
+            })
+            .where(eq(paperTradingAccounts.userId, "default"));
+        }
+      }
+      
+      res.json({
+        ...simulation,
+        estimatedProfit: parseFloat(simulation.estimatedProfit),
+        amount: parseFloat(simulation.amount),
+      });
+    } catch (error) {
+      console.error("Error calculating simulation:", error);
+      res.status(500).json({ error: "Failed to calculate simulation" });
+    }
+  });
+  
+  server.get("/api/simulator/history", async (req, res) => {
+    try {
+      const { limit = 100, isPaperTrade } = req.query;
+      
+      const conditions = [];
+      if (isPaperTrade !== undefined) {
+        conditions.push(eq(simulations.isPaperTrade, isPaperTrade === 'true'));
+      }
+      
+      const query = db.select().from(simulations);
+      const data = conditions.length > 0
+        ? await query.where(and(...conditions)).orderBy(desc(simulations.executedAt)).limit(Number(limit))
+        : await query.orderBy(desc(simulations.executedAt)).limit(Number(limit));
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching simulation history:", error);
+      res.status(500).json({ error: "Failed to fetch simulation history" });
+    }
+  });
+  
+  server.get("/api/simulator/paper-account", async (req, res) => {
+    try {
+      const userId = "default"; // For simplicity, using a default user
+      
+      let [account] = await db.select().from(paperTradingAccounts)
+        .where(eq(paperTradingAccounts.userId, userId))
+        .limit(1);
+      
+      // Create account if it doesn't exist
+      if (!account) {
+        [account] = await db.insert(paperTradingAccounts)
+          .values({
+            userId,
+            balance: "10000.00",
+            initialBalance: "10000.00",
+            totalTrades: 0,
+            winningTrades: 0,
+            losingTrades: 0,
+            totalProfit: "0",
+            totalLoss: "0",
+          })
+          .returning();
+      }
+      
+      res.json(account);
+    } catch (error) {
+      console.error("Error fetching paper trading account:", error);
+      res.status(500).json({ error: "Failed to fetch paper trading account" });
+    }
+  });
+  
+  server.post("/api/simulator/paper-account/reset", async (req, res) => {
+    try {
+      const userId = "default";
+      
+      const [account] = await db.update(paperTradingAccounts)
+        .set({
+          balance: "10000.00",
+          totalTrades: 0,
+          winningTrades: 0,
+          losingTrades: 0,
+          totalProfit: "0",
+          totalLoss: "0",
+          lastResetAt: new Date(),
+        })
+        .where(eq(paperTradingAccounts.userId, userId))
+        .returning();
+      
+      if (!account) {
+        // Create new account if doesn't exist
+        const [newAccount] = await db.insert(paperTradingAccounts)
+          .values({
+            userId,
+            balance: "10000.00",
+            initialBalance: "10000.00",
+            totalTrades: 0,
+            winningTrades: 0,
+            losingTrades: 0,
+            totalProfit: "0",
+            totalLoss: "0",
+          })
+          .returning();
+        
+        res.json(newAccount);
+      } else {
+        res.json(account);
+      }
+    } catch (error) {
+      console.error("Error resetting paper trading account:", error);
+      res.status(500).json({ error: "Failed to reset paper trading account" });
+    }
+  });
+
   server.get("/api/version", (req, res) => {
     res.json({ version: "3.6.0" });
   });
