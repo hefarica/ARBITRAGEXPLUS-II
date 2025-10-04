@@ -47,39 +47,6 @@ interface EngineConfig {
   kill_switch: boolean;
 }
 
-// Configuración por defecto
-const DEFAULT_CONFIG: EngineConfig = {
-  version: "3.6.0",
-  min_ev_net_usd: 20.0,
-  min_roi_bps: 10,
-  max_slippage_bps: 50,
-  min_prob_exec_priv: 0.7,
-  mev_haircut_factor: 0.1,
-  max_gas_cost_usd: 50.0,
-  enabled_chains: [1, 42161, 10, 8453],
-  preferred_relays: ["flashbots_protect", "mev_share", "eden"],
-  asset_safety: {
-    min_safety_score: 70,
-    min_age_days: 30,
-    min_liquidity_usd: 1000000,
-    deny_fee_on_transfer: true,
-    require_oracle_price: true
-  },
-  execution: {
-    max_position_usd: 50000,
-    max_drawdown_usd: 5000,
-    max_gas_price_gwei: {
-      "1": 100,
-      "42161": 1.0,
-      "10": 0.5,
-      "8453": 0.3
-    },
-    max_daily_executions: 50,
-    bundle_privacy_level: "high"
-  },
-  kill_switch: false
-}
-
 // Componente principal
 export default function ConfigPage() {
   const queryClient = useQueryClient()
@@ -147,9 +114,24 @@ export default function ConfigPage() {
     }
   }
 
-  // Reiniciar a la configuración predeterminada
-  const resetToDefault = () => {
-    setConfigText(JSON.stringify(DEFAULT_CONFIG, null, 2))
+  // Reiniciar a la configuración predeterminada desde el backend
+  const resetToDefault = async () => {
+    try {
+      const defaultConfig = await apiGet<EngineConfig>("/api/config/default")
+      setConfigText(JSON.stringify(defaultConfig, null, 2))
+      toast({
+        title: "Configuración restaurada",
+        description: "Se cargó la configuración por defecto del sistema",
+        duration: 3000,
+      })
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error al restaurar",
+        description: err.message || "No se pudo cargar la configuración por defecto",
+        duration: 5000,
+      })
+    }
   }
 
   if (isLoading) {
