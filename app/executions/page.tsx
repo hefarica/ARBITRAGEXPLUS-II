@@ -271,7 +271,7 @@ export default function ExecutionsPage() {
                       {CHAIN_NAMES[exec.chainId] || `Chain #${exec.chainId}`}
                     </TableCell>
                     <TableCell>
-                      {exec.profitUsd !== undefined ? (
+                      {exec.profitUsd != null ? (
                         <span className={exec.profitUsd >= 0 ? "text-green-500" : "text-red-500"}>
                           ${exec.profitUsd.toFixed(2)}
                         </span>
@@ -280,7 +280,7 @@ export default function ExecutionsPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {exec.gasUsd !== undefined ? (
+                      {exec.gasUsd != null ? (
                         `$${exec.gasUsd.toFixed(2)}`
                       ) : (
                         <span className="text-muted-foreground">-</span>

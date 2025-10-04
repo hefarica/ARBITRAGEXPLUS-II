@@ -6,22 +6,7 @@ const nextConfig = {
     BUILD_ID: `${Date.now()}`,
   },
   async rewrites() {
-    return [
-      // Redirigir llamadas a la API local durante el desarrollo
-      {
-        source: "/api/:path*",
-        destination: process.env.NEXT_PUBLIC_API_URL 
-          ? `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`
-          : "http://localhost:3000/api/:path*",
-      },
-      // Redirigir llamadas a la API de Cloudflare
-      {
-        source: "/cf/:path*",
-        destination: process.env.NEXT_PUBLIC_CF_URL
-          ? `${process.env.NEXT_PUBLIC_CF_URL}/:path*`
-          : "https://arbitragex-supreme.workers.dev/:path*",
-      },
-    ];
+    return [];
   },
   // Configuración de producción optimizada
   swcMinify: true,

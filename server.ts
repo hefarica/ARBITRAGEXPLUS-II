@@ -3,7 +3,7 @@ import next from "next";
 import cors from "cors";
 import { db } from "./server/db";
 import { opportunities, assetSafety, executions, engineConfig } from "@shared/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, and } from "drizzle-orm";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "0.0.0.0";
@@ -79,17 +79,19 @@ app.prepare().then(() => {
   server.get("/api/executions", async (req, res) => {
     try {
       const { chainId, status } = req.query;
-      let query = db.select().from(executions);
       
+      const conditions = [];
       if (chainId && chainId !== '') {
-        query = query.where(eq(executions.chainId, parseInt(chainId as string)));
+        conditions.push(eq(executions.chainId, parseInt(chainId as string)));
       }
-      
       if (status && status !== '') {
-        query = query.where(eq(executions.status, status as string));
+        conditions.push(eq(executions.status, status as string));
       }
       
-      const data = await query.orderBy(desc(executions.createdAt)).limit(200);
+      const query = db.select().from(executions);
+      const data = conditions.length > 0
+        ? await query.where(and(...conditions)).orderBy(desc(executions.createdAt)).limit(200)
+        : await query.orderBy(desc(executions.createdAt)).limit(200);
       
       res.json(data);
     } catch (error) {
