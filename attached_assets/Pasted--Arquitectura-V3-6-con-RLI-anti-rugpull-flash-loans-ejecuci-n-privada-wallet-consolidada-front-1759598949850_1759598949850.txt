@@ -1,0 +1,129 @@
+✅ Arquitectura V3.6 con RLI, anti-rugpull, flash loans, ejecución privada, wallet consolidada, frontend Next.js + shadcn/ui, Prometheus + Grafana, Cloudflare Workers, Docker, y más.  
+✅ Todo en un solo flujo, con validaciones, tolerancia a errores, y salida lista para usuarios finales.  
+✅ Incluye **código real, estructuras de archivos, endpoints, migraciones, logs, KPIs, y el .exe final**.  
+✅ Con **lenguaje claro, preciso y sin ambigüedades** — ideal para que un agente de IA lo ejecute como si fuera un ingeniero senior en DeFi.
+
+
+
+> **Objetivo final**:  
+> Desarrolla, implementa y despliega **ARBITRAGEX SUPREME V3.6**, una máquina de arbitraje DeFi autónoma, profesional y de alto rendimiento, que detecta, simula, ejecuta y genera ganancias reales en blockchains EVM (Base, Arbitrum, Polygon, Optimism) usando flash loans, sin riesgo de capital propio, con anti-rugpull, monitoreo en tiempo real, UI moderna y ejecución privada — todo automatizado y listo para ser usado por traders sin conocimientos técnicos.
+
+---
+
+### ✅ **VISIÓN GENERAL (REQUERIMIENTO ESTRATÉGICO)**
+
+Eres un ingeniero de software de élite con experiencia en DeFi, MEV, Rust, Docker, React, Prometheus, y sistemas de alta frecuencia.  
+Tu misión es construir un **sistema end-to-end de arbitraje automático** que:
+
+- **Detecta oportunidades reales** en múltiples blockchains.
+- **Ejecuta operaciones atómicas** con flash loans (Aave V3, Uniswap V3 Flash, Balancer Vault).
+- **Envía ganancias netas** a una wallet definida por el usuario (MetaMask).
+- **Bloquea activos riesgosos** con un motor de anti-rugpull basado en datos on-chain.
+- **Tiene una UI moderna** para que cualquier trader configure, monitoree y ejecute.
+- **Funciona con $0 de costos de infraestructura** (RPCs públicas, Cloudflare free tier, Docker).
+- **Se instala con un solo clic** en Windows mediante un `.exe` autocontenible.
+
+---
+
+### ✅ **ARQUITECTURA OBLIGATORIA — ESTRUCTURA COMPLETA (ÁRBOL DE ARCHIVOS)**
+
+Implementa esta estructura **exactamente como se describe**, sin omitir ni un solo archivo o módulo:
+
+```
+ARBITRAGEX-SUPREME-V3.6/
+├── ARBITRAGEX-DEPLOY-DEFINITIVO.ps1             ← SCRIPT PRINCIPAL (PowerShell)
+├── ARBITRAGEX-SUPREME-V3.6-INSTALLER.zip        ← ZIP FINAL (para descargar)
+├── README.md                                    ← Guía de usuario
+├── LICENSE.txt                                  ← MIT License
+├── CONTABO-BACKEND/                             ← Backend Rust + Node.js + DB
+│   ├── Cargo.toml                               ← Workspace con [lib] y [[bin]]
+│   ├── Dockerfile                               ← Multi-stage, rust:1.78-bookworm
+│   ├── docker-compose.yml                       ← PostgreSQL, Redis, Rust, Node, Prometheus, Grafana
+│   ├── prometheus.yml                           ← Config de Prometheus
+│   ├── .env.example                             ← Variables mínimas
+│   ├── database/
+│   │   └── migrations/
+│   │       ├── V8__engine_configs.sql
+│   │       ├── V9__funding_providers.sql
+│   │       ├── V10__wallets.sql
+│   │       └── V11__asset_safety.sql
+│   ├── rust-core/
+│   │   ├── Cargo.toml
+│   │   ├── src/
+│   │   │   ├── lib.rs
+│   │   │   ├── bin/
+│   │   │   │   ├── engine_api.rs                ← /health, /api/version, /metrics
+│   │   │   │   └── crawl_cli.rs                 ← CLI para jobs on-chain
+│   │   │   ├── compliance/
+│   │   │   │   ├── http_client.rs               ← fetch_real<T>()
+│   │   │   │   └── data_integrity_guard.rs      ← audit_fetch<T>() con SHA256
+│   │   │   ├── funding/
+│   │   │   │   ├── traits.rs                    ← FlashLender trait
+│   │   │   │   ├── registry.rs                  ← FundingRegistry con best_lender()
+│   │   │   │   └── evm/
+│   │   │   │       ├── aave_v3.rs               ← Aave V3 flashLoanSimple
+│   │   │   │       ├── uniswap_v3_flash.rs      ← Uniswap V3 Pool.flash()
+│   │   │   │       └── erc3156_generic.rs       ← ERC-3156 Generic
+│   │   │   ├── rli/
+│   │   │   │   ├── token_inspector.rs           ← checks: owner, mint, FOT, blacklist
+│   │   │   │   ├── lp_liquidity_analyzer.rs     ← depth_usd@3/5/10bps en V2/V3
+│   │   │   │   ├── oracle_dev.rs                ← TWAP vs Chainlink deviation
+│   │   │   │   ├── dex_risk.rs                  ← router compat, hooks
+│   │   │   │   ├── rugpull_guard.rs             ← RiskScore(0-100) con 7 señales
+│   │   │   │   ├── asset_safety.rs              ← AssetSafety struct + score
+│   │   │   │   └── pair_discovery.rs            ← Top pairs por OpportunityScore
+│   │   │   ├── execution/
+│   │   │   │   ├── router.rs                    ← Plantillas: LENDER→DEX_A→DEX_B→LENDER
+│   │   │   │   ├── bundle_builder.rs            ← Construye tx atómica
+│   │   │   │   ├── private_flow.rs              ← Envía a Flashbots Protect
+│   │   │   │   └── inclusion_estimator.rs       ← Estima probabilidad de inclusión
+│   │   │   ├── opportunity/
+│   │   │   │   └── opportunity_detector.rs      ← Detecta, evalúa, publica
+│   │   │   ├── wallet/
+│   │   │   │   ├── signer.rs                    ← Firma bundles con clave privada
+│   │   │   │   └── treasury.rs                  ← Envia ganancias a wallet_payout
+│   │   │   ├── scheduler/
+│   │   │   │   ├── asset_safety_crawler.rs      ← Crawler on-chain (multicall)
+│   │   │   │   └── config_sync_worker.rs        ← Escucha cambios en engine_configs
+│   │   │   └── api/
+│   │   │       └── routes.rs                    ← /health, /api/version, /metrics
+│   │   └── sim-ctl/
+│   │       └── simulator.rs                     ← Simulación con Anvil
+│   └── selector-api/
+│       ├── package.json
+│       ├── index.js                             ← Express: /api/config, /api/funding/providers, /api/opportunities
+│       └── .env.example
+├── CLOUDFLARE-SUPREME/                          ← Edge Computing
+│   ├── workers/
+│   │   └── api-proxy/
+│   │       └── index.ts                         ← Proxy /cf/* → http://localhost:3000
+│   ├── wrangler.toml                            ← Binding D1 + BACKEND_URL
+│   └── d1/
+│       └── migrations/
+│           └── 0002_pairs_cache.sql             ← Cache de pares top con TTL 5s
+└── LOVABLE-DASHBOARD/                           ← Frontend React (Next.js 14)
+    ├── next.config.js
+    ├── tailwind.config.ts
+    ├── globals.css
+    ├── app/
+    │   ├── layout.tsx
+    │   ├── page.tsx                             ← Dashboard con tabla de oportunidades
+    │   ├── config/
+    │   │   └── page.tsx                         ← Editor JSON de configuración
+    │   └── providers.tsx                        ← Wagmi + React Query
+    ├── lib/
+    │   ├── api.ts                               ← /cf/config, /cf/opportunities
+    │   └── ws.ts                                ← WebSocket para oportunidades en tiempo real
+    ├── components/
+    │   ├── ui/
+    │   │   ├── theme-toggle.tsx
+    │   │   └── ... (todos los componentes shadcn/ui: button, card, table, etc.)
+    │   └── RLI/
+    │       ├── TopPairsTable.tsx
+    │       ├── PairRiskCard.tsx
+    │       └── EVBreakdown.tsx
+    ├── public/
+    │   └── presets/
+    │       └── L2-Bluechips.json                ← Config predefinida
+    └── package.json
+```

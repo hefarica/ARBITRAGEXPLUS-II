@@ -1,0 +1,113 @@
+ARBITRAGEX SUPREME V3.6 — ESTRUCTURA JERÁRQUICA FINAL (CHECKLIST DE IMPLEMENTACIÓN)
+✅ Usada por el script PowerShell y el .exe para construir todo desde cero
+✅ Cada nodo es un archivo o carpeta que debe existir con contenido exacto
+✅ Orden de ejecución: de arriba hacia abajo, de izquierda a derecha
+✅ Cada archivo tiene su propósito y contenido codificado
+✅ Todo es 100% compatible con Windows PowerShell y Docker Desktop 
+
+ARBITRAGEX-SUPREME-V3.6/
+├── ARBITRAGEX-DEPLOY-DEFINITIVO.ps1          # 🟢 SCRIPT PRINCIPAL (PowerShell) — Ejecuta TODO
+├── ARBITRAGEX-SUPREME-V3.6-INSTALLER.zip     # 🟢 ZIP FINAL — Para distribución
+├── README.md                                 # 📘 Guía de usuario (solo para humanos)
+├── LICENSE.txt                               # 📜 Licencia MIT
+└── CONTABO-BACKEND/                          # 🦀 Backend Rust + Node.js + DB (core)
+    ├── Cargo.toml                            # 📄 Workspace mínimo (solo rust-core)
+    ├── Dockerfile                            # 🐳 Dockerfile para rust-core (MUSL)
+    ├── .dockerignore                         # 🚫 Ignora selector-api, logs, etc.
+    ├── docker-compose.yml                    # 🐳 Compose completo (Postgres, Redis, Rust, Node, Prometheus, Grafana)
+    ├── prometheus.yml                        # 📊 Config de Prometheus
+    ├── .env.example                          # ⚙️ Variables de entorno mínimas
+    ├── database/
+    │   └── migrations/
+    │       ├── V8__engine_configs.sql        # 🗃️ Configuración versionada (JSONB)
+    │       ├── V9__funding_providers.sql     # 🗃️ Lenders dinámicos por chain (JSONB)
+    │       ├── V10__wallets.sql              # 🗃️ Wallet consolidada (address, chain, fee_recipient)
+    │       └── V11__asset_safety.sql         # 🛡️ Tabla de seguridad de activos (AssetSafetyScore)
+    ├── rust-core/
+    │   ├── Cargo.toml                        # 📄 Deps de rust-core (axum, ethers, tokio, etc.)
+    │   ├── src/
+    │   │   ├── lib.rs                        # 📦 Exporta todos los módulos (compliance, funding, rli, etc.)
+    │   │   ├── bin/
+    │   │   │   ├── engine_api.rs             # 🖥️ API REST: /health, /api/version, /metrics
+    │   │   │   └── crawl_cli.rs              # 🕵️ CLI para crawlers on-chain (no usado en prod, solo debug)
+    │   │   ├── compliance/
+    │   │   │   ├── http_client.rs            # 🔍 fetch_real<T>() — solo datos reales, con is_valid()
+    │   │   │   └── data_integrity_guard.rs   # 🔐 audit_fetch<T>() — checksum SHA256 + timestamp + fuente
+    │   │   ├── funding/
+    │   │   │   ├── traits.rs                 # 🧩 Trait FlashLender: name(), chain_id(), quote(), build_tx_payload()
+    │   │   │   ├── registry.rs               # 🏢 FundingRegistry — elige mejor lender por chain/asset/fee
+    │   │   │   └── evm/
+    │   │   │       ├── aave_v3.rs            # 💸 Implementa Aave V3 flashLoanSimple()
+    │   │   │       ├── uniswap_v3_flash.rs   # 💸 Implementa Uniswap V3 Pool.flash()
+    │   │   │       └── erc3156_generic.rs    # 💸 Implementa ERC-3156 Generic (Curve, etc.)
+    │   │   ├── rli/
+    │   │   │   ├── token_inspector.rs        # 🚫 Analiza: owner, mint, pause, blacklist, FOT, honeypot
+    │   │   │   ├── lp_liquidity_analyzer.rs  # 💧 Simula depth_usd@3/5/10bps en V2/V3
+    │   │   │   ├── oracle_dev.rs             # 📡 Mide desviación Spot vs TWAP 300s
+    │   │   │   ├── dex_risk.rs               # ⚠️ Evalúa router: compatibilidad V2/V3, hooks peligrosos
+    │   │   │   ├── rugpull_guard.rs          # 🚨 Calcula RiskScore(0-100) con 7 señales
+    │   │   │   ├── asset_safety.rs           # 🛡️ Struct AssetSafety: age_days, safety_score, reasons[]
+    │   │   │   └── pair_discovery.rs         # 🔍 Crawls pares → filtra por AssetSafety ≥ 70 → ordena por OpportunityScore
+    │   │   ├── execution/
+    │   │   │   ├── router.rs                 # 🗺️ Plantillas de ruta: "LENDER→DEX_A→DEX_B→LENDER"
+    │   │   │   ├── bundle_builder.rs         # 🧱 Construye tx atómica: flashLoan → swap → swap → repay
+    │   │   │   ├── private_flow.rs           # 🕵️ Envía bundle a Flashbots Protect / MEV-Share
+    │   │   │   └── inclusion_estimator.rs    # 📈 Estima probabilidad de inclusión privada (historial)
+    │   │   ├── opportunity/
+    │   │   │   └── opportunity_detector.rs   # 🤖 Motor principal: detecta, evalúa EV, filtra, publica por WS
+    │   │   ├── wallet/
+    │   │   │   ├── signer.rs                 # 🔐 Firma bundles con clave privada en env: WALLET_PRIVATE_KEY_BASE
+    │   │   │   └── treasury.rs               # 💰 Envia ganancias netas a wallet_payout (tu MetaMask)
+    │   │   ├── scheduler/
+    │   │   │   ├── asset_safety_crawler.rs   # 🕸️ Crawler on-chain: multicall → actualiza asset_safety cada 120s
+    │   │   │   ├── config_sync_worker.rs     # 🔄 Escucha cambios en engine_configs → recarga en memoria
+    │   │   │   ├── rpc_health_checker.rs     # 📶 Verifica RPCs cada 60s → aplica CircuitBreaker
+    │   │   │   └── redis_cache_worker.rs     # 🧠 Actualiza cache Redis (pairs_cache, asset_safety_cache)
+    │   │   └── api/
+    │   │       └── routes.rs                 # 📡 Exporta endpoints: /health, /api/version, /metrics
+    │   └── sim-ctl/
+    │       └── simulator.rs                  # 🧪 Simulación con Anvil fork (no usado en prod, solo tests)
+    └── selector-api/
+        ├── package.json                      # 📦 Express + pg + cors + nodemon
+        ├── index.js                          # 🖥️ API REST: /api/config, /api/funding/providers, /api/opportunities
+        └── .env.example                      # ⚙️ PG_URL, PORT
+
+
+├── CLOUDFLARE-SUPREME/                       # ☁️ Edge Computing (Cloudflare Workers)
+│   ├── workers/
+│   │   └── api-proxy/
+│   │       └── index.ts                    # 🔄 Proxy /cf/* → http://localhost:3000 (API local)
+│   ├── wrangler.toml                       # ⚙️ Config de Cloudflare: BACKEND_URL, D1 binding
+│   └── d1/
+│       └── migrations/
+│           └── 0002_pairs_cache.sql        # 🗃️ Cache de top_pairs con TTL 5s (key: "chain:bps:size")
+└── LOVABLE-DASHBOARD/                        # 💻 Frontend React (Next.js 14 + App Router)
+    ├── next.config.js                      # 📄 Config de Next.js
+    ├── tailwind.config.ts                  # 🎨 Config de Tailwind (dark mode, shadcn/ui)
+    ├── globals.css                         # 🖋️ Estilos globales
+    ├── app/
+    │   ├── layout.tsx                      # 🏗️ Layout con sidebar y ThemeToggle
+    │   ├── page.tsx                        # 📊 Dashboard: tabla de oportunidades en tiempo real
+    │   ├── config/
+    │   │   └── page.tsx                    # 🛠️ Editor JSON de EngineConfig (con React Query)
+    │   └── providers.tsx                   # 🔌 Proveedor de Wagmi + TanStack Query
+    ├── lib/
+    │   ├── api.ts                          # 📡 Cliente REST: /cf/config, /cf/opportunities
+    │   └── ws.ts                           # 🔌 WebSocket para recibir oportunidades en tiempo real
+    ├── components/
+    │   ├── ui/
+    │   │   ├── theme-toggle.tsx          # 🌓 Botón de dark/light mode
+    │   │   ├── button.tsx                # 🟢 Botón de guardar config
+    │   │   ├── card.tsx                  # 📦 Tarjeta de métricas
+    │   │   └── ... (todos los componentes shadcn/ui)
+    │   └── RLI/
+    │       ├── TopPairsTable.tsx         # 📊 Tabla de pares con depth@5bps, EV, risk
+    │       ├── PairRiskCard.tsx          # 🚨 Tarjeta de riesgo con razones (FOT, owner, etc.)
+    │       ├── EVBreakdown.tsx           # 💰 Desglose: spread - gas - fee - tax - slippage
+    │       └── AssetSafetyTable.tsx      # 🛡️ Lista de activos seguros (age, liq, score)
+    ├── public/
+    │   └── presets/
+    │       ├── L2-Bluechips.json         # 🎯 Preset predefinido (USDC/WETH, low risk)
+    │       ├── Stables-Only.json         # 🎯 Preset: solo USDC/DAI/USDT
+    │       └── Aggressive-Flash.json     # 🎯 Preset: busca triangular, tolera FOT
+    └── package.json                        # 📦 Dependencias: next, react, wagmi, viem, tanstack, shadcn

@@ -1,0 +1,336 @@
+REGLAS ABSOLUTAS - DATOS REALES ÚNICAMENTE (ACTIVAS)
+#data_integrity
+#production_rules
+#real_data_only
+#validation_protocol
+#active_rules
+
+Edit
+🚫 REGLAS ABSOLUTAS - DATOS REALES ÚNICAMENTE
+
+PROHIBICIONES ABSOLUTAS
+❌ NUNCA INVENTAR DATOS - Cualquier dato debe provenir exclusivamente de:
+
+APIs públicas verificadas
+Endpoints reales y funcionando
+Fuentes oficiales documentadas
+Resultados de llamadas HTTP/HTTPS reales
+❌ NUNCA SIMULAR RESULTADOS - Prohibido usar:
+
+Valores de prueba
+Mocks
+Placeholders
+Datos ficticios
+❌ NUNCA ASUMIR FUNCIONAMIENTO - Obligatorio verificar:
+
+Disponibilidad de endpoints
+Respuestas reales
+Estados HTTP
+Integridad de datos
+VERIFICACIONES OBLIGATORIAS
+Cada llamada debe implementar:
+
+rust
+async fn obtener_datos_reales(url: &str) -> Result<Datos, Error> {
+    // 1. Verificar conectividad
+    let respuesta = reqwest::get(url).await?;
+    
+    // 2. Verificar estado HTTP
+    if !respuesta.status().is_success() {
+        return Err(Error::Http(respuesta.status()));
+    }
+    
+    // 3. Obtener datos reales
+    let datos_reales = respuesta.json::<Datos>().await?;
+    
+    // 4. Validar integridad
+    if !datos_reales.es_valido() {
+        return Err(Error::DatosInvalidos);
+    }
+    
+    Ok(datos_reales)
+}
+CONSECUENCIAS
+Rechazo inmediato de código con datos no reales
+Revisión completa del sistema
+Reimplementación desde cero si necesario
+Verificación reforzada de componentes
+COMPROMISO
+Usar únicamente datos 100% reales y verificados
+Trazabilidad completa de fuentes
+Transparencia total en origen de datos
+Priorizar exactitud sobre disponibilidad
+ESTA REGLA SE APLICA A TODOS LOS DESARROLLOS FUTUROS
+
+ACTIVADA Y VIGENTE EN TODAS LAS OPERACIONES
+
+
+Back
+
+
+
+
+
+Back
+ARBITRAGEX SUPREME V3.2 Complete Architecture and Database
+#arbitragex
+#blockchain
+#architecture
+#system_design
+#mev
+#crypto
+#defi
+#flash_loans
+#arbitrage
+#project_architecture
+
+Edit
+🌍 ARBITRAGEX SUPREME V3.2 COMPLETE ARCHITECTURE
+System Overview
+A comprehensive arbitrage system spanning 100 blockchains
+Three-layer architecture (Backend/Contabo, Edge/Cloudflare, Frontend/Lovable)
+Complete database of blockchains with verified RPCs, flash loan support, and metrics
+🧠 Architecture Hierarchy
+🌍 ARBITRAGEX SUPREME V3.2
+│
+├── 🖥️ CONTABO VPS → Backend Rust + Node.js + Docker + DBs
+│   └── Repository: hefarica/ARBITRAGEX-CONTABO-BACKEND
+│       ├── 🦀 RUST MEV ENGINE CORE
+│       ├── 🟩 NODE.JS SELECTOR API
+│       ├── ⚙️ SIMULATION & RELAY CLIENTS
+│       ├── 🗄️ DATABASE INFRASTRUCTURE (PostgreSQL + Redis)
+│       ├── 🔧 INFRASTRUCTURE (Docker, Nginx, Monitoring)
+│       ├── 📊 TESTING, DOCUMENTATION, SECURITY
+│       └── 📦 CI/CD, PACKAGE MANAGEMENT
+│
+├── ☁️ CLOUDFLARE → Edge Computing Backend (0% Frontend)
+│   └── Repository: hefarica/ARBITRAGEXSUPREME
+│       ├── ⚡ CLOUDFLARE WORKERS (API Proxy, WebSocket, Security)
+│       ├── 🗄️ CLOUDFLARE D1 (Edge Cache DB)
+│       ├── ⚡ KV STORAGE (Sessions, Config, Metrics)
+│       ├── 📦 R2 STORAGE (Assets, Logs, Backups)
+│       ├── 🔔 PUB/SUB (Real-time Messaging)
+│       └── 🌍 CDN, TESTING, DEPLOYMENT, DOCUMENTATION
+│
+└── 💻 LOVABLE → Frontend Dashboard React + TypeScript
+    └── Repository: hefarica/show-my-github-gems
+        ├── ⚛️ REACT APPLICATION CORE
+        ├── 🎨 DESIGN SYSTEM
+        ├── 🧪 TESTING
+        ├── 📊 STORYBOOK
+        └── 🚀 BUILD & DEPLOYMENT, DOCUMENTATION
+Current Project Status
+Contabo Backend: 10% complete (5/50 components)
+Cloudflare Edge: 8% complete (3/35 components)
+Lovable Frontend: 19% complete (15/80 components)
+Total Project: ~12% complete
+Implementation Phases
+PHASE 1 (CRITICAL): Basic production functionality
+PHASE 2 (OPERATIONAL): Generate real profits
+PHASE 3 (AUTONOMOUS): Self-operating at 200% efficiency
+Blockchain Database
+Complete database of 100 blockchains with verified information
+Each entry includes TVL, flash loan support, gas costs, RPCs, etc.
+Top 20 blockchains filtered by Anti-Rug Pull criteria, profit opportunity metrics
+Final Elite Top 10 ranked for MEV potential
+Core Philosophy
+"A profit-generating machine that cannot fail" - Built for precision, reliability, and optimal performance across multiple blockchains with real-time data monitoring and execution.
+
+Key Features
+Circuit Breaker Pattern for handling failures
+Dynamic Priority System for blockchain prioritization
+Intelligent Rate Limiting
+Verified Endpoints
+Real-time Metrics
+RPC Verification Status
+Several RPC endpoints have been verified and corrected:
+
+Corrections applied for cloudflare-eth.com, optimism.publicnode.com, linea.publicnode.com, and fantom.publicnode.com
+Milestone: 100 Blockchain Database
+The system now contains complete information for all 100 target blockchains, with verified RPC endpoints and accurate metrics for each.
+
+Drop to add to Cascade
+
+Back
+
+
+
+
+
+Back
+Plan Maestro ARBITRAGEX SUPREME V3.2
+#arbitragex_supreme
+#architecture
+#implementation_plan
+#v3.2
+#master_plan
+
+Edit
+Plan de implementación completo para ARBITRAGEX SUPREME V3.2
+1. Infraestructura Base (Pendiente)
+Contabo VPS (Backend)
+Configuración del servidor
+Instalación de sistema operativo Linux optimizado para rendimiento
+Configuración de firewall y seguridad básica
+Configuración de acceso SSH con clave privada (sin contraseña)
+Docker y orquestación
+Docker Engine instalación y configuración
+Docker Compose para microservicios
+Volúmenes persistentes para datos críticos
+Base de datos
+PostgreSQL para datos transaccionales y oportunidades
+Redis para caché y datos en tiempo real
+Scripts de inicialización para esquemas y tablas
+2. Componentes Core del Backend (Pendiente)
+Rust MEV Engine Core
+Componentes base
+Framework Actix-web/Tokio para operaciones asincrónicas
+Cliente RPC para múltiples cadenas
+Sistema de colas para procesamiento de oportunidades
+Motor de detección
+Scanner de mempool para transacciones pendientes
+Analizador de arbitraje entre DEXs
+Calculador de rentabilidad (ROI)
+Optimización
+Gestión de conexiones concurrentes a RPCs
+Priorización de cadenas según rentabilidad potencial
+Circuito de retroalimentación de rendimiento
+Node.js Selector API
+API RESTful
+Endpoints para listado de oportunidades
+Autenticación y autorización
+Rate limiting y protección
+WebSocket Server
+Transmisión en tiempo real de oportunidades
+Notificaciones de estado del sistema
+Manejo de reconexiones y heartbeats
+Simulación y Relays
+Simulador de transacciones
+Fork local de cadenas para simular ejecuciones
+Validación de resultados esperados
+Optimización de gas y slippage
+Cliente de Relays
+Integración con Flashbots y otros relays privados
+Firmado de transacciones con wallet segura
+Monitoreo de inclusión en bloques
+3. Edge Computing en Cloudflare (Pendiente)
+Workers y D1
+API Proxy Worker
+Enrutamiento y cache de endpoints
+Rate limiting geográfico
+Protección DDoS
+WebSocket Proxy
+Manejo de conexiones persistentes
+Distribución geográfica de carga
+Failover automático
+D1 Database
+Esquema para cache de oportunidades
+Índices optimizados para búsquedas
+TTL para datos volátiles
+KV y R2 Storage
+Key-Value Store
+Configuración del sistema
+Estado de conexiones activas
+Cache de autenticación
+R2 Storage
+Almacenamiento de logs históricos
+Backup de transacciones
+Métricas para análisis
+4. Frontend Dashboard (Pendiente)
+React Application Core
+Arquitectura
+Next.js para renderizado optimizado
+Zustand para gestión de estado
+React Query para datos remotos
+Componentes UI
+Dashboard principal con métricas
+Tabla de oportunidades en tiempo real
+Gráficos de rendimiento y gas
+Funcionalidad
+WebSocket Manager para datos en tiempo real
+Sistema de autenticación segura
+Filtros y búsqueda avanzada
+Elementos de diseño
+Sistema de diseño
+Componentes reutilizables
+Tema oscuro/claro
+Responsividad para múltiples dispositivos
+5. Integración de Blockchain (Pendiente)
+Adaptadores de blockchain
+Multi-chain adaptadores
+Interfaces unificadas para todas las cadenas
+Optimizadores de gas específicos por cadena
+Manejo de errores y reconexiones
+Flash Loan integración
+Adaptadores para Aave, dYdX, etc.
+Templates de contratos inteligentes
+Simuladores de préstamos
+Estrategias de arbitraje
+Implementación de estrategias
+Arbitraje directo entre DEXs
+Triangular arbitraje
+MEV sandwich strategies (éticas)
+Flash loan arbitraje
+6. CI/CD y Operaciones (Pendiente)
+Pipeline de despliegue
+GitHub Actions
+Tests automáticos en cada commit
+Integración continua
+Despliegue automatizado
+Monitoreo
+Prometheus para métricas
+Grafana para visualización
+Alertas por Telegram/Discord
+Seguridad
+Audit y protección
+Manejo seguro de claves privadas
+Auditoría de código
+Pruebas de penetración
+Seguridad de APIs
+7. Arquitectura MVP para salida inicial
+Para lanzar una versión mínima viable que funcione, necesitamos:
+
+Fase 1: Backend mínimo
+Rust scanner básico de oportunidades (Top 10 blockchains)
+API REST simple para recuperar oportunidades
+WebSocket para actualizaciones en tiempo real
+PostgreSQL con tabla de oportunidades
+Redis para caché de estado
+Fase 2: Edge mínimo
+Workers API proxy básico
+D1 para cache de oportunidades
+KV para configuración esencial
+Fase 3: Frontend mínimo
+Dashboard de oportunidades en tiempo real
+Vista de métricas básicas
+Autenticación simple
+8. Flujo de datos óptimo (sin duplicaciones)
+Detección de oportunidad
+Rust MEV Engine escanea las mempool de múltiples blockchains
+Detecta arbitrajes potenciales
+Calcula rentabilidad y riesgo
+Procesamiento
+Verifica fondos disponibles
+Simula transacción localmente
+Decide si proceder basado en ROI y seguridad
+Ejecución
+Prepara transacción firmada
+Envía a relay privado o público según estrategia
+Monitorea inclusión en bloque
+Actualización y retroalimentación
+Actualiza estado en PostgreSQL
+Notifica a través del WebSocket
+Actualiza caché en Cloudflare D1
+Frontend actualiza UI en tiempo real
+Análisis y aprendizaje
+Guarda resultados para análisis
+Ajusta parámetros basados en resultados previos
+Optimiza futuras estrategias
+9. Estado actual y avances
+Progreso global: Aproximadamente 12% completado
+Componentes implementados: (Se actualizará tras auditorías)
+Próximos pasos: (Se actualizará tras auditorías)
+10. Resultados de auditorías
+(Esta sección se actualizará con los resultados de cada auditoría realizada)
+
+Drop to add to Cascade

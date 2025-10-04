@@ -47,6 +47,20 @@ app.prepare().then(() => {
     }
   });
 
+  server.get("/api/assets/safety", async (req, res) => {
+    try {
+      const data = await db
+        .select()
+        .from(assetSafety)
+        .orderBy(desc(assetSafety.updatedAt));
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching asset safety:", error);
+      res.status(500).json({ error: "Failed to fetch asset safety" });
+    }
+  });
+
   server.get("/cf/executions", async (req, res) => {
     try {
       const data = await db
@@ -54,6 +68,28 @@ app.prepare().then(() => {
         .from(executions)
         .orderBy(desc(executions.createdAt))
         .limit(200);
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching executions:", error);
+      res.status(500).json({ error: "Failed to fetch executions" });
+    }
+  });
+
+  server.get("/api/executions", async (req, res) => {
+    try {
+      const { chainId, status } = req.query;
+      let query = db.select().from(executions);
+      
+      if (chainId && chainId !== '') {
+        query = query.where(eq(executions.chainId, parseInt(chainId as string)));
+      }
+      
+      if (status && status !== '') {
+        query = query.where(eq(executions.status, status as string));
+      }
+      
+      const data = await query.orderBy(desc(executions.createdAt)).limit(200);
       
       res.json(data);
     } catch (error) {
@@ -254,6 +290,10 @@ app.prepare().then(() => {
       console.error("Error updating config:", error);
       res.status(500).json({ error: "Failed to update configuration" });
     }
+  });
+
+  server.get("/api/version", (req, res) => {
+    res.json({ version: "3.6.0" });
   });
 
   server.get("/health", (req, res) => {

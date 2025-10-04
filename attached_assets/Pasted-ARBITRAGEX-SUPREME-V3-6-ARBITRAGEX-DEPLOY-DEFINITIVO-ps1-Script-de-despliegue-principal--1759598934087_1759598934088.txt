@@ -1,0 +1,229 @@
+ARBITRAGEX-SUPREME-V3.6/
+├── 📄 ARBITRAGEX-DEPLOY-DEFINITIVO.ps1  # Script de despliegue principal (PowerShell)
+├── 📄 arbitragex-deploy.sh              # Script de despliegue alternativo (Bash)
+├── 📄 deploy-config.json               # Archivo de configuración para el script de despliegue
+├── 📄 README.md                         # Documentación principal del proyecto
+├── 📄 LICENSE.txt                       # Licencia del proyecto (MIT)
+│
+├── 📁 CONTABO-BACKEND/                  # Backend principal (Rust + Node.js + Docker)
+│   ├── 📄 Cargo.toml                    # Workspace Cargo para el proyecto Rust
+│   ├── 📄 Dockerfile                    # Dockerfile para construir la imagen del backend Rust
+│   ├── 📄 docker-compose.yml            # Orquestación de contenedores (PostgreSQL, Redis, Backend, Selector API, Prometheus, Grafana)
+│   ├── 📄 prometheus.yml               # Configuración de Prometheus
+│   ├── 📄 grafana/                     # Configuración y dashboards de Grafana (opcional)
+│   ├── 📄 .env.example                  # Ejemplo de archivo de variables de entorno
+│   │
+│   ├── 📁 rust-core/                   # Núcleo del motor MEV en Rust
+│   │   ├── 📄 Cargo.toml               # Manifest del crate rust-core
+│   │   ├── 📁 src/                     # Código fuente del motor Rust
+│   │   │   ├── 📄 lib.rs               # Punto de entrada de la librería
+│   │   │   ├── 📁 compliance/          # Módulo de cumplimiento y datos reales
+│   │   │   │   ├── 📄 mod.rs
+│   │   │   │   ├── 📄 http_client.rs   # Cliente HTTP con validación de datos reales
+│   │   │   │   └── 📄 data_integrity_guard.rs # Auditoría de trazabilidad de datos
+│   │   │   ├── 📁 funding/             # Módulo de financiación (Flash Loans)
+│   │   │   │   ├── 📄 mod.rs
+│   │   │   │   ├── 📄 traits.rs         # Traits para lenders
+│   │   │   │   ├── 📄 registry.rs      # Registro y selección de lenders
+│   │   │   │   └── 📁 evm/             # Implementaciones específicas de lenders EVM
+│   │   │   │       ├── 📄 aave_v3.rs
+│   │   │   │       ├── 📄 balancer_vault.rs
+│   │   │   │       ├── 📄 uniswap_v2_flashswap.rs
+│   │   │   │       ├── 📄 uniswap_v3_flash.rs
+│   │   │   │       └── 📄 erc3156_generic.rs
+│   │   │   ├── 📁 blockchain_selector/ # Módulo de selección de blockchains
+│   │   │   │   ├── 📄 mod.rs
+│   │   │   │   ├── 📄 blockchain_info.rs
+│   │   │   │   ├── 📄 rpc_endpoint.rs
+│   │   │   │   ├── 📄 chain_priority.rs
+│   │   │   │   ├── 📄 circuit_breaker.rs
+│   │   │   │   └── 📄 blockchain_selector.rs
+│   │   │   ├── 📁 dex/                  # Módulo de selección de DEXs
+│   │   │   │   ├── 📄 mod.rs
+│   │   │   │   ├── 📄 dex_info.rs
+│   │   │   │   ├── 📄 trading_pair.rs
+│   │   │   │   └── 📄 dex_selector.rs
+│   │   │   ├── 📁 rli/                  # Módulo de Risk & Liquidity Intelligence
+│   │   │   │   ├── 📄 mod.rs
+│   │   │   │   ├── 📄 token_inspector.rs
+│   │   │   │   ├── 📄 lp_liquidity_analyzer.rs
+│   │   │   │   ├── 📄 oracle_dev.rs
+│   │   │   │   ├── 📄 dex_risk.rs
+│   │   │   │   ├── 📄 rugpull_guard.rs
+│   │   │   │   ├── 📄 asset_safety.rs
+│   │   │   │   ├── 📄 pair_discovery.rs
+│   │   │   │   └── 📄 multicall.rs
+│   │   │   ├── 📁 execution/           # Módulo de ejecución de oportunidades
+│   │   │   │   ├── 📄 mod.rs
+│   │   │   │   ├── 📄 router.rs         # Plantillas de rutas
+│   │   │   │   ├── 📄 bundle_builder.rs # Construcción de bundles de transacciones
+│   │   │   │   ├── 📄 private_flow.rs    # Envío a relays privados (Flashbots)
+│   │   │   │   └── 📄 inclusion_estimator.rs # Estimación de probabilidad de inclusión
+│   │   │   ├── 📁 opportunity/           # Módulo de detección de oportunidades
+│   │   │   │   ├── 📄 mod.rs
+│   │   │   │   ├── 📄 arbitrage_opportunity.rs
+│   │   │   │   ├── 📄 risk_level.rs
+│   │   │   │   ├── 📄 detection_config.rs
+│   │   │   │   └── 📄 opportunity_detector.rs
+│   │   │   ├── 📁 wallet/               # Módulo de gestión de wallets
+│   │   │   │   ├── 📄 mod.rs
+│   │   │   │   ├── 📄 signer.rs          # Firma de transacciones
+│   │   │   │   ├── 📄 treasury.rs       # Gestión de tesorería
+│   │   │   │   └── 📄 registry.rs       # Registro de wallets
+│   │   │   ├── 📁 scheduler/            # Módulo de tareas programadas
+│   │   │   │   ├── 📄 mod.rs
+│   │   │   │   ├── 📄 asset_safety_crawler.rs # Crawler de seguridad de activos
+│   │   │   │   ├── 📄 rpc_health_checker.rs   # Verificador de salud de RPCs
+│   │   │   │   └── 📄 config_sync_worker.rs  # Sincronizador de configuración
+│   │   │   ├── 📁 api/                   # Módulo de API interna (Axum/gRPC)
+│   │   │   │   └── 📄 routes.rs
+│   │   │   └── 📁 utils/               # Utilidades generales
+│   │   │       ├── 📄 mod.rs
+│   │   │       ├── 📄 fetch_real.rs
+│   │   │       ├── 📄 logger.rs
+│   │   │       ├── 📄 config_loader.rs
+│   │   │       └── 📄 metrics.rs
+│   │   └── 📁 database/                # Migraciones de base de datos
+│   │       └── 📁 migrations/
+│   │           ├── 📄 V1__create_blockchains_table.sql
+│   │           ├── 📄 V2__create_dexes_table.sql
+│   │           ├── 📄 V3__create_opportunities_table.sql
+│   │           ├── 📄 V4__create_tokens_table.sql
+│   │           ├── 📄 V5__create_pairs_table.sql
+│   │           ├── 📄 V6__create_rli_signals_table.sql
+│   │           ├── 📄 V7__create_opportunity_scores_table.sql
+│   │           ├── 📄 V8__create_engine_configs_table.sql
+│   │           ├── 📄 V9__create_funding_providers_table.sql
+│   │           ├── 📄 V10__create_wallets_table.sql
+│   │           └── 📄 V11__create_asset_safety_table.sql
+│   │
+│   ├── 📁 selector-api/                 # API Node.js para comunicación con el frontend
+│   │   ├── 📄 package.json
+│   │   ├── 📄 tsconfig.json
+│   │   ├── 📁 src/
+│   │   │   ├── 📄 index.ts              # Punto de entrada de la API
+│   │   │   ├── 📁 routes/              # Rutas de la API
+│   │   │   │   ├── 📄 blockchain.routes.ts
+│   │   │   │   ├── 📄 dex.routes.ts
+│   │   │   │   ├── 📄 opportunity.routes.ts
+│   │   │   │   ├── 📄 pairs.routes.ts
+│   │   │   │   ├── 📄 funding.routes.ts
+│   │   │   │   ├── 📄 asset_safety.routes.ts
+│   │   │   │   ├── 📄 wallet.routes.ts
+│   │   │   │   └── 📄 config.routes.ts
+│   │   │   ├── 📁 services/           # Lógica de negocio de la API
+│   │   │   │   ├── 📄 risk.service.ts
+│   │   │   │   ├── 📄 liquidity.service.ts
+│   │   │   │   ├── 📄 asset_safety.service.ts
+│   │   │   │   ├── 📄 funding.service.ts
+│   │   │   │   ├── 📄 config.service.ts
+│   │   │   │   └── 📄 discovery.service.ts
+│   │   │   ├── 📁 validators/          # Validadores de esquemas (AJV)
+│   │   │   │   └── 📄 engine_config_schema.json
+│   │   │   └── 📁 utils/              # Utilidades de la API
+│   │   │       └── 📄 fetch_real.ts
+│   │   └── 📄 .env.example              # Ejemplo de variables de entorno para la API
+│   │
+│   └── 📁 sim-ctl/                      # Cliente de simulación y relays
+│       └── 📁 src/
+│           └── 📄 simulator.rs          # Simulador de ejecuciones en Anvil
+│
+├── 📁 CLOUDFLARE-SUPREME/               # Workers de Cloudflare
+│   ├── 📄 wrangler.toml                # Configuración de Wrangler
+│   ├── 📁 workers/                     # Workers individuales
+│   │   ├── 📁 api-proxy/               # Proxy para la API del backend
+│   │   │   ├── 📄 blockchains.ts
+│   │   │   ├── 📄 dexes.ts
+│   │   │   ├── 📄 opportunities.ts
+│   │   │   ├── 📄 pairs.ts
+│   │   │   ├── 📄 funding.ts
+│   │   │   ├── 📄 assets.ts
+│   │   │   ├── 📄 wallet.ts
+│   │   │   └── 📄 config.ts
+│   │   └── 📁 websocket-proxy/         # Proxy para WebSocket
+│   │       └── 📄 ws_handler.ts
+│   ├── 📁 d1/                          # Migraciones y esquemas para D1
+│   │   └── 📁 migrations/
+│   │       ├── 📄 0001_opportunities_cache.sql
+│   │       ├── 📄 0002_pairs_cache.sql
+│   │       └── 📄 0003_asset_safety_cache.sql
+│   ├── 📁 kv/                          # Espacio de nombres para KV (si se usa)
+│   └── 📁 r2/                          # Espacio de nombres para R2 (logs, backups)
+│
+├── 📁 LOVABLE-DASHBOARD/               # Frontend React/Next.js
+│   ├── 📄 next.config.js               # Configuración de Next.js
+│   ├── 📄 tailwind.config.ts            # Configuración de Tailwind CSS
+│   ├── 📄 postcss.config.js             # Configuración de PostCSS
+│   ├── 📄 tsconfig.json                # Configuración de TypeScript
+│   ├── 📄 .eslintrc.json               # Configuración de ESLint
+│   ├── 📄 .env.example                 # Ejemplo de variables de entorno para el frontend
+│   ├── 📁 public/                       # Archivos públicos
+│   │   ├── 📄 favicon.ico
+│   │   └── 📁 presets/                 # Presets de configuración
+│   │       ├── 📄 L2-Bluechips.json
+│   │       ├── 📄 Stables-Only.json
+│   │       └── 📄 Aggressive-Flash.json
+│   ├── 📁 src/                         # Código fuente del frontend
+│   │   ├── 📄 app/                     # App Router de Next.js
+│   │   │   ├── 📄 layout.tsx           # Layout principal
+│   │   │   ├── 📄 page.tsx             # Página principal (Dashboard)
+│   │   │   ├── 📁 config/             # Sección de Configuración
+│   │   │   │   ├── 📄 page.tsx
+│   │   │   │   └── 📁 components/      # Componentes de configuración
+│   │   │   │       ├── 📄 EngineConfigForm.tsx
+│   │   │   │       ├── 📄 Presets.tsx
+│   │   │   │       ├── 📄 ConfigDiffViewer.tsx
+│   │   │   │       ├── 📄 ConfigHistory.tsx
+│   │   │   │       └── 📄 ApplyConfigButton.tsx
+│   │   │   ├── 📁 assets/              # Sección de Activos Seguros
+│   │   │   │   ├── 📄 page.tsx
+│   │   │   │   └── 📁 components/
+│   │   │   │       ├── 📄 AssetSafetyTable.tsx
+│   │   │   │       ├── 📄 AssetsPolicyForm.tsx
+│   │   │   │       └── 📄 AssetRiskBadge.tsx
+│   │   │   ├── 📁 wallet/              # Sección de Tesorería
+│   │   │   │   ├── 📄 page.tsx
+│   │   │   │   └── 📁 components/
+│   │   │   │       ├── 📄 WalletConnectButton.tsx
+│   │   │   │       ├── 📄 TreasuryStatus.tsx
+│   │   │   │       ├── 📄 WalletPermissions.tsx
+│   │   │   │       └── 📄 WalletAudit.tsx
+│   │   │   ├── 📁 rli/                 # Sección de RLI
+│   │   │   │   ├── 📄 page.tsx
+│   │   │   │   └── 📁 components/
+│   │   │   │       ├── 📄 TopPairsTable.tsx
+│   │   │   │       ├── 📄 PairRiskCard.tsx
+│   │   │   │       ├── 📄 EVBreakdown.tsx
+│   │   │   │       └── 📄 LiquidityChart.tsx
+│   │   │   ├── 📁 opportunities/        # Sección de Oportunidades
+│   │   │   │   ├── 📄 page.tsx
+│   │   │   │   └── 📁 components/
+│   │   │   │       ├── 📄 OpportunityList.tsx
+│   │   │   │       ├── 📄 OpportunityCard.tsx
+│   │   │   │       └── 📄 SimulateButton.tsx
+│   │   │   ├── 📁 blockchain/         # Sección de Blockchains
+│   │   │   │   ├── 📄 page.tsx
+│   │   │   │   └── 📁 components/
+│   │   │   │       ├── 📄 BlockchainSelector.tsx
+│   │   │   │       └── 📄 ChainScoreCard.tsx
+│   │   │   └── 📁 dex/                 # Sección de DEXs
+│   │   │       ├── 📄 page.tsx
+│   │   │       └── 📁 components/
+│   │   │           ├── 📄 DexExplorer.tsx
+│   │   │           └── 📄 DexRiskBadge.tsx
+│   │   ├── 📁 components/              # Componentes reutilizables
+│   │   │   ├── 📁 ui/                  # Componentes de la biblioteca de UI (shadcn/ui)
+│   │   │   └── 📁 layout/             # Componentes de layout
+│   │   ├── 📁 lib/                     # Librerías y utilidades
+│   │   │   ├── 📄 api.ts                # Cliente API para comunicarse con el backend
+│   │   │   ├── 📄 ws.ts                 # Cliente WebSocket
+│   │   │   ├── 📄 config-schema.ts      # Esquema AJV de la configuración
+│   │   │   └── 📄 types.ts              # Tipos TypeScript
+│   │   └── 📁 providers/               # Proveedores de contexto (React Context)
+│   │       └── 📄 Providers.tsx
+│   └── 📁 styles/                     # Estilos globales y personalizados
+│       └── 📄 globals.css
+│
+└── 📁 asset_safety/                    # Crawler independiente de seguridad de activos
+    ├── 📄 Cargo.toml
+    ├──

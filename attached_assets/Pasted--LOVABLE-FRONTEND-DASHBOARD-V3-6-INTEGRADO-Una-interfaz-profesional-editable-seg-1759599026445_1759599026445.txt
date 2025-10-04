@@ -1,0 +1,229 @@
+✅ **LOVABLE → FRONTEND DASHBOARD (V3.6 INTEGRADO)**  
+### *“Una interfaz profesional, editable, segura y 100% conectada a tu máquina de arbitraje. Donde el trader configura, valida, simula y aplica — sin tocar código.”*
+
+> **Objetivo final**:  
+> El usuario **no necesita conocer Rust, Docker o SQL**.  
+> Solo necesita abrir el navegador, hacer clic, ajustar parámetros y ver cómo su máquina genera ganancias reales.  
+> Todo se guarda en PostgreSQL, se valida en tiempo real, y se sincroniza con el engine Rust.
+
+---
+
+### 📁 ESTRUCTURA FINAL DEL FRONTEND — `hefarica/show-my-github-gems`
+
+```bash
+├── 📄 next.config.js                     # Configuración de Next.js 14
+├── 📄 tailwind.config.ts                 # Tema oscuro/claro, componentes shadcn/ui
+├── 📄 globals.css                        # Estilos globales (tailwind + custom)
+├── 📄 middleware.ts                      # Middleware para redirección y autenticación SIWE
+├── 📄 app/
+│   ├── 📄 layout.tsx                     # Layout global con Providers (Wagmi + TanStack)
+│   ├── 📄 page.tsx                       # Dashboard principal: TopPairs + Opportunities + Wallet
+│   ├── 📄 config/
+│   │   ├── 📄 page.tsx                   # 🚀 PÁGINA PRINCIPAL DE CONFIGURACIÓN (todo editable)
+│   │   ├── 📄 components/
+│   │   │   ├── 📄 EngineConfigForm.tsx   # ✅ Formulario JSON Schema con validación en tiempo real
+│   │   │   ├── 📄 Presets.tsx            # ✅ Cargar/Guardar presets: “L2-Bluechips”, “Aggressive-Flash”
+│   │   │   ├── 📄 ConfigDiffViewer.tsx   # ✅ Visualizador de diferencias (como Git diff)
+│   │   │   ├── 📄 ConfigHistory.tsx      # ✅ Historial de versiones (quién, cuándo, qué cambió)
+│   │   │   └── 📄 ApplyConfigButton.tsx  # ✅ Botón “APPLY CONFIG” → envía PUT /cf/config
+│   │   └── 📄 utils/
+│   │       └── 📄 config-schema.ts       # ✅ Schema AJV completo (V3.6) → validación en frontend
+│   │
+│   ├── 📄 assets/
+│   │   ├── 📄 page.tsx                   # 📊 Panel de activos seguros
+│   │   ├── 📄 components/
+│   │   │   ├── 📄 AssetSafetyTable.tsx   # ✅ Tabla de tokens seguros (edad, score, FOT, oráculo)
+│   │   │   ├── 📄 AssetsPolicyForm.tsx   # ✅ Formulario para ajustar min_age_days, min_liq_usd, etc.
+│   │   │   └── 📄 AssetRiskBadge.tsx     # ✅ Badge de riesgo por token: 🔴 95, 🟡 70, 🟢 90
+│   │   └── 📄 services/
+│   │       └── 📄 assetService.ts        # ✅ fetch('/cf/assets/approved'), fetch('/cf/assets/policy')
+│   │
+│   ├── 📄 wallet/
+│   │   ├── 📄 page.tsx                   # 💰 Panel de tesorería
+│   │   ├── 📄 components/
+│   │   │   ├── 📄 WalletConnectButton.tsx # ✅ Conectar MetaMask / WalletConnect (SIWE)
+│   │   │   ├── 📄 TreasuryStatus.tsx     # ✅ Muestra saldo total, ganancias, última tx
+│   │   │   ├── 📄 WalletPermissions.tsx  # ✅ Verifica permisos de firma con SIWE (Sign-In with Ethereum)
+│   │   │   └── 📄 WalletAudit.tsx        # ✅ Lista de transacciones firmadas (desde R2 logs)
+│   │   └── 📄 services/
+│   │       └── 📄 walletService.ts       # ✅ GET /cf/wallets, POST /cf/wallets/status
+│   │
+│   ├── 📄 rli/
+│   │   ├── 📄 page.tsx                   # 📈 Panel de Risk & Liquidity Intelligence
+│   │   ├── 📄 components/
+│   │   │   ├── 📄 TopPairsTable.tsx      # ✅ Tabla de pares con profundidad @3/5/10bps, EV, riesgo
+│   │   │   ├── 📄 PairRiskCard.tsx       # ✅ Tarjeta de riesgo: score 0–100 + razones
+│   │   │   ├── 📄 EVBreakdown.tsx        # ✅ Desglose: spread - gas - fee - tax - slippage - mev_haircut
+│   │   │   └── 📄 LiquidityChart.tsx     # ✅ Gráfico de impacto de slippage vs tamaño
+│   │   └── 📄 services/
+│   │       └── 📄 rliService.ts          # ✅ fetch('/cf/pairs/top-liquidity'), fetch('/cf/pairs/:id/risk')
+│   │
+│   ├── 📄 opportunities/
+│   │   ├── 📄 page.tsx                   # ⚡ Lista de oportunidades detectadas
+│   │   ├── 📄 components/
+│   │   │   ├── 📄 OpportunityList.tsx    # ✅ Tabla de oportunidades con EV, ROI, riesgo, ruta
+│   │   │   ├── 📄 OpportunityCard.tsx    # ✅ Tarjeta detallada de una oportunidad (ruta, EV, prob)
+│   │   │   └── 📄 SimulateButton.tsx     # ✅ Botón “Simular 60s” → llama a /api/config/simulate
+│   │   └── 📄 services/
+│   │       └── 📄 opportunityService.ts  # ✅ GET /cf/opportunities
+│   │
+│   ├── 📄 blockchain/
+│   │   ├── 📄 page.tsx                   # 🌐 Selector de blockchains
+│   │   ├── 📄 components/
+│   │   │   ├── 📄 BlockchainSelector.tsx # ✅ Selector con score, TVL, gas, estado (✅/⚠️)
+│   │   │   └── 📄 ChainScoreCard.tsx     # ✅ Tarjeta de score: TVL, gas, RPC health, flash support
+│   │   └── 📄 services/
+│   │       └── 📄 chainService.ts        # ✅ GET /cf/blockchains, /cf/blockchains/top
+│   │
+│   └── 📄 dex/
+│       ├── 📄 page.tsx                   # 🔗 Explorador de DEXs
+│       ├── 📄 components/
+│       │   ├── 📄 DexExplorer.tsx        # ✅ Tabla de DEXs por chain: nombre, fee, volumen, activos
+│       │   └── 📄 DexRiskBadge.tsx       # ✅ Badge de riesgo del DEX: “✅ Compatible”, “⚠️ Hooks”
+│       └── 📄 services/
+│           └── 📄 dexService.ts          # ✅ GET /cf/dexes
+│
+├── 📄 public/
+│   └── 📄 presets/
+│       ├── 📄 L2-Bluechips.json          # ✅ Preset predefinido: Base/Arbitrum, USDC/WETH, risk_max=25
+│       ├── 📄 Stables-Only.json          # ✅ Solo USDC, USDT, DAI
+│       └── 📄 Aggressive-Flash.json      # ✅ Permite FOT, busca oportunidades en memecoins
+│
+├── 📄 src/
+│   ├── 📄 lib/
+│   │   ├── 📄 api.ts                     # ✅ Cliente REST: /cf/config, /cf/pairs, /cf/assets, etc.
+│   │   ├── 📄 ws.ts                      # ✅ Cliente WebSocket: /ws/opportunities, /ws/rli/top_pairs
+│   │   ├── 📄 config-schema.ts           # ✅ Schema AJV completo (V3.6) → usado en EngineConfigForm
+│   │   └── 📄 types.ts                   # ✅ Tipos TypeScript: EngineConfig, AssetSafety, PairRisk, etc.
+│   │
+│   ├── 📄 components/
+│   │   ├── 📄 ui/                        # ✅ Componentes shadcn/ui (button, card, table, badge, slider)
+│   │   │   ├── 📄 theme-toggle.tsx       # ✅ Cambia entre modo claro/oscuro
+│   │   │   └── 📄 ... (todos los componentes de shadcn/ui)
+│   │   └── 📄 layout/
+│   │       └── 📄 Sidebar.tsx            # ✅ Menú lateral: Dashboard, Config, Wallet, RLI, Assets
+│   │
+│   └── 📄 providers/
+│       └── 📄 Providers.tsx              # ✅ Inicializa Wagmi + TanStack Query + WebSocket
+│
+├── 📄 package.json
+├── 📄 tsconfig.json
+├── 📄 README.md                          # ✅ Instrucciones para usuarios finales
+└── 📄 LICENSE.txt                        # ✅ MIT License
+```
+
+---
+
+## ✅ **FUNCIONALIDADES CLAVE — ¿CÓMO FUNCIONA?**
+
+### ✅ 1. **EngineConfigForm.tsx — La Cerebra de la Configuración**
+- **Usa `react-jsonschema-form`** con tu schema V3.6 (`config-schema.ts`).
+- **Validación en tiempo real**: si el usuario pone `min_age_days = 10`, muestra error.
+- **Campos dinámicos**: cada campo es un array. Puedes añadir/remover chains, DEXs, assets.
+- **Botón “Simular 60s”**: llama a `/api/config/simulate` → devuelve cuántas oportunidades encontraría.
+- **Botón “APPLY CONFIG”**: hace un `PUT /cf/config` → actualiza el engine Rust en tiempo real.
+- **Guarda en localStorage**: no pierdes cambios si cierras la pestaña.
+
+> **Ejemplo de uso**:  
+> El trader cambia `max_slippage_bps` de 10 a 15 → el sistema recarga y muestra más oportunidades.  
+> Cambia `deny_fee_on_transfer` de `true` a `false` → aparecen tokens FOT.  
+> ¡Todo sin recargar la página!
+
+### ✅ 2. **AssetSafetyTable.tsx — El Escudo Antirugpull**
+- Muestra todos los tokens con `safety_score ≥ 70`.
+- Columnas: Token, Chain, Score, Edad, Liquidez, Volumen, FOT, Oráculo, Razones.
+- **Filtros en tiempo real**: “Mostrar solo tokens con edad > 180 días”.
+- **Badge de riesgo**: 🔴 (90–100), 🟡 (70–89), 🟢 (0–69).
+- **Botón “Exportar CSV”**: descarga lista de activos seguros para auditoría.
+
+### ✅ 3. **WalletConnectButton.tsx — Conexión Segura (SIWE)**
+- Usa **Wagmi + SIWE** (Sign-In with Ethereum).
+- El usuario conecta su MetaMask → firma mensaje:  
+  `"I authorize Arbitragex to execute trades on my behalf."`
+- El backend valida la firma → genera un JWT → lo guarda en `KV` de Cloudflare.
+- **Ninguna clave privada sale del navegador**.
+- El frontend solo muestra el saldo de la wallet consolidada (no la clave).
+
+### ✅ 4. **WebSocket (ws.ts) — Datos en Tiempo Real**
+- Conecta a `wss://arbitragex-supreme.workers.dev/ws`.
+- Recibe:
+  - `opportunity`: nueva oportunidad detectada.
+  - `rli/top_pairs`: actualización de pares top.
+  - `wallet/status`: nuevo saldo.
+  - `config/updated`: la configuración cambió (por otro usuario).
+- Actualiza el dashboard en tiempo real — sin polling.
+
+### ✅ 5. **ConfigDiffViewer.tsx — Como un Git Diff para Configuraciones**
+- Muestra diferencias entre versiones de `engine_configs`.
+- Ejemplo:
+  ```diff
+  - "risk_max": 25
+  + "risk_max": 35
+  - "min_age_days": 180
+  + "min_age_days": 90
+  ```
+- Permite restaurar versiones anteriores con un clic.
+
+### ✅ 6. **Presets — Configuraciones Predefinidas**
+- `L2-Bluechips.json`: para traders conservadores.
+- `Stables-Only.json`: para operar solo con USDC/DAI/USDT.
+- `Aggressive-Flash.json`: para expertos que buscan oportunidades en memecoins.
+- **Cargar un preset**: reemplaza toda la configuración con un clic.
+
+### ✅ 7. **Simulación en Tiempo Real (Simulate 60s)**
+- Cuando el usuario hace clic en “Simular 60s”:
+  1. El frontend envía la configuración actual a `/api/config/simulate`.
+  2. El backend (selector-api) simula el escaneo en un entorno aislado.
+  3. Devuelve:  
+     ```json
+     {
+       "opps_found": 12,
+       "avg_ev_usd": 45.2,
+       "avg_roi_bps": 12,
+       "risk_score_avg": 22,
+       "inclusion_estimate": 0.82
+     }
+     ```
+- El usuario decide si aplica o no.
+
+---
+
+## ✅ **INTEGRACIÓN CON EL BACKEND — FLUJO COMPLETO**
+
+```mermaid
+graph TD
+    A[Frontend: EngineConfigForm] -->|PUT /cf/config| B(Cloudflare Workers)
+    B -->|Proxy| C[Selector API]
+    C -->|Valida Schema| D[PostgreSQL]
+    D -->|Actualiza engine_configs| E[Rust Core]
+    E -->|Recarga Config| F[OpportunityDetector]
+    F -->|Detecta Oportunidades| G[WebSocket]
+    G -->|Broadcast| A
+    A -->|GET /cf/assets/approved| B
+    B -->|Proxy| C
+    C -->|Query| H[PostgreSQL: asset_safety]
+    H -->|Caché en Redis| I[Redis]
+    I -->|Cache Hit| C
+    C -->|Return| A
+    A -->|GET /cf/pairs/top-liquidity| B
+    B -->|Proxy| C
+    C -->|Query| I
+    I -->|Cache Hit| C
+    C -->|Return| A
+    A -->|SIWE Login| C
+    C -->|Genera JWT| J[Cloudflare KV]
+    J -->|Validez| B
+    B -->|Valida| C
+
+
+
+## ✅ **CONCLUSIÓN FINAL — ¿QUÉ LOGRAS?**
+
+| Característica | Estado |
+|----------------|--------|
+| ✅ **Todo es editable desde el frontend** | Sin tocar código. Todo es JSON. |
+| ✅ **Todo se conecta al backend en tiempo real** | PUT /cf/config → actualiza Rust. |
+| ✅ **Todo es seguro** | Claves privadas nunca salen del navegador. |
+| ✅ **Todo es auditado** | Historial de cambios, diffs, logs en R2. |
+| ✅ **Todo es escalable** | Soporta 100+ blockchains, 1000+ activos. |
+| ✅ **Todo es $0** | Solo con Cloudflare Free Tier, RPCs púb

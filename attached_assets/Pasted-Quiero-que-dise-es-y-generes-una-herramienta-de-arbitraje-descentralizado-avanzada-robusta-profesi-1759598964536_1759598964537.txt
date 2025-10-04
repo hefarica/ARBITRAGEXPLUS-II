@@ -1,0 +1,41 @@
+Quiero que diseñes y generes una herramienta de arbitraje descentralizado avanzada, robusta, profesional y funcional, llamada “ARBITRAGEX SUPREME V3.6”.
+
+✅ El objetivo es crear un sistema completo, ejecutable y modular que combine frontend, backend, lógica de arbitraje y despliegue automatizado, completamente a prueba de auditorías técnicas rigurosas.
+
+🧠 Quiero que el sistema supere los 7 niveles de auditoría extrema, por lo tanto, debes tener en cuenta:
+
+1. **Infraestructura y Deploy:** Debe poder desplegarse desde cero en una máquina limpia (Windows, Linux o Mac), usando scripts idempotentes, seguros y cross-platform. Debe usar Docker Compose correctamente, con servicios saludables y ports dinámicos si es necesario.
+
+2. **Integridad del Código:** Todo el código debe compilar correctamente (Rust, Node.js, TypeScript, etc). Debe tener estructura clara, modular, limpia, y con tests que pasen. Usa prácticas modernas (async/await, ESM, Rust idiomático, etc).
+
+3. **Seguridad y Privacidad:** Las claves privadas deben gestionarse de forma segura (usando vaults, cifrado, o variables de entorno encriptadas). Nunca deben almacenarse en texto plano. La comunicación entre microservicios debe tener autenticación si es necesario. Usa HTTPS en producción. Aplica validaciones estrictas de entrada.
+
+4. **Lógica de Negocio Real:** El motor debe detectar oportunidades reales de arbitraje en cadenas EVM. Implementa un módulo en Rust o TypeScript que interactúe con RPCs, lea pools de liquidez, simule rutas y calcule EV/ROI. No uses datos simulados ni hardcodeados.
+
+5. **Observabilidad y Logs:** Debe exponer métricas Prometheus útiles (`ev_total_usd`, `flashloan_success`, etc), usar logs estructurados (JSON) y permitir integración con Grafana o Loki para trazabilidad total.
+
+6. **Idempotencia y Mantenibilidad:** Todo debe poder ejecutarse múltiples veces sin corromper estado. Usa patrones seguros en tus scripts, asegúrate que no hay sobrescritura destructiva. Usa git pull inteligente, migraciones reversibles, etc.
+
+7. **Generación de Ganancias:** Debe tener un flujo completo que identifique una oportunidad, construya la transacción de flashloan, la simule y —en caso positivo— la firme y ejecute en testnet (Goerli, Sepolia, etc). El sistema debe mostrar resultados: ganancia esperada, riesgo, gas fees, y balance final.
+
+🔨 Tecnologías sugeridas (puedes adaptar según conveniencia):
+- Backend core en Rust (axum, tokio, sqlx)
+- API intermedia en Node.js (Express o Fastify)
+- Frontend en Next.js 14 (App Router, Tailwind, TS)
+- Base de datos PostgreSQL + Redis
+- Observabilidad con Prometheus + Grafana
+- Despliegue con Docker Compose
+- Gestión de claves: HashiCorp Vault o alternativa segura
+
+🎯 Entregables esperados:
+- Script de despliegue 100% funcional (PowerShell y bash)
+- Dockerfiles bien construidos (sin mounts inseguros ni flags obsoletos)
+- Código backend y frontend limpio, modular, documentado y testeado
+- Infraestructura autosuficiente, fácil de levantar y destruir
+- Configuración para ambientes dev, staging y prod
+- Simulador real de oportunidades y ejecución en testnet
+- Buenas prácticas de seguridad aplicadas
+
+No simules que funciona. Que realmente funcione.
+
+Genera la primera versión de esta herramienta excepcional, empezando por el diseño de la arquitectura, estructura de carpetas, y luego pasa a los scripts, backend, frontend y lógica de arbitraje real.
