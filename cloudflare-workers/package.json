@@ -1,0 +1,32 @@
+{
+  "name": "arbitragex-cloudflare-workers",
+  "version": "3.6.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "migrations:create": "wrangler d1 migrations create arbitragex-db",
+    "migrations:apply": "wrangler d1 migrations apply arbitragex-db",
+    "migrations:apply:prod": "wrangler d1 migrations apply arbitragex-db --env production",
+    "format": "prettier --write \"src/**/*.{ts,js,json}\"",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.0.0",
+    "jose": "^5.2.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "@types/node": "^20.11.5",
+    "@typescript-eslint/eslint-plugin": "^6.19.1",
+    "@typescript-eslint/parser": "^6.19.1",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.24.0"
+  }
+}
