@@ -1,0 +1,184 @@
+# ArbitrageX Supreme V3.6 - Testnet Configuration for Rust MEV Engine
+# This configuration is specifically for testnet operations
+
+[testnet]
+enabled = true
+mode = "testnet"
+dry_run = true
+enable_real_trading = false
+
+# Gas Configuration for Testnets
+[testnet.gas]
+max_gas_price = "50" # Gwei - Higher for testnets due to volatility
+min_profit_threshold = "0.001" # ETH - Lower threshold for testing
+priority_fee = "2" # Gwei
+max_fee_per_gas = "100" # Gwei
+default_gas_limit = 500000
+
+# Position Limits for Testing
+[testnet.limits]
+max_position_size = "1.0" # ETH
+max_concurrent_trades = 3
+max_daily_loss = "10" # ETH - Higher for testing
+slippage_tolerance = 0.01 # 1%
+
+# Sepolia Configuration
+[testnet.sepolia]
+chain_id = 11155111
+name = "Sepolia"
+enabled = true
+
+# RPC Endpoints
+[[testnet.sepolia.rpcs]]
+url = "https://rpc.sepolia.org"
+ws_url = "wss://sepolia.gateway.tenderly.co"
+priority = 1
+
+[[testnet.sepolia.rpcs]]
+url = "https://ethereum-sepolia.publicnode.com"
+priority = 2
+
+# DEX Contracts
+[testnet.sepolia.contracts]
+uniswap_v3_factory = "0x0227628f3F023bb0B980b67D528571c95c6DaC1c"
+uniswap_v3_router = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E"
+uniswap_v3_quoter_v2 = "0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3"
+uniswap_v3_pool_deployer = "0x4893376342d5D7b3e31d4184c08b265e5aB2A3f6"
+
+# Test Tokens
+[testnet.sepolia.tokens]
+WETH = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
+USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+USDT = "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0"
+DAI = "0x3e622317f8C93f7328350cF0B56d9eD4C620C5d6"
+
+# Mumbai Configuration
+[testnet.mumbai]
+chain_id = 80001
+name = "Mumbai"
+enabled = true
+
+# RPC Endpoints
+[[testnet.mumbai.rpcs]]
+url = "https://rpc-mumbai.maticvigil.com"
+priority = 1
+
+[[testnet.mumbai.rpcs]]
+url = "https://polygon-mumbai-bor.publicnode.com"
+priority = 2
+
+# DEX Contracts
+[testnet.mumbai.contracts]
+quickswap_factory = "0x5757371414417b8C6CAad45bAeF941aBc7d3Ab32"
+quickswap_router = "0x8954AfA98594b838bda56FE4C12a09D7739D179b"
+
+# Test Tokens
+[testnet.mumbai.tokens]
+WMATIC = "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889"
+USDC = "0x0FA8781a83E46826621b3BC094Ea2A0212e71B23"
+USDT = "0xA02f6adc7926efeBBd59Fd43A84f4E0c0c91e832"
+DAI = "0x001B3B4d0F3714Ca98ba10F6042DaEbF0B1B7b6F"
+
+# Arbitrum Goerli Configuration
+[testnet.arbitrum_goerli]
+chain_id = 421613
+name = "Arbitrum Goerli"
+enabled = true
+
+# RPC Endpoints
+[[testnet.arbitrum_goerli.rpcs]]
+url = "https://goerli-rollup.arbitrum.io/rpc"
+priority = 1
+
+[[testnet.arbitrum_goerli.rpcs]]
+url = "https://arbitrum-goerli.public.blastapi.io"
+priority = 2
+
+# DEX Contracts
+[testnet.arbitrum_goerli.contracts]
+uniswap_v3_factory = "0x4893376342d5D7b3e31d4184c08b265e5aB2A3f6"
+uniswap_v3_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+
+# Test Tokens
+[testnet.arbitrum_goerli.tokens]
+WETH = "0xe39Ab88f8A4777030A534146A9Ca3B52bd5D43A3"
+USDC = "0x8FB1E3fC51F3b789dED7557E680551d93Ea9d892"
+USDT = "0x533046F316590C19d99c74eE661c6d541b64471C"
+
+# BSC Testnet Configuration
+[testnet.bsc_testnet]
+chain_id = 97
+name = "BSC Testnet"
+enabled = true
+
+# RPC Endpoints
+[[testnet.bsc_testnet.rpcs]]
+url = "https://data-seed-prebsc-1-s1.binance.org:8545"
+priority = 1
+
+[[testnet.bsc_testnet.rpcs]]
+url = "https://bsc-testnet.publicnode.com"
+priority = 2
+
+# DEX Contracts
+[testnet.bsc_testnet.contracts]
+pancakeswap_factory = "0x6725F303b657a9451d8BA641348b6761A6CC7a17"
+pancakeswap_router = "0xD99D1c33F9fC3444f8101754aBC46c52416550D1"
+
+# Test Tokens
+[testnet.bsc_testnet.tokens]
+WBNB = "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd"
+BUSD = "0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7"
+USDT = "0x7ef95a0FEE0Dd31b22626fA2e10Ee6A223F8a684"
+DAI = "0x8a9424745056Eb399FD19a0EC26A14316684e274"
+
+# MEV Strategies for Testnet
+[testnet.strategies]
+enabled = ["dex-arb", "flash-loan-arb", "triangular-arb"]
+
+[testnet.strategies.dex_arb]
+enabled = true
+min_profit_usd = 1.0 # Lower for testing
+max_slippage = 0.02 # Higher tolerance for testnet
+
+[testnet.strategies.flash_loan]
+enabled = true
+providers = ["aave-v3-testnet"]
+max_leverage = 3 # Lower for safety
+
+[testnet.strategies.triangular]
+enabled = true
+max_hops = 3
+min_profit_percent = 0.5
+
+# Monitoring and Logging
+[testnet.monitoring]
+log_level = "debug"
+enable_detailed_logs = true
+log_all_opportunities = true
+log_all_transactions = true
+
+# Safety Features
+[testnet.safety]
+enable_simulation = true
+require_profit_validation = true
+max_revert_rate = 0.5 # 50% allowed on testnet
+enable_manual_approval = false
+auto_execute = true
+
+# Database Configuration
+[testnet.database]
+separate_tables = true
+table_prefix = "testnet_"
+retention_days = 7 # Keep testnet data for 7 days
+
+# WebSocket Configuration
+[testnet.websocket]
+enable_reconnect = true
+reconnect_interval = 5 # seconds
+max_reconnect_attempts = 10
+ping_interval = 30 # seconds
+
+# Notification Settings
+[testnet.notifications]
+enabled = false # Disable notifications for testnet

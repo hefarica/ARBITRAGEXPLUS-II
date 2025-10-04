@@ -4,6 +4,15 @@ import cors from "cors";
 import { db } from "./server/db";
 import { opportunities, assetSafety, executions, engineConfig } from "@shared/schema";
 import { desc, eq, and } from "drizzle-orm";
+import { 
+  getTestnetConfig, 
+  getFaucetInfo, 
+  checkTestnetBalance,
+  isTestnetMode,
+  switchTestnet,
+  generateTestOpportunities,
+  TESTNET_CONFIGS
+} from "./lib/testnet";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "0.0.0.0";
@@ -460,6 +469,107 @@ app.prepare().then(() => {
     } catch (error) {
       console.error("Error fetching RPC stats:", error);
       res.status(500).json({ error: "Failed to fetch RPC stats" });
+    }
+  });
+
+  // Testnet API Endpoints
+  server.get("/api/testnet/config", async (req, res) => {
+    try {
+      const isTestnet = isTestnetMode();
+      const currentNetwork = process.env.TESTNET_NETWORK || 'sepolia';
+      const config = getTestnetConfig(currentNetwork);
+      
+      res.json({
+        enabled: isTestnet,
+        currentNetwork,
+        availableNetworks: Object.keys(TESTNET_CONFIGS),
+        config,
+        mode: isTestnet ? 'testnet' : 'mainnet'
+      });
+    } catch (error) {
+      console.error("Error fetching testnet config:", error);
+      res.status(500).json({ error: "Failed to fetch testnet configuration" });
+    }
+  });
+
+  server.get("/api/testnet/faucets", async (req, res) => {
+    try {
+      const faucets = getFaucetInfo();
+      res.json(faucets);
+    } catch (error) {
+      console.error("Error fetching faucet info:", error);
+      res.status(500).json({ error: "Failed to fetch faucet information" });
+    }
+  });
+
+  server.get("/api/testnet/balance/:address", async (req, res) => {
+    try {
+      const { address } = req.params;
+      const network = req.query.network as string || process.env.TESTNET_NETWORK || 'sepolia';
+      
+      const balance = await checkTestnetBalance(address, network);
+      res.json({
+        address,
+        network,
+        balance
+      });
+    } catch (error) {
+      console.error("Error checking testnet balance:", error);
+      res.status(500).json({ error: "Failed to check testnet balance" });
+    }
+  });
+
+  server.post("/api/testnet/switch", async (req, res) => {
+    try {
+      const { network, mode } = req.body;
+      
+      if (mode === 'mainnet') {
+        process.env.NETWORK_MODE = 'mainnet';
+        process.env.ENABLE_REAL_TRADING = 'false';
+        
+        res.json({
+          success: true,
+          mode: 'mainnet',
+          message: 'Switched to mainnet mode (view-only)'
+        });
+      } else if (mode === 'testnet') {
+        process.env.NETWORK_MODE = 'testnet';
+        process.env.ENABLE_REAL_TRADING = 'false';
+        
+        if (network && TESTNET_CONFIGS[network]) {
+          await switchTestnet(network);
+          process.env.TESTNET_NETWORK = network;
+        }
+        
+        res.json({
+          success: true,
+          mode: 'testnet',
+          network: process.env.TESTNET_NETWORK || 'sepolia',
+          message: `Switched to testnet mode on ${network || 'sepolia'}`
+        });
+      } else {
+        res.status(400).json({ error: "Invalid mode. Use 'mainnet' or 'testnet'" });
+      }
+    } catch (error) {
+      console.error("Error switching network:", error);
+      res.status(500).json({ error: "Failed to switch network mode" });
+    }
+  });
+
+  server.get("/api/testnet/opportunities", async (req, res) => {
+    try {
+      if (!isTestnetMode()) {
+        res.status(400).json({ error: "Testnet mode is not enabled" });
+        return;
+      }
+      
+      const network = req.query.network as string || process.env.TESTNET_NETWORK || 'sepolia';
+      const opportunities = generateTestOpportunities(network);
+      
+      res.json(opportunities);
+    } catch (error) {
+      console.error("Error fetching test opportunities:", error);
+      res.status(500).json({ error: "Failed to fetch test opportunities" });
     }
   });
 

@@ -50,6 +50,7 @@
     "date-fns": "^2.30.0",
     "drizzle-kit": "^0.31.5",
     "drizzle-orm": "^0.44.6",
+    "ethers": "^6.15.0",
     "express": "^4.21.2",
     "lucide-react": "^0.303.0",
     "next": "14.0.4",

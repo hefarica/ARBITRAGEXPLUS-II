@@ -1,0 +1,228 @@
+# ArbitrageX Supreme V3.6 - Testnet Configuration
+# Free public testnet endpoints and test contracts
+
+[testnets]
+
+# Ethereum Sepolia Testnet
+[testnets.sepolia]
+chain_id = 11155111
+name = "Sepolia"
+native_token = "ETH"
+explorer = "https://sepolia.etherscan.io"
+faucet = "https://sepoliafaucet.com"
+
+# RPC Endpoints (Free public endpoints)
+[[testnets.sepolia.rpcs]]
+url = "https://rpc.sepolia.org"
+priority = 1
+rate_limit = 10
+
+[[testnets.sepolia.rpcs]]
+url = "https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
+priority = 2
+rate_limit = 10
+
+[[testnets.sepolia.rpcs]]
+url = "https://ethereum-sepolia.publicnode.com"
+priority = 3
+rate_limit = 20
+
+[[testnets.sepolia.rpcs]]
+url = "https://rpc.ankr.com/eth_sepolia"
+priority = 4
+rate_limit = 10
+
+# Test Contracts
+[testnets.sepolia.contracts]
+# Uniswap V3 on Sepolia
+uniswap_v3_factory = "0x0227628f3F023bb0B980b67D528571c95c6DaC1c"
+uniswap_v3_router = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E"
+uniswap_v3_quoter = "0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3"
+uniswap_v3_pool_deployer = "0x4893376342d5D7b3e31d4184c08b265e5aB2A3f6"
+
+# Test Tokens
+[testnets.sepolia.tokens]
+WETH = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
+USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+USDT = "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0"
+DAI = "0x3e622317f8C93f7328350cF0B56d9eD4C620C5d6"
+UNI = "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984"
+
+# Polygon Mumbai Testnet
+[testnets.mumbai]
+chain_id = 80001
+name = "Mumbai"
+native_token = "MATIC"
+explorer = "https://mumbai.polygonscan.com"
+faucet = "https://faucet.polygon.technology/"
+
+# RPC Endpoints
+[[testnets.mumbai.rpcs]]
+url = "https://rpc-mumbai.maticvigil.com"
+priority = 1
+rate_limit = 10
+
+[[testnets.mumbai.rpcs]]
+url = "https://polygon-mumbai.g.alchemy.com/v2/demo"
+priority = 2
+rate_limit = 10
+
+[[testnets.mumbai.rpcs]]
+url = "https://polygon-mumbai-bor.publicnode.com"
+priority = 3
+rate_limit = 20
+
+[[testnets.mumbai.rpcs]]
+url = "https://rpc.ankr.com/polygon_mumbai"
+priority = 4
+rate_limit = 10
+
+# Test Contracts
+[testnets.mumbai.contracts]
+# QuickSwap on Mumbai
+quickswap_factory = "0x5757371414417b8C6CAad45bAeF941aBc7d3Ab32"
+quickswap_router = "0x8954AfA98594b838bda56FE4C12a09D7739D179b"
+
+# Test Tokens
+[testnets.mumbai.tokens]
+WMATIC = "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889"
+USDC = "0x0FA8781a83E46826621b3BC094Ea2A0212e71B23"
+USDT = "0xA02f6adc7926efeBBd59Fd43A84f4E0c0c91e832"
+DAI = "0x001B3B4d0F3714Ca98ba10F6042DaEbF0B1B7b6F"
+
+# Arbitrum Goerli Testnet
+[testnets.arbitrum_goerli]
+chain_id = 421613
+name = "Arbitrum Goerli"
+native_token = "ETH"
+explorer = "https://goerli.arbiscan.io"
+faucet = "https://faucet.arbitrum.io"
+
+# RPC Endpoints
+[[testnets.arbitrum_goerli.rpcs]]
+url = "https://goerli-rollup.arbitrum.io/rpc"
+priority = 1
+rate_limit = 10
+
+[[testnets.arbitrum_goerli.rpcs]]
+url = "https://arbitrum-goerli.public.blastapi.io"
+priority = 2
+rate_limit = 10
+
+[[testnets.arbitrum_goerli.rpcs]]
+url = "https://endpoints.omniatech.io/v1/arbitrum/goerli/public"
+priority = 3
+rate_limit = 10
+
+# Test Contracts
+[testnets.arbitrum_goerli.contracts]
+# Uniswap V3 on Arbitrum Goerli
+uniswap_v3_factory = "0x4893376342d5D7b3e31d4184c08b265e5aB2A3f6"
+uniswap_v3_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+
+# Test Tokens
+[testnets.arbitrum_goerli.tokens]
+WETH = "0xe39Ab88f8A4777030A534146A9Ca3B52bd5D43A3"
+USDC = "0x8FB1E3fC51F3b789dED7557E680551d93Ea9d892"
+USDT = "0x533046F316590C19d99c74eE661c6d541b64471C"
+
+# Optimism Goerli Testnet
+[testnets.optimism_goerli]
+chain_id = 420
+name = "Optimism Goerli"
+native_token = "ETH"
+explorer = "https://goerli-optimism.etherscan.io"
+faucet = "https://optimismfaucet.xyz"
+
+# RPC Endpoints
+[[testnets.optimism_goerli.rpcs]]
+url = "https://goerli.optimism.io"
+priority = 1
+rate_limit = 10
+
+[[testnets.optimism_goerli.rpcs]]
+url = "https://optimism-goerli.public.blastapi.io"
+priority = 2
+rate_limit = 10
+
+# BSC Testnet
+[testnets.bsc_testnet]
+chain_id = 97
+name = "BSC Testnet"
+native_token = "BNB"
+explorer = "https://testnet.bscscan.com"
+faucet = "https://testnet.bnbchain.org/faucet-smart"
+
+# RPC Endpoints
+[[testnets.bsc_testnet.rpcs]]
+url = "https://data-seed-prebsc-1-s1.binance.org:8545"
+priority = 1
+rate_limit = 10
+
+[[testnets.bsc_testnet.rpcs]]
+url = "https://bsc-testnet.publicnode.com"
+priority = 2
+rate_limit = 20
+
+[[testnets.bsc_testnet.rpcs]]
+url = "https://bsc-testnet.public.blastapi.io"
+priority = 3
+rate_limit = 10
+
+# Test Contracts
+[testnets.bsc_testnet.contracts]
+# PancakeSwap on BSC Testnet
+pancakeswap_factory = "0x6725F303b657a9451d8BA641348b6761A6CC7a17"
+pancakeswap_router = "0xD99D1c33F9fC3444f8101754aBC46c52416550D1"
+
+# Test Tokens
+[testnets.bsc_testnet.tokens]
+WBNB = "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd"
+BUSD = "0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7"
+USDT = "0x7ef95a0FEE0Dd31b22626fA2e10Ee6A223F8a684"
+DAI = "0x8a9424745056Eb399FD19a0EC26A14316684e274"
+
+# Base Goerli Testnet
+[testnets.base_goerli]
+chain_id = 84531
+name = "Base Goerli"
+native_token = "ETH"
+explorer = "https://goerli.basescan.org"
+faucet = "https://faucet.quicknode.com/base/goerli"
+
+# RPC Endpoints
+[[testnets.base_goerli.rpcs]]
+url = "https://goerli.base.org"
+priority = 1
+rate_limit = 10
+
+[[testnets.base_goerli.rpcs]]
+url = "https://base-goerli.public.blastapi.io"
+priority = 2
+rate_limit = 10
+
+# Test Configuration
+[test_config]
+# General test settings
+max_gas_price = "50"  # Gwei
+min_profit_threshold = "0.001"  # ETH
+max_position_size = "1"  # ETH
+slippage_tolerance = "0.01"  # 1%
+
+# Test wallet settings
+test_private_key_env = "TEST_PRIVATE_KEY"
+test_wallet_mnemonic_env = "TEST_MNEMONIC"
+
+# Transaction settings
+default_gas_limit = 500000
+priority_fee = "2"  # Gwei
+max_fee_per_gas = "100"  # Gwei
+
+# Safety settings for testnet
+enable_real_trading = false
+dry_run_mode = true
+simulation_only = false
+
+# Monitoring
+log_level = "debug"
+enable_detailed_logs = true

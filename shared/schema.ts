@@ -12,6 +12,7 @@ export const opportunities = pgTable("opportunities", {
   estProfitUsd: doublePrecision("est_profit_usd").notNull(),
   gasUsd: doublePrecision("gas_usd").notNull(),
   ts: bigint("ts", { mode: "number" }).notNull(),
+  isTestnet: boolean("is_testnet").default(false),
 });
 
 export const assetSafety = pgTable("asset_safety", {
@@ -30,6 +31,7 @@ export const executions = pgTable("executions", {
   gasUsd: doublePrecision("gas_usd"),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  isTestnet: boolean("is_testnet").default(false),
 });
 
 export const engineConfig = pgTable("engine_config", {
@@ -37,6 +39,7 @@ export const engineConfig = pgTable("engine_config", {
   version: text("version").notNull().default("1.0.0"),
   config: jsonb("config").notNull(),
   isActive: boolean("is_active").notNull().default(false),
+  networkMode: text("network_mode").default("mainnet"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
