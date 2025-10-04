@@ -1,0 +1,78 @@
+Claro, aquí tienes un **prompt profesional y detallado** que puedes usar para pedir una auditoría completa del sistema descrito, ya sea a un desarrollador senior, un equipo de seguridad o un consultor de infraestructura:
+
+---
+
+### 🚨 **Prompt para Auditoría Técnica: Sistema Rust MEV + Cloudflare Workers + Next.js Proxy**
+
+> **Objetivo:** Realizar una auditoría técnica exhaustiva del sistema propuesto para una solución de MEV (Maximal Extractable Value) en Ethereum, compuesto por:  
+> - Un motor Rust backend (MEV crawler con multicall on-chain)  
+> - Cloudflare Workers como capa de proxy/API  
+> - Next.js frontend con configuración de proxy incorrecta  
+>   
+> **Contexto:**  
+> El sistema está en desarrollo y requiere:  
+> - Un VPS dedicado (no Replit) para ejecutar el motor Rust MEV  
+> - Conexión a 100+ RPCs (infrastructure crítica)  
+> - Multicall on-chain crawlers para extraer datos de bloques en tiempo real  
+> - Cloudflare Workers para servir endpoints API (con Wrangler CLI)  
+> - Next.js frontend con `next.config.js` que actualmente apunta a `localhost:3000` — pero **no existe ningún servidor local en ejecución**  
+>   
+> **Requisitos de auditoría:**  
+>   
+> 1. **Infraestructura & Escalabilidad**  
+>    - ¿Es viable ejecutar el motor Rust MEV en un VPS dedicado con 100+ RPCs? ¿Qué recursos (CPU, RAM, ancho de banda, storage) se necesitan?  
+>    - ¿Hay riesgos de rate-limiting, IP bans o bloqueos por proveedores RPC (Infura, Alchemy, QuickNode, etc.)?  
+>    - ¿Se están manejando correctamente las conexiones concurrentes y el balancing de RPCs?  
+>    - ¿Se recomienda usar un load balancer, Redis para caché, o una cola de tareas (RabbitMQ/Redis Queue)?  
+>   
+> 2. **Código Rust (MEV Crawler)**  
+>    - ¿El código está optimizado para multicall batched requests?  
+>    - ¿Se manejan errores de RPC, reconexiones automáticas y backoff exponencial?  
+>    - ¿Hay manejo seguro de claves privadas o tokens de RPC?  
+>    - ¿Se usan bibliotecas seguras (`ethers-rs`, `reqwest`, `tokio`) y se evitan vulnerabilidades conocidas?  
+>    - ¿El código es testable y tiene logs estructurados (JSON, Sentry, o similar)?  
+>   
+> 3. **Cloudflare Workers**  
+>    - ¿Los archivos `workers/*.ts` están correctamente estructurados para manejar alta concurrencia y baja latencia?  
+>    - ¿Se están usando correctamente las variables de entorno (`wrangler.toml`, secrets)?  
+>    - ¿Hay protección contra DDoS, rate limiting o abuse por parte de clientes?  
+>    - ¿El worker está haciendo llamadas directas al VPS Rust? ¿Es esto escalable? ¿No se supera el límite de 30s de timeout de Cloudflare?  
+>    - ¿Se usa caching (Cache API) para respuestas repetidas?  
+>   
+> 4. **Next.js Proxy (next.config.js)**  
+>    - ¿Por qué apunta a `localhost:3000`? ¿Es un error de configuración?  
+>    - ¿Debería apuntar al endpoint del Cloudflare Worker (ej: `https://mev-api.yourdomain.com`)?  
+>    - ¿Se debe reemplazar el proxy por una llamada directa desde el frontend (CORS habilitado)?  
+>    - ¿Hay riesgos de exposición de endpoints internos o fuga de datos?  
+>   
+> 5. **Seguridad & Compliance**  
+>    - ¿Hay exposición de endpoints sensibles (ej: `/debug`, `/metrics`) sin autenticación?  
+>    - ¿Se están manejando correctamente las claves RPC y secretos? ¿Están en variables de entorno y no en código?  
+>    - ¿El VPS tiene firewall, fail2ban, SSH key-only access, y actualizaciones automáticas?  
+>    - ¿Se está cumpliendo con políticas de uso de RPCs de los proveedores (ej: no hacer scraping masivo sin permiso)?  
+>   
+> 6. **Deploy & DevOps**  
+>    - ¿Existe un flujo de CI/CD para deployar el Rust en el VPS? ¿Con GitHub Actions, Docker, systemd?  
+>    - ¿Se tiene un script para deployar los Cloudflare Workers con Wrangler?  
+>    - ¿Se monitorea el sistema (logs, métricas, alertas)? ¿Se usa Prometheus + Grafana o similar?  
+>   
+> 7. **Recomendaciones Finales**  
+>    - Lista de prioridades: ¿Qué se debe arreglar URGENTE? ¿Qué es opcional?  
+>    - ¿Existe una arquitectura más robusta, barata o escalable? (Ej: usar AWS Lambda + API Gateway, o un servicio como Flashbots Protect)  
+>    - ¿Hay alternativas a Cloudflare Workers para reducir latencia o costos?  
+>   
+> **Entregable esperado:**  
+> Un informe estructurado en secciones, con:  
+> - Nivel de riesgo (Alto/Medio/Bajo)  
+> - Hallazgos concretos  
+> - Recomendaciones técnicas accionables  
+> - Código de ejemplo corregido (si aplica)  
+> - Checklist de implementación paso a paso  
+>   
+> *Nota: No asumas que el sistema funciona. Evalúa como si fuera un proyecto en producción con riesgo de pérdidas financieras.*
+
+---
+
+Este prompt está diseñado para ser usado por un ingeniero senior, auditor de seguridad blockchain o consultor DevOps. Es claro, técnico, y obliga a una evaluación profunda en todos los niveles: código, infraestructura, seguridad y operaciones.
+
+¿Quieres que te genere también un **checklist de implementación** o un **template de informe de auditoría** basado en este prompt?
