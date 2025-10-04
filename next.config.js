@@ -26,11 +26,14 @@ const nextConfig = {
   // Configuración de producción optimizada
   swcMinify: true,
   poweredByHeader: false,
-  // Configuración para compilación y exportación
-  output: 'standalone',
   // Optimización de imágenes
   images: {
-    domains: ['www.gravatar.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'www.gravatar.com',
+      },
+    ],
     formats: ['image/avif', 'image/webp'],
   },
   // Configuración de cabeceras HTTP
@@ -50,6 +53,10 @@ const nextConfig = {
           {
             key: 'X-XSS-Protection',
             value: '1; mode=block',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
           },
         ],
       },
@@ -78,10 +85,6 @@ const nextConfig = {
     }
 
     return config
-  },
-  // Servidor de desarrollo
-  devServer: {
-    port: 3100,
   },
 };
 
