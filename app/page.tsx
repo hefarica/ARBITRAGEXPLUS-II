@@ -3,6 +3,9 @@ import { useQuery } from "@tanstack/react-query"
 import { apiGet } from "@/lib/api"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { useState, useEffect, useRef } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { TrendingUp, TrendingDown, Activity } from "lucide-react"
 
 type Opportunity = {
   id: string;
@@ -18,11 +21,41 @@ type Opportunity = {
 }
 
 export default function Page(){
+  const [newOpportunities, setNewOpportunities] = useState<Set<string>>(new Set())
+  const [previousProfit, setPreviousProfit] = useState<number>(0)
+  const [previousROI, setPreviousROI] = useState<number>(0)
+  const previousDataRef = useRef<Opportunity[]>([])
+  
   const { data } = useQuery({
     queryKey: ["opportunities"],
     queryFn: () => apiGet<Opportunity[]>("/cf/opportunities"),
     refetchInterval: 2000,
   })
+
+  // Track new opportunities
+  useEffect(() => {
+    if (data && data.length > 0) {
+      const currentIds = new Set(data.map(o => o.id))
+      const previousIds = new Set(previousDataRef.current.map(o => o.id))
+      
+      const newIds = new Set<string>()
+      currentIds.forEach(id => {
+        if (!previousIds.has(id)) {
+          newIds.add(id)
+        }
+      })
+      
+      setNewOpportunities(newIds)
+      previousDataRef.current = data
+      
+      // Remove "new" badge after 5 seconds
+      if (newIds.size > 0) {
+        setTimeout(() => {
+          setNewOpportunities(new Set())
+        }, 5000)
+      }
+    }
+  }, [data])
 
   const calculateROI = (opp: Opportunity) => {
     const amountInUsd = parseFloat(opp.amountIn);
@@ -30,6 +63,8 @@ export default function Page(){
     return Math.round((opp.estProfitUsd / amountInUsd) * 10000);
   }
 
+  const totalProfit = data?.reduce((a,b) => a + b.estProfitUsd, 0) ?? 0
+  
   const avgROI = data && data.length 
     ? Math.round(data.reduce((a,b) => a + calculateROI(b), 0) / data.length) 
     : 0;
@@ -38,51 +73,208 @@ export default function Page(){
     ? Math.round(data.reduce((a,b) => a + b.estProfitUsd, 0) / data.length)
     : 0;
 
+  // Track changes for glow effect
+  useEffect(() => {
+    if (totalProfit !== previousProfit) {
+      setPreviousProfit(totalProfit)
+    }
+    if (avgROI !== previousROI) {
+      setPreviousROI(avgROI)
+    }
+  }, [totalProfit, avgROI, previousProfit, previousROI])
+
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: {
+        duration: 0.5,
+        ease: "easeOut"
+      }
+    }
+  }
+
+  const rowVariants = {
+    hidden: { opacity: 0, x: -20 },
+    visible: { 
+      opacity: 1, 
+      x: 0,
+      transition: {
+        duration: 0.3,
+        ease: "easeOut"
+      }
+    }
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="grid md:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <div className="text-sm text-muted-foreground">Opportunities</div>
-          <div className="text-2xl font-semibold">{data?.length ?? 0}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-sm text-muted-foreground">Avg ROI (bps)</div>
-          <div className="text-2xl font-semibold">{avgROI}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-sm text-muted-foreground">Avg EV (USD)</div>
-          <div className="text-2xl font-semibold">{avgEV}</div>
-        </Card>
+    <div className="space-y-4 md:space-y-6">
+      {/* Responsive Grid - Stack on mobile */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+        <motion.div
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          <Card className="p-4 metric-card hover:shadow-lg transition-shadow duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs sm:text-sm text-muted-foreground">Opportunities</div>
+                <div className="text-xl sm:text-2xl font-semibold flex items-center gap-2 mt-1">
+                  {data?.length ?? 0}
+                  {data && data.length > 0 && (
+                    <Activity className="h-4 w-4 text-green-500 animate-pulse" />
+                  )}
+                </div>
+              </div>
+              <div className="text-3xl opacity-10">
+                <Activity />
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+        
+        <motion.div
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="p-4 metric-card hover:shadow-lg transition-shadow duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs sm:text-sm text-muted-foreground">Avg ROI (bps)</div>
+                <div className={`text-xl sm:text-2xl font-semibold mt-1 ${avgROI > previousROI ? 'animate-glow-green' : avgROI < previousROI ? 'animate-glow-red' : ''}`}>
+                  {avgROI}
+                  {avgROI > previousROI ? (
+                    <TrendingUp className="inline ml-2 h-4 w-4 text-green-500" />
+                  ) : avgROI < previousROI ? (
+                    <TrendingDown className="inline ml-2 h-4 w-4 text-red-500" />
+                  ) : null}
+                </div>
+              </div>
+              <div className="text-3xl opacity-10">
+                <TrendingUp />
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+        
+        <motion.div
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.2 }}
+        >
+          <Card className="p-4 metric-card hover:shadow-lg transition-shadow duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs sm:text-sm text-muted-foreground">Avg EV (USD)</div>
+                <div className={`text-xl sm:text-2xl font-semibold mt-1 ${totalProfit > previousProfit ? 'animate-glow-green' : totalProfit < previousProfit ? 'animate-glow-red' : ''}`}>
+                  ${avgEV.toLocaleString()}
+                </div>
+              </div>
+              <div className="text-3xl opacity-10">
+                $
+              </div>
+            </div>
+          </Card>
+        </motion.div>
       </div>
-      <Card className="p-4">
-        <div className="text-sm mb-3 font-medium">Oportunidades (tiempo real)</div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+      
+      {/* Table with animations and responsive design */}
+      <Card className="p-3 md:p-4">
+        <div className="text-sm mb-3 font-medium flex items-center justify-between">
+          <span>Oportunidades (tiempo real)</span>
+          {newOpportunities.size > 0 && (
+            <span className="new-badge">
+              {newOpportunities.size} NUEVO{newOpportunities.size > 1 ? 'S' : ''}
+            </span>
+          )}
+        </div>
+        
+        {/* Mobile-optimized table with horizontal scroll */}
+        <div className="table-container">
+          <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="text-left text-muted-foreground">
-                <th className="py-2">ID</th>
-                <th>Chain ID</th>
-                <th>Estrategia</th>
-                <th>ROI (bps)</th>
-                <th>EV (USD)</th>
-                <th>Timestamp</th>
+                <th className="py-2 px-1 sm:px-2">ID</th>
+                <th className="hidden sm:table-cell">Chain</th>
+                <th className="px-1 sm:px-2">Estrategia</th>
+                <th className="px-1 sm:px-2">ROI</th>
+                <th className="px-1 sm:px-2">EV</th>
+                <th className="hidden md:table-cell">Time</th>
               </tr>
             </thead>
             <tbody>
-              {data && data.length > 0 ? data.map(o => (
-                <tr key={o.id} className="border-t">
-                  <td className="py-2">{String(o.id).slice(0,8)}…</td>
-                  <td>{o.chainId}</td>
-                  <td><Badge variant="secondary">{o.dexIn}→{o.dexOut}</Badge></td>
-                  <td>{calculateROI(o)}</td>
-                  <td>{Math.round(o.estProfitUsd).toLocaleString()}</td>
-                  <td>{new Date(o.ts).toLocaleTimeString()}</td>
-                </tr>
-              )) : <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">Sin datos aún</td></tr>}
+              <AnimatePresence>
+                {data && data.length > 0 ? data.slice(0, 10).map((o, index) => {
+                  const isNew = newOpportunities.has(o.id)
+                  return (
+                    <motion.tr 
+                      key={o.id}
+                      variants={rowVariants}
+                      initial="hidden"
+                      animate="visible"
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ delay: index * 0.05 }}
+                      className={`border-t ${isNew ? 'animate-pulse-opportunity' : ''}`}
+                    >
+                      <td className="py-2 px-1 sm:px-2">
+                        <div className="flex items-center gap-1">
+                          {isNew && <span className="new-badge text-[10px]">NEW</span>}
+                          <span className="font-mono">{String(o.id).slice(0,6)}...</span>
+                        </div>
+                      </td>
+                      <td className="hidden sm:table-cell">{o.chainId}</td>
+                      <td className="px-1 sm:px-2">
+                        <Badge variant="secondary" className="text-[10px] sm:text-xs">
+                          {o.dexIn}→{o.dexOut}
+                        </Badge>
+                      </td>
+                      <td className={`px-1 sm:px-2 font-medium ${calculateROI(o) > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {calculateROI(o)}
+                      </td>
+                      <td className={`px-1 sm:px-2 font-medium ${o.estProfitUsd > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        ${Math.round(o.estProfitUsd).toLocaleString()}
+                      </td>
+                      <td className="hidden md:table-cell text-muted-foreground text-xs">
+                        {new Date(o.ts).toLocaleTimeString()}
+                      </td>
+                    </motion.tr>
+                  )
+                }) : (
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-muted-foreground">
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                      >
+                        Sin datos aún
+                      </motion.div>
+                    </td>
+                  </tr>
+                )}
+              </AnimatePresence>
             </tbody>
           </table>
         </div>
       </Card>
+      
+      {/* Mobile-only Quick Actions */}
+      <div className="block md:hidden">
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="p-4 touch-target text-center hover:bg-accent cursor-pointer transition-colors">
+            <Activity className="h-6 w-6 mx-auto mb-2" />
+            <span className="text-xs">Auto Trade</span>
+          </Card>
+          <Card className="p-4 touch-target text-center hover:bg-accent cursor-pointer transition-colors">
+            <TrendingUp className="h-6 w-6 mx-auto mb-2" />
+            <span className="text-xs">Analytics</span>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

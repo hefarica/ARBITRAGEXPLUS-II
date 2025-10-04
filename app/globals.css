@@ -4,10 +4,11 @@
  
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    /* Light theme - Paleta mejorada */
+    --background: 211 68% 97%; /* #f8fafc */
     --foreground: 222.2 84% 4.9%;
 
-    --card: 0 0% 100%;
+    --card: 0 0% 100%; /* #ffffff */
     --card-foreground: 222.2 84% 4.9%;
  
     --popover: 0 0% 100%;
@@ -28,21 +29,22 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 217 33% 94%; /* #e2e8f0 */
+    --input: 217 33% 94%;
     --ring: 222.2 84% 4.9%;
  
     --radius: 0.5rem;
   }
  
   .dark {
-    --background: 222.2 84% 4.9%;
+    /* Dark theme - Paleta mejorada */
+    --background: 224 47% 7%; /* #0a0e1a */
     --foreground: 210 40% 98%;
  
-    --card: 222.2 84% 4.9%;
+    --card: 220 26% 11%; /* #151923 */
     --card-foreground: 210 40% 98%;
  
-    --popover: 222.2 84% 4.9%;
+    --popover: 220 26% 11%;
     --popover-foreground: 210 40% 98%;
  
     --primary: 210 40% 98%;
@@ -60,8 +62,8 @@
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
  
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 215 19% 22%; /* #2a3441 */
+    --input: 215 19% 22%;
     --ring: 212.7 26.8% 83.9%;
   }
 }
@@ -71,8 +73,138 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-300;
   }
+}
+
+/* Animaciones para ArbitrageX Supreme V3.6 */
+
+/* Animación pulse mejorada para nuevas oportunidades */
+@keyframes pulse-opportunity {
+  0% {
+    background-color: rgba(16, 185, 129, 0.3);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    background-color: rgba(16, 185, 129, 0.1);
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.animate-pulse-opportunity {
+  animation: pulse-opportunity 2s ease-in-out infinite;
+}
+
+/* Fade in para filas nuevas */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
+/* Slide in para notificaciones */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in-right 0.3s ease-out forwards;
+}
+
+/* Efecto glow para valores que cambian */
+@keyframes glow-green {
+  0%, 100% {
+    text-shadow: 0 0 2px rgba(16, 185, 129, 0.8);
+  }
+  50% {
+    text-shadow: 0 0 8px rgba(16, 185, 129, 1), 0 0 12px rgba(16, 185, 129, 0.8);
+  }
+}
+
+@keyframes glow-red {
+  0%, 100% {
+    text-shadow: 0 0 2px rgba(239, 68, 68, 0.8);
+  }
+  50% {
+    text-shadow: 0 0 8px rgba(239, 68, 68, 1), 0 0 12px rgba(239, 68, 68, 0.8);
+  }
+}
+
+.animate-glow-green {
+  animation: glow-green 1s ease-in-out;
+}
+
+.animate-glow-red {
+  animation: glow-red 1s ease-in-out;
+}
+
+/* Indicador NEW badge */
+.new-badge {
+  @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold;
+  @apply bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400;
+  animation: pulse-opportunity 2s ease-in-out infinite;
+}
+
+/* Estilos responsivos mejorados */
+@media (max-width: 768px) {
+  /* Touch-friendly buttons */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Tabla con scroll horizontal en móvil */
+  .table-container {
+    @apply overflow-x-auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Cards apiladas en móvil */
+  .mobile-stack {
+    @apply flex flex-col space-y-4;
+  }
+  
+  /* Bottom navigation bar height offset */
+  .has-mobile-nav {
+    padding-bottom: 4rem;
+  }
+}
+
+/* Respeta preferencia de movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Transiciones de tema suaves */
+.theme-transition * {
+  @apply transition-colors duration-300 ease-in-out;
 }
 
 /* Estilos personalizados para ArbitrageX Supreme V3.6 */
@@ -105,14 +237,14 @@
   @apply transition-all hover:shadow-md dark:hover:shadow-gray-800;
 }
 
-/* Personalización del scrollbar */
+/* Personalización del scrollbar mejorado */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-muted/40;
+  @apply bg-muted/40 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb {

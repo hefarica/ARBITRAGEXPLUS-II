@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
+import { ThemeToggleSwitch } from "@/components/ui/theme-toggle-switch"
 import { Badge } from "@/components/ui/badge"
 import { Bell, AlertTriangle } from "lucide-react"
 import { checkBackendHealth, getApiVersion } from "@/lib/api"
@@ -95,8 +96,11 @@ export function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
           
-          {/* Selector de tema */}
-          <ThemeToggle />
+          {/* Selector de tema - Toggle Switch mejorado */}
+          <div className="flex items-center gap-2">
+            <ThemeToggleSwitch />
+            <ThemeToggle />
+          </div>
         </div>
       </div>
     </header>

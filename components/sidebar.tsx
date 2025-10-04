@@ -86,7 +86,7 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        "flex flex-col border-r bg-background h-full transition-all duration-300",
+        "hidden md:flex flex-col border-r bg-background h-full transition-all duration-300",
         isCollapsed ? "w-16" : "w-64"
       )}
     >

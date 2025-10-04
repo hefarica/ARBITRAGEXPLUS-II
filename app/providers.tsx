@@ -22,7 +22,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       attribute="class"
       defaultTheme="dark"
       enableSystem
-      disableTransitionOnChange
+      storageKey="arbitragex-theme"
+      disableTransitionOnChange={false}
     >
       <TooltipProvider>
         <QueryClientProvider client={queryClient}>
