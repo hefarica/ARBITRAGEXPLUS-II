@@ -2,12 +2,51 @@
 
 ## Overview
 
-ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and configuring a DeFi arbitrage trading system. The application provides real-time visibility into arbitrage opportunities across multiple blockchains, asset safety evaluation (Anti-Rugpull system), execution history, and system configuration management.
+ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and configuring a DeFi arbitrage/MEV trading system. The application provides real-time visibility into arbitrage opportunities across multiple blockchains, asset safety evaluation (Anti-Rugpull system), execution history, and system configuration management.
 
-This is the frontend component of a three-tier architecture:
-1. **Backend** (Rust/Node.js): Core arbitrage engine with PostgreSQL and Redis
-2. **Edge** (Cloudflare Workers): API proxy, WebSocket relay, and caching layer
-3. **Frontend** (This repository): Next.js dashboard for monitoring and control
+## Arquitectura de 3 Capas
+
+Este dashboard es la **Capa UI (Frontend)** de un sistema completo de arbitraje/MEV que integra tres repositorios:
+
+### 1. Capa Núcleo - ARBITRAGEXSUPREME (VPS Contabo)
+- **Motor MEV principal** en Rust (`searcher-rs`) - inspecciona mempools/DEXs y simula oportunidades
+- **APIs internas** (selector-api en Node/Fastify) - expone endpoints para el edge
+- **Clientes de relays** - maneja Flashbots/bloXroute/MEV-Share
+- **Simulación** (sim-ctl) - valida trades con forks
+- **Base de datos**: PostgreSQL (source of truth) + Redis (caché multi-tier L1-L4)
+- **Contratos smart**: módulos para arbitraje/flash-loans
+- **Infraestructura**: Docker Compose, Nginx (reverse proxy/SSL)
+- **Observabilidad**: Prometheus/Grafana/Alertmanager
+
+### 2. Capa Edge - ARBITRAGEX-CONTABO-BACKEND (Cloudflare)
+- **API Proxy seguro** - JWT, rate limiting, headers, firewall, DDoS protection
+- **Acelerador/CDN global** - baja latencia mundial
+- **Caché inteligente**: D1 (SQL), KV (key-value), R2 (object storage)
+- **Real-time**: Pub/Sub + WebSocket relay para eventos
+- **Optimizaciones**: compresión, batching, pooling
+- **Protección**: geo-control, CORS, security headers
+- **Degradación controlada**: modo read-only con cachés si el core cae
+
+### 3. Capa UI - Este Dashboard (Replit/Cloudflare Pages)
+- **Frontend Next.js** - consume endpoints REST del edge
+- **Visualización en tiempo real** - oportunidades, estrategias, métricas
+- **13 estrategias MEV** - configurables por el usuario
+- **12 blockchains** - monitoreo de estado y salud
+- **Sistema de alertas** - notificaciones y eventos críticos
+- **Configuración** - gestión de parámetros y toggles
+
+## Flujo de Datos End-to-End
+
+```
+Mempools/DEXs → [Núcleo VPS] → [Edge Cloudflare] → [Dashboard UI]
+                    ↓                ↓                    ↓
+                PostgreSQL/      D1/KV/R2/           Visualización
+                Redis            Pub/Sub             + Control
+```
+
+1. **Búsqueda** (VPS): Motor MEV detecta oportunidades en milisegundos
+2. **Optimización** (Edge): Workers aplican seguridad, caché y aceleración
+3. **Visualización** (UI): Dashboard muestra datos y permite configuración
 
 The dashboard emphasizes real-time data visualization, strict validation of live data (rejecting mock/simulated data), and a responsive, accessible user interface.
 
