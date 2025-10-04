@@ -168,3 +168,42 @@ export type InsertSimulation = typeof simulations.$inferInsert;
 
 export type PaperTradingAccount = typeof paperTradingAccounts.$inferSelect;
 export type InsertPaperTradingAccount = typeof paperTradingAccounts.$inferInsert;
+
+// Alerts System Tables
+export const alerts = pgTable("alerts", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar("name", { length: 200 }).notNull(),
+  type: varchar("type", { length: 50 }).notNull(), // price, opportunity, gas, wallet, risk
+  category: varchar("category", { length: 50 }).notNull(),
+  condition: jsonb("condition").notNull(), // JSON object with condition details
+  threshold: decimal("threshold", { precision: 20, scale: 6 }),
+  priority: varchar("priority", { length: 20 }).notNull().default("medium"), // low, medium, high, critical
+  isActive: boolean("is_active").notNull().default(true),
+  schedule: varchar("schedule", { length: 20 }).default("instant"), // instant, 5min, hourly
+  soundEnabled: boolean("sound_enabled").notNull().default(false),
+  chainId: integer("chain_id"),
+  dex: varchar("dex", { length: 50 }),
+  tokenAddress: varchar("token_address", { length: 42 }),
+  strategy: varchar("strategy", { length: 50 }),
+  lastTriggered: timestamp("last_triggered"),
+  triggerCount: integer("trigger_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const alertHistory = pgTable("alert_history", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  alertId: integer("alert_id").notNull().references(() => alerts.id, { onDelete: "cascade" }),
+  triggeredAt: timestamp("triggered_at").notNull().defaultNow(),
+  value: decimal("value", { precision: 20, scale: 6 }),
+  message: text("message").notNull(),
+  data: jsonb("data"), // Additional context data
+  acknowledged: boolean("acknowledged").notNull().default(false),
+  acknowledgedAt: timestamp("acknowledged_at"),
+});
+
+export type Alert = typeof alerts.$inferSelect;
+export type InsertAlert = typeof alerts.$inferInsert;
+
+export type AlertHistory = typeof alertHistory.$inferSelect;
+export type InsertAlertHistory = typeof alertHistory.$inferInsert;

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -15,18 +15,21 @@ import {
   Menu,
   X,
   Network,
-  Brain
+  Brain,
+  Bell
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 
 interface SidebarLinkProps {
   href: string
   icon: React.ReactNode
   children: React.ReactNode
   isCollapsed: boolean
+  badge?: React.ReactNode
 }
 
-function SidebarLink({ href, icon, children, isCollapsed }: SidebarLinkProps) {
+function SidebarLink({ href, icon, children, isCollapsed, badge }: SidebarLinkProps) {
   const pathname = usePathname()
   const isActive = pathname === href
   
@@ -34,19 +37,50 @@ function SidebarLink({ href, icon, children, isCollapsed }: SidebarLinkProps) {
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-accent",
+        "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-accent relative",
         isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground",
         isCollapsed && "justify-center"
       )}
     >
-      {icon}
-      {!isCollapsed && <span>{children}</span>}
+      <div className="relative">
+        {icon}
+        {badge && isCollapsed && (
+          <div className="absolute -top-1 -right-1">
+            {badge}
+          </div>
+        )}
+      </div>
+      {!isCollapsed && (
+        <div className="flex items-center justify-between flex-1">
+          <span>{children}</span>
+          {badge}
+        </div>
+      )}
     </Link>
   )
 }
 
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [alertCount, setAlertCount] = useState(0)
+
+  // Fetch unread alerts count
+  useEffect(() => {
+    const fetchAlertCount = async () => {
+      try {
+        const res = await fetch('/api/alerts/history?limit=10')
+        const history = await res.json()
+        const unread = history.filter((item: any) => !item.acknowledged).length
+        setAlertCount(unread)
+      } catch (error) {
+        console.error('Failed to fetch alert count:', error)
+      }
+    }
+
+    fetchAlertCount()
+    const interval = setInterval(fetchAlertCount, 30000) // Update every 30 seconds
+    return () => clearInterval(interval)
+  }, [])
   
   return (
     <div
@@ -79,6 +113,19 @@ export function Sidebar() {
             isCollapsed={isCollapsed}
           >
             Dashboard
+          </SidebarLink>
+          
+          <SidebarLink
+            href="/alerts"
+            icon={<Bell className="h-5 w-5" />}
+            isCollapsed={isCollapsed}
+            badge={alertCount > 0 ? (
+              <Badge variant="destructive" className="h-5 min-w-5 px-1 animate-pulse">
+                {alertCount > 9 ? "9+" : alertCount}
+              </Badge>
+            ) : null}
+          >
+            Alerts
           </SidebarLink>
           
           <SidebarLink

@@ -1,9 +1,11 @@
 import express from "express";
 import next from "next";
 import cors from "cors";
+import { createServer } from "http";
 import { db } from "./server/db";
-import { opportunities, assetSafety, executions, engineConfig, wallets, walletBalances, walletTransactions, simulations, paperTradingAccounts } from "@shared/schema";
-import { desc, eq, and, sql } from "drizzle-orm";
+import { opportunities, assetSafety, executions, engineConfig, wallets, walletBalances, walletTransactions, simulations, paperTradingAccounts, alerts, alertHistory } from "@shared/schema";
+import { desc, eq, and, sql, gte, lte } from "drizzle-orm";
+import { AlertWebSocketServer } from "./server/websocket";
 import { 
   getTestnetConfig, 
   getFaucetInfo, 
@@ -1209,6 +1211,257 @@ app.prepare().then(() => {
     }
   });
 
+  // Alert API endpoints
+  server.get("/api/alerts", async (req, res) => {
+    try {
+      const allAlerts = await db
+        .select()
+        .from(alerts)
+        .orderBy(desc(alerts.createdAt));
+      
+      res.json(allAlerts);
+    } catch (error) {
+      console.error("Error fetching alerts:", error);
+      res.status(500).json({ error: "Failed to fetch alerts" });
+    }
+  });
+
+  server.get("/api/alerts/:id", async (req, res) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      const [alert] = await db
+        .select()
+        .from(alerts)
+        .where(eq(alerts.id, alertId))
+        .limit(1);
+      
+      if (!alert) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+      
+      res.json(alert);
+    } catch (error) {
+      console.error("Error fetching alert:", error);
+      res.status(500).json({ error: "Failed to fetch alert" });
+    }
+  });
+
+  server.post("/api/alerts", async (req, res) => {
+    try {
+      const [newAlert] = await db
+        .insert(alerts)
+        .values({
+          name: req.body.name,
+          type: req.body.type,
+          category: req.body.category,
+          condition: req.body.condition,
+          threshold: req.body.threshold,
+          priority: req.body.priority || "medium",
+          isActive: req.body.isActive ?? true,
+          schedule: req.body.schedule || "instant",
+          soundEnabled: req.body.soundEnabled ?? false,
+          chainId: req.body.chainId,
+          dex: req.body.dex,
+          tokenAddress: req.body.tokenAddress,
+          strategy: req.body.strategy,
+        })
+        .returning();
+      
+      res.json(newAlert);
+    } catch (error) {
+      console.error("Error creating alert:", error);
+      res.status(500).json({ error: "Failed to create alert" });
+    }
+  });
+
+  server.put("/api/alerts/:id", async (req, res) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      const [updatedAlert] = await db
+        .update(alerts)
+        .set({
+          ...req.body,
+          updatedAt: new Date(),
+        })
+        .where(eq(alerts.id, alertId))
+        .returning();
+      
+      if (!updatedAlert) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+      
+      res.json(updatedAlert);
+    } catch (error) {
+      console.error("Error updating alert:", error);
+      res.status(500).json({ error: "Failed to update alert" });
+    }
+  });
+
+  server.delete("/api/alerts/:id", async (req, res) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      await db
+        .delete(alerts)
+        .where(eq(alerts.id, alertId));
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting alert:", error);
+      res.status(500).json({ error: "Failed to delete alert" });
+    }
+  });
+
+  server.post("/api/alerts/:id/toggle", async (req, res) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      
+      // Get current state
+      const [currentAlert] = await db
+        .select()
+        .from(alerts)
+        .where(eq(alerts.id, alertId))
+        .limit(1);
+      
+      if (!currentAlert) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+      
+      // Toggle active state
+      const [updatedAlert] = await db
+        .update(alerts)
+        .set({
+          isActive: !currentAlert.isActive,
+          updatedAt: new Date(),
+        })
+        .where(eq(alerts.id, alertId))
+        .returning();
+      
+      res.json(updatedAlert);
+    } catch (error) {
+      console.error("Error toggling alert:", error);
+      res.status(500).json({ error: "Failed to toggle alert" });
+    }
+  });
+
+  server.post("/api/alerts/:id/test", async (req, res) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      
+      // Get the alert
+      const [alert] = await db
+        .select()
+        .from(alerts)
+        .where(eq(alerts.id, alertId))
+        .limit(1);
+      
+      if (!alert) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+      
+      // Trigger a test notification via WebSocket
+      wsServer.broadcast({
+        type: 'alert',
+        id: alert.id,
+        name: alert.name,
+        priority: alert.priority,
+        category: alert.category,
+        message: `Test alert: ${alert.name}`,
+        value: parseFloat(alert.threshold || '0'),
+        soundEnabled: alert.soundEnabled,
+        timestamp: Date.now(),
+        data: {
+          test: true,
+          type: alert.type,
+          threshold: alert.threshold,
+          condition: alert.condition
+        }
+      });
+      
+      res.json({ success: true, message: "Test alert sent" });
+    } catch (error) {
+      console.error("Error testing alert:", error);
+      res.status(500).json({ error: "Failed to test alert" });
+    }
+  });
+
+  server.get("/api/alerts/history", async (req, res) => {
+    try {
+      const { alertId, limit = 100 } = req.query;
+      
+      let query = db.select().from(alertHistory);
+      
+      if (alertId) {
+        query = query.where(eq(alertHistory.alertId, parseInt(alertId as string)));
+      }
+      
+      const history = await query
+        .orderBy(desc(alertHistory.triggeredAt))
+        .limit(parseInt(limit as string));
+      
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching alert history:", error);
+      res.status(500).json({ error: "Failed to fetch alert history" });
+    }
+  });
+
+  server.post("/api/alerts/history/:id/acknowledge", async (req, res) => {
+    try {
+      const historyId = parseInt(req.params.id);
+      
+      const [updated] = await db
+        .update(alertHistory)
+        .set({
+          acknowledged: true,
+          acknowledgedAt: new Date(),
+        })
+        .where(eq(alertHistory.id, historyId))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ error: "Alert history not found" });
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error acknowledging alert:", error);
+      res.status(500).json({ error: "Failed to acknowledge alert" });
+    }
+  });
+
+  server.get("/api/alerts/stats", async (req, res) => {
+    try {
+      // Get alert statistics
+      const totalAlerts = await db.select({ count: sql`COUNT(*)` }).from(alerts);
+      const activeAlerts = await db.select({ count: sql`COUNT(*)` }).from(alerts).where(eq(alerts.isActive, true));
+      const triggeredToday = await db.select({ count: sql`COUNT(*)` }).from(alertHistory)
+        .where(gte(alertHistory.triggeredAt, new Date(new Date().setHours(0, 0, 0, 0))));
+      
+      // Get top triggered alerts
+      const topAlerts = await db.select({
+        alertId: alertHistory.alertId,
+        name: alerts.name,
+        type: alerts.type,
+        count: sql<number>`COUNT(${alertHistory.id})::int`,
+      })
+      .from(alertHistory)
+      .leftJoin(alerts, eq(alertHistory.alertId, alerts.id))
+      .groupBy(alertHistory.alertId, alerts.name, alerts.type)
+      .orderBy(desc(sql`COUNT(${alertHistory.id})`))
+      .limit(5);
+      
+      res.json({
+        total: totalAlerts[0]?.count || 0,
+        active: activeAlerts[0]?.count || 0,
+        triggeredToday: triggeredToday[0]?.count || 0,
+        topAlerts,
+      });
+    } catch (error) {
+      console.error("Error fetching alert stats:", error);
+      res.status(500).json({ error: "Failed to fetch alert statistics" });
+    }
+  });
+
   server.get("/api/version", (req, res) => {
     res.json({ version: "3.6.0" });
   });
@@ -1227,7 +1480,13 @@ app.prepare().then(() => {
     }
   });
 
-  server.listen(port, () => {
+  const httpServer = createServer(server);
+  
+  // Initialize WebSocket server
+  const wsServer = new AlertWebSocketServer(httpServer);
+  console.log('[WS] WebSocket server initialized');
+
+  httpServer.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
   });
 });
