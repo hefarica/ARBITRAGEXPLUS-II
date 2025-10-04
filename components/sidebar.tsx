@@ -16,7 +16,8 @@ import {
   X,
   Network,
   Brain,
-  Bell
+  Bell,
+  BarChart3
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -113,6 +114,14 @@ export function Sidebar() {
             isCollapsed={isCollapsed}
           >
             Dashboard
+          </SidebarLink>
+          
+          <SidebarLink
+            href="/analytics"
+            icon={<BarChart3 className="h-5 w-5" />}
+            isCollapsed={isCollapsed}
+          >
+            Analytics
           </SidebarLink>
           
           <SidebarLink
