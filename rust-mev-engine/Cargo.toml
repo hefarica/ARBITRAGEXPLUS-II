@@ -10,14 +10,14 @@ tokio = { version = "1.35", features = ["full"] }
 tokio-stream = "0.1"
 
 # Ethereum
-ethers = { version = "2.0", features = ["ws", "rustls", "abigen", "ipc"] }
-ethers-core = "2.0"
-ethers-providers = "2.0"
-ethers-signers = "2.0"
-ethers-middleware = "2.0"
+ethers = { version = "2.0", default-features = false, features = ["ws", "rustls", "abigen"] }
+ethers-core = { version = "2.0", default-features = false }
+ethers-providers = { version = "2.0", default-features = false }
+ethers-signers = { version = "2.0", default-features = false }
+ethers-middleware = { version = "2.0", default-features = false }
 
 # HTTP client
-reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
 hyper = { version = "0.14", features = ["full"] }
 warp = "0.3"
 
@@ -69,6 +69,17 @@ opt-level = 3
 lto = true
 codegen-units = 1
 panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = false
+incremental = true
+
+[profile.dev-fast]
+inherits = "dev"
+opt-level = 1
+debug = false
+incremental = true
 
 [[bin]]
 name = "mev-engine"
