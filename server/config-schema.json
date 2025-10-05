@@ -54,23 +54,23 @@
             "properties": {
               "wss": {
                 "type": "array",
-                "minItems": 2,
+                "minItems": 0,
                 "items": {
                   "type": "string",
                   "pattern": "^wss?://",
                   "description": "WebSocket RPC URL"
                 },
-                "description": "Minimum 2 unique WSS endpoints for quorum"
+                "description": "WSS endpoints (recommended: ≥2 for quorum)"
               },
               "https": {
                 "type": "array",
-                "minItems": 2,
+                "minItems": 1,
                 "items": {
                   "type": "string",
                   "pattern": "^https://",
                   "description": "HTTPS RPC URL"
                 },
-                "description": "Minimum 2 unique HTTPS endpoints for quorum"
+                "description": "HTTPS endpoints (recommended: ≥2 for quorum)"
               }
             }
           },

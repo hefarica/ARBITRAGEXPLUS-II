@@ -403,8 +403,9 @@ export class EngineConfigService {
     return config;
   }
 
-  async validateConfig(config: EngineConfig): Promise<{ valid: boolean; errors: string[] }> {
+  async validateConfig(config: EngineConfig): Promise<{ valid: boolean; errors: string[]; warnings?: string[] }> {
     const errors: string[] = [];
+    const warnings: string[] = [];
 
     if (!config.version) {
       errors.push("Missing version field");
@@ -415,12 +416,16 @@ export class EngineConfigService {
         errors.push(`Chain ${chain.chainId}: invalid wnative address`);
       }
 
-      if (!chain.rpcPool.https || chain.rpcPool.https.length < 2) {
-        errors.push(`Chain ${chain.chainId}: need at least 2 HTTPS RPCs (quorum)`);
+      if (!chain.rpcPool.https || chain.rpcPool.https.length < 1) {
+        errors.push(`Chain ${chain.chainId}: need at least 1 HTTPS RPC`);
+      } else if (chain.rpcPool.https.length < 2) {
+        warnings.push(`Chain ${chain.chainId}: recommended at least 2 HTTPS RPCs for quorum`);
       }
 
-      if (!chain.rpcPool.wss || chain.rpcPool.wss.length < 2) {
-        errors.push(`Chain ${chain.chainId}: need at least 2 WSS RPCs (quorum)`);
+      if (!chain.rpcPool.wss || chain.rpcPool.wss.length < 1) {
+        warnings.push(`Chain ${chain.chainId}: recommended at least 1 WSS RPC for real-time updates`);
+      } else if (chain.rpcPool.wss.length < 2) {
+        warnings.push(`Chain ${chain.chainId}: recommended at least 2 WSS RPCs for quorum`);
       }
 
       const policies = chain.policies;
@@ -462,6 +467,7 @@ export class EngineConfigService {
     return {
       valid: errors.length === 0,
       errors,
+      warnings,
     };
   }
 }

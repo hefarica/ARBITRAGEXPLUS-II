@@ -4,15 +4,36 @@
 ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and configuring a DeFi arbitrage/MEV trading system. It provides real-time visibility into arbitrage opportunities, asset safety (Anti-Rugpull system), execution history, and system configuration. The project aims to scale from 5 hardcoded trading pairs to 100+ blockchains with dynamic, database-driven configuration, providing a comprehensive interface for managing a high-frequency, low-latency DeFi trading operation.
 
 ## Recent Changes (Oct 5, 2025)
-**PRD EXTENDIDO Implementation Complete (100%)**
+
+### PRD EXTENDIDO + MEV Engine Manager System - 100% Complete
+
+**Core Infrastructure:**
 - ✅ Engine config service rewritten with dual-format JSON (PRD + backward compatibility)
 - ✅ Database schema extended with ref_pools, config_snapshots, config_active tables
 - ✅ RefPools service with auto-recompute and manual override support
-- ✅ 8 new endpoints: /config/validate, /config/apply, /config/rollback, /config/snapshots, /config/active, /ref-pools/*
 - ✅ Triple validation framework (frontend schema, backend RPC quorum, engine-ready)
 - ✅ Versioned snapshots with compare-and-swap for atomic updates
-- ✅ System tested and running: 8 chains, 12 DEXs, 12 unique pools scanned without errors
 - ✅ Backward compatibility maintained with existing RUST MEV engine
+
+**MEV Engine Manager Implementation (Oct 5, 2025):**
+- ✅ WebSocket config.applied events: Real-time broadcast when configuration is applied
+- ✅ Singleton WebSocket instance: Global access via websocket-instance.ts
+- ✅ autoSaveAndReload() enhanced: Snapshots + validation + reload + WebSocket emission
+- ✅ config-schema.json: Comprehensive JSON schema with strict validation (flexible quorum for development)
+- ✅ Endpoint /config/export with dryRun: Validate without applying (dryRun=true)
+- ✅ Unified CRUD pattern: All write endpoints use autoSaveAndReload() → emit config.applied
+- ✅ E2E testing script: scripts/test-config-flow.ts validates complete upsert → reload → WS flow
+- ✅ /config/rollback enhanced: Emits WebSocket events on rollback
+
+**Validation System:**
+- ✅ Errors for critical failures (invalid addresses, duplicate pools, invalid feeBps)
+- ✅ Warnings for recommendations (RPC quorum, WSS availability)
+- ✅ Non-blocking validation: System works with minimal RPCs, warns about quorum
+
+**System Status:**
+- ✅ Motor RUST funcionando: 8 chains, 12 DEXs, 12 unique pools scanned without errors
+- ✅ WebSocket server operational with config.applied broadcast
+- ✅ All CRUD endpoints updated with unified autoSaveAndReload pattern
 
 ## User Preferences
 Preferred communication style: Simple, everyday language (Spanish preferred).
