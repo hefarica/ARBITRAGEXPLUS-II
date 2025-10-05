@@ -214,6 +214,7 @@ export const chains = pgTable("chains", {
   name: varchar("name", { length: 100 }).notNull().unique(),
   chainId: bigint("chain_id", { mode: "number" }).notNull().unique(),
   evm: boolean("evm").notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
   metamaskJson: jsonb("metamask_json"), // MetaMask add network params
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
