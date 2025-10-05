@@ -136,11 +136,24 @@ export class ArbitrageSimulator {
     pool1: Pool,
     pool2: Pool
   ): Promise<ArbitrageRoute | null> {
+    if (!pool1.realPrice || !pool2.realPrice) {
+      return null;
+    }
+
+    const price1 = pool1.realPrice;
+    const price2 = pool2.realPrice;
+    
+    const priceDiffBps = Math.abs((price1 - price2) / Math.min(price1, price2)) * 10000;
+    
+    if (priceDiffBps < 1) {
+      return null;
+    }
+
     const testAmounts = [0.01, 0.05, 0.1, 0.5, 1.0];
     let bestResult: ArbitrageRoute | null = null;
 
     for (const amountIn of testAmounts) {
-      const result = this.calculateRoute([pool1, pool2], amountIn, chainId);
+      const result = this.calculate2LegRoute(pool1, pool2, amountIn, chainId);
       
       if (result && (!bestResult || result.net_pnl_bps > bestResult.net_pnl_bps)) {
         bestResult = result;
@@ -148,6 +161,53 @@ export class ArbitrageSimulator {
     }
 
     return bestResult;
+  }
+
+  private calculate2LegRoute(
+    pool1: Pool,
+    pool2: Pool,
+    amountIn: number,
+    chainId: number
+  ): ArbitrageRoute | null {
+    if (!pool1.realPrice || !pool2.realPrice) {
+      return null;
+    }
+
+    const fee1 = 1 - (pool1.feeBps / 10000);
+    const fee2 = 1 - (pool2.feeBps / 10000);
+    const slippage = 1 - (amountIn * 0.0001);
+
+    const afterFirstSwap = amountIn * pool1.realPrice * fee1 * slippage;
+    const afterSecondSwap = afterFirstSwap / pool2.realPrice * fee2 * slippage;
+
+    const gasCost = this.estimateGasCost(2, chainId);
+    const netPnl = afterSecondSwap - amountIn - gasCost;
+    const netPnlBps = (netPnl / amountIn) * 10000;
+
+    if (netPnlBps <= this.MIN_PNL_BPS) {
+      return null;
+    }
+
+    const route = [
+      `${pool1.dexId}:${pool1.pairAddress.substring(0, 8)}/${pool1.feeBps}`,
+      `${pool2.dexId}:${pool2.pairAddress.substring(0, 8)}/${pool2.feeBps}`,
+    ];
+
+    return {
+      ok: true,
+      chain_id: chainId,
+      route,
+      legs: 2,
+      input_token: 'WBNB',
+      amount_in: amountIn,
+      amount_out: afterSecondSwap,
+      net_pnl: netPnl,
+      net_pnl_bps: Math.round(netPnlBps),
+      gas_cost_eth: gasCost,
+      reason: 'INTER-DEX',
+      atomic_safe: true,
+      execution: 'flashloan',
+    };
   }
 
   private async find3LegOpportunities(chainId: number, pools: Pool[]): Promise<ArbitrageRoute[]> {
