@@ -6,6 +6,8 @@ use serde_json::Value;
 use std::env;
 use std::thread;
 use std::time::Duration;
+use std::fs;
+use std::path::Path;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct DexPair {
@@ -41,24 +43,153 @@ struct Opportunity {
     ts: i64,
 }
 
-const POPULAR_PAIRS: &[(&str, i32, &str, &str, &str)] = &[
-    // (name, chain_id, token0, token1, pair_address)
-    ("WETH/USDC", 1, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640"),
-    ("WETH/USDT", 1, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "0xdAC17F958D2ee523a2206206994597C13D831ec7", "0x4e68ccd3e89f51c3074ca5072bbac773960dfa36"),
-    ("WMATIC/USDC", 137, "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", "0xa374094527e1673a86de625aa59517c5de346d32"),
-    ("WETH/USDC", 42161, "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8", "0xc31e54c7a869b9fcbecc14363cf510d1c41fa443"),
-    ("WETH/USDC", 10, "0x4200000000000000000000000000000000000006", "0x7F5c764cBc14f9669B88837ca1490cCa17c31607", "0x85149247691df622eaf1a8bd0cafd40bc45154a9"),
-];
+#[derive(Debug, Deserialize)]
+struct PairConfig {
+    name: String,
+    token0: String,
+    token1: String,
+    #[serde(rename = "pairAddress")]
+    pair_address: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChainConfig {
+    name: String,
+    #[serde(rename = "chainId")]
+    chain_id: i32,
+    dexs: Vec<String>,
+    #[serde(rename = "topPairs")]
+    top_pairs: Vec<PairConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ScanConfig {
+    chains: Vec<ChainConfig>,
+    #[serde(rename = "totalChains")]
+    total_chains: i32,
+    #[serde(rename = "totalDexs")]
+    total_dexs: i32,
+    #[serde(rename = "lastUpdated")]
+    last_updated: i64,
+}
+
+fn load_scan_config() -> Result<ScanConfig> {
+    let config_path = Path::new("mev-scan-config.json");
+    
+    if !config_path.exists() {
+        anyhow::bail!("❌ Config file 'mev-scan-config.json' not found. Generate it via API endpoint first.");
+    }
+    
+    let config_str = fs::read_to_string(config_path)?;
+    let config: ScanConfig = serde_json::from_str(&config_str)?;
+    
+    if config.total_chains == 0 {
+        anyhow::bail!("❌ Config file is empty. Generate a valid configuration via API endpoint.");
+    }
+    
+    println!("✅ Loaded config: {} chains, {} DEXs", config.total_chains, config.total_dexs);
+    Ok(config)
+}
+
+fn chain_id_to_name(chain_id: i32) -> &'static str {
+    match chain_id {
+        1 => "ethereum",
+        5 => "goerli",
+        10 => "optimism",
+        18 => "thundercore",
+        25 => "cronos",
+        30 => "rootstock",
+        40 => "telos",
+        42 => "lukso",
+        46 => "darwinia",
+        50 => "xdc",
+        56 => "bsc",
+        57 => "syscoin",
+        59 => "eos",
+        60 => "gochain",
+        61 => "ethereumclassic",
+        66 => "okc",
+        82 => "meter",
+        88 => "viction",
+        100 => "gnosis",
+        106 => "velas",
+        108 => "thundercore",
+        122 => "fuse",
+        128 => "heco",
+        137 => "polygon",
+        146 => "sonic",
+        148 => "shimmer",
+        169 => "manta",
+        183 => "ethernity",
+        196 => "xlayer",
+        199 => "bittorrent",
+        204 => "opbnb",
+        246 => "energyweb",
+        250 => "fantom",
+        252 => "fraxtal",
+        255 => "kroma",
+        288 => "boba",
+        324 => "zksync",
+        336 => "shiden",
+        361 => "theta",
+        369 => "pulsechain",
+        592 => "astar",
+        1030 => "conflux",
+        1088 => "metis",
+        1101 => "polygon-zkevm",
+        1111 => "wemix",
+        1116 => "core",
+        1284 => "moonbeam",
+        1285 => "moonriver",
+        2001 => "milkomeda",
+        2020 => "ronin",
+        2222 => "kava",
+        2611 => "redlight",
+        3797 => "alvey",
+        4200 => "merlin",
+        4689 => "iotex",
+        5000 => "mantle",
+        7700 => "canto",
+        8217 => "klaytn",
+        8453 => "base",
+        9001 => "evmos",
+        10200 => "gnosis-chiado",
+        11235 => "haqq",
+        17777 => "eos-evm",
+        23294 => "oasis-sapphire",
+        34443 => "mode",
+        42161 => "arbitrum",
+        42170 => "arbitrum-nova",
+        42220 => "celo",
+        42262 => "oasis-emerald",
+        42766 => "zkfair",
+        43114 => "avalanche",
+        44787 => "celo-alfajores",
+        47805 => "rei",
+        53935 => "dfk",
+        59144 => "linea",
+        60808 => "bob",
+        73772 => "swimmer",
+        80002 => "polygon-amoy",
+        80084 => "berachain",
+        81457 => "blast",
+        103090 => "crystaleum",
+        167000 => "taiko",
+        245022934 => "neon-evm",
+        534352 => "scroll",
+        7777777 => "zora",
+        888888888 => "vision",
+        1313161554 => "aurora",
+        1351057110 => "skale",
+        1666600000 => "harmony",
+        11155111 => "sepolia",
+        11297108109 => "palm",
+        _ => "ethereum",
+    }
+}
 
 async fn fetch_dex_prices(pair_address: &str, chain_id: i32) -> Result<Vec<DexPair>> {
-    let chain_name = match chain_id {
-        1 => "ethereum",
-        137 => "polygon",
-        42161 => "arbitrum",
-        10 => "optimism",
-        8453 => "base",
-        _ => "ethereum",
-    };
+    let chain_name = chain_id_to_name(chain_id);
 
     let url = format!("https://api.dexscreener.com/latest/dex/pairs/{}/{}", chain_name, pair_address);
     
@@ -149,54 +280,54 @@ async fn main() -> Result<()> {
     dotenv::dotenv().ok();
 
     println!("🚀 MEV Engine Minimal v3.6.0 - RUST");
-    println!("📊 Scanning {} popular pairs across chains", POPULAR_PAIRS.len());
+    
+    let config = load_scan_config()?;
+    
+    println!("📊 Loaded {} chains with {} DEXs", config.total_chains, config.total_dexs);
     println!("🔄 Scan interval: 10 seconds");
     println!("⚡ Real-time arbitrage detection active\n");
 
     loop {
         println!("🔍 Starting scan cycle...");
         let mut found = 0;
+        let mut scanned = 0;
 
-        for (name, chain_id, token0, token1, pair_addr) in POPULAR_PAIRS {
-            let chain_name = match *chain_id {
-                1 => "Ethereum",
-                137 => "Polygon",
-                42161 => "Arbitrum",
-                10 => "Optimism",
-                _ => "Unknown",
-            };
-            
-            print!("   📡 Escaneando {} en {} (Chain {})... ", name, chain_name, chain_id);
-            
-            match fetch_dex_prices(pair_addr, *chain_id).await {
-                Ok(pairs) => {
-                    if pairs.is_empty() {
-                        println!("❌ Sin datos");
-                    } else {
-                        let dex_names: Vec<String> = pairs.iter()
-                            .map(|p| p.dex_id.clone())
-                            .collect::<std::collections::HashSet<_>>()
-                            .into_iter()
-                            .collect();
-                        
-                        println!("✅ {} DEXs: [{}]", dex_names.len(), dex_names.join(", "));
-                        
-                        if let Some(opp) = calculate_arbitrage(&pairs, token0, token1, *chain_id) {
-                            log_opportunity(&opp, name, "");
-                            found += 1;
+        for chain in &config.chains {
+            for pair in &chain.top_pairs {
+                scanned += 1;
+                
+                print!("   📡 Escaneando {} en {} (Chain {})... ", pair.name, chain.name, chain.chain_id);
+                
+                match fetch_dex_prices(&pair.pair_address, chain.chain_id).await {
+                    Ok(pairs) => {
+                        if pairs.is_empty() {
+                            println!("❌ Sin datos");
+                        } else {
+                            let dex_names: Vec<String> = pairs.iter()
+                                .map(|p| p.dex_id.clone())
+                                .collect::<std::collections::HashSet<_>>()
+                                .into_iter()
+                                .collect();
+                            
+                            println!("✅ {} DEXs: [{}]", dex_names.len(), dex_names.join(", "));
+                            
+                            if let Some(opp) = calculate_arbitrage(&pairs, &pair.token0, &pair.token1, chain.chain_id) {
+                                log_opportunity(&opp, &pair.name, "");
+                                found += 1;
+                            }
                         }
                     }
+                    Err(e) => {
+                        println!("⚠️  Error: {}", e);
+                    }
                 }
-                Err(e) => {
-                    println!("⚠️  Error: {}", e);
-                }
-            }
 
-            tokio::time::sleep(Duration::from_millis(1000)).await;
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
         }
 
-        println!("🎯 Scan complete. Found {} opportunities\n", found);
+        println!("🎯 Scan complete. Scanned {} pairs, found {} opportunities\n", scanned, found);
         
-        tokio::time::sleep(Duration::from_secs(10)).await; // 10 segundos como solicitó el usuario
+        tokio::time::sleep(Duration::from_secs(10)).await;
     }
 }
