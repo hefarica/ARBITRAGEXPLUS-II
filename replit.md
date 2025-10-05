@@ -91,11 +91,13 @@ The system heavily relies on a PostgreSQL database for dynamic configuration man
 
 ## Recent Changes (October 2025)
 
-### Multi-DEX Arbitrage Scanning (Critical Update)
-- **Problem Solved**: Motor RUST solo escaneaba 1 DEX por par, perdiendo oportunidades cross-DEX
-- **Solution Implemented**: Modified `engine-config-service.ts` to generate multiple pool entries (one per DEX) for each trading pair
-- **Technical Details**: 
-  - Uses DexScreener API to find pool addresses for each configured DEX
-  - Exports `topPairs` with duplicate token pairs but different `pairAddress` per DEX
-  - Rust engine now correctly scans all configured DEXs (verified in logs: pancakeswap, biswap, uniswap)
-- **Result**: Motor now finds cross-DEX arbitrage opportunities across ALL configured DEXs (9 DEXs on Binance, 3 DEXs on Ethereum)
+### Multi-DEX Arbitrage Scanning - Deduplication & Unique Names (Latest Update)
+- **Problem Solved**: Sistema exportaba 11 pares duplicados (mismo pool address repetido) en lugar de 5 únicos
+- **Solution Implemented**: Deduplication logic + unique names per DEX in `engine-config-service.ts`
+- **Technical Details**:
+  - **Pool Deduplication**: Set-based tracking prevents duplicate pool addresses (11 → 5 unique pairs)
+  - **Unique Naming**: Each pair includes DEX identifier (e.g., "WBNB/USDC @ PancakeSwap V2", "@ Biswap", "@ Uniswap V3")
+  - **Real-time UI Updates**: Streaming updates for chains/RPCs with global clock (HH:MM:SS), latency indicator, time since last update
+  - **No-flicker Updates**: Selective state updates (isInitial flag) avoid full page reloads on polling
+- **Motor Verification**: Rust engine correctly scans 5 unique pairs with distinguishable names, each scanned once per DEX
+- **Result**: Efficient scanning across ALL configured DEXs without duplicates (3 Binance pairs × 3 DEXs + 2 Ethereum pairs × 1 DEX = 5 unique scans)
