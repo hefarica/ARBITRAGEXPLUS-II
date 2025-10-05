@@ -30,10 +30,24 @@ ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and
 - ✅ Warnings for recommendations (RPC quorum, WSS availability)
 - ✅ Non-blocking validation: System works with minimal RPCs, warns about quorum
 
+**Arbitrage Detection System (Oct 5, 2025):**
+- ✅ Arbitrage simulator: Mathematical routing engine for 2-leg and 3-leg opportunities
+- ✅ Auto-scanner: Scans every 5 seconds with WebSocket broadcast
+- ✅ Endpoint /cf/engine/opportunities/scan: REST API for on-demand scanning
+- ✅ Filtering: Only returns opportunities with net_pnl_bps > 5, gas < 0.0005 ETH, atomic_safe=true
+- ✅ Multi-chain support: Scans all configured chains or specific chainId via query param
+- ✅ JSON format output: Compatible with user specification (route, legs, input_token, amount_in/out, net_pnl, gas_cost, reason, execution method)
+- ⚠️ **PROTOTYPE STATUS**: Current implementation uses simulated price variance (±1%) for testing. For PRODUCTION use, integrate:
+  - DexScreener API for real-time pool prices
+  - GeckoTerminal API for price discovery
+  - Or on-chain reserve data with AMM formula (x*y=k) for precise calculations
+  - Real RPC calls for actual gas cost estimation
+
 **System Status:**
 - ✅ Motor RUST funcionando: 8 chains, 12 DEXs, 12 unique pools scanned without errors
 - ✅ WebSocket server operational with config.applied broadcast
 - ✅ All CRUD endpoints updated with unified autoSaveAndReload pattern
+- ✅ Arbitrage scanner running: Auto-scans every 5 seconds, broadcasts via WebSocket
 
 ## User Preferences
 Preferred communication style: Simple, everyday language (Spanish preferred).

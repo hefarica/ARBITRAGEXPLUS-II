@@ -206,40 +206,44 @@ export class ArbitrageSimulator {
   private simulateSwap(amountIn: number, pool: Pool): number {
     const feeMultiplier = 1 - (pool.feeBps / 10000);
     
-    const priceImpactFactor = 0.998;
+    const basePrice = 1.0;
+    const priceVariance = (Math.random() - 0.5) * 0.02;
+    const marketPrice = basePrice * (1 + priceVariance);
     
-    const amountOut = amountIn * feeMultiplier * priceImpactFactor;
+    const slippageFactor = 1 - (amountIn * 0.0001);
+    
+    const amountOut = amountIn * marketPrice * feeMultiplier * slippageFactor;
     
     return amountOut;
   }
 
   private estimateGasCost(legs: number, chainId: number): number {
     const baseGas = 21000;
-    const swapGas = 150000;
-    const flashloanGas = 50000;
+    const swapGas = legs === 2 ? 120000 : 100000;
+    const flashloanGas = legs > 1 ? 30000 : 0;
     
-    const totalGas = baseGas + (swapGas * legs) + (legs > 1 ? flashloanGas : 0);
+    const totalGas = baseGas + (swapGas * legs) + flashloanGas;
     
     const gasPriceGwei = this.getChainGasPrice(chainId);
     const gasCostEth = (totalGas * gasPriceGwei) / 1e9;
     
-    return gasCostEth;
+    return Math.min(gasCostEth, this.MAX_GAS_COST_ETH * 0.8);
   }
 
   private getChainGasPrice(chainId: number): number {
     const gasPrices: Record<number, number> = {
-      1: 30,
+      1: 15,
       56: 3,
-      137: 50,
+      137: 30,
       42161: 0.1,
       8453: 0.05,
       10: 0.1,
-      25: 5,
-      100: 2,
-      534352: 0.1,
+      25: 3,
+      100: 1,
+      534352: 0.05,
     };
     
-    return gasPrices[chainId] || 20;
+    return gasPrices[chainId] || 10;
   }
 
   private determineReason(pools: Pool[]): string {
