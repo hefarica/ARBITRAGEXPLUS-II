@@ -73,12 +73,20 @@ export default function ChainsAdminPage() {
   const [selectedDexes, setSelectedDexes] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [addingDexes, setAddingDexes] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [updateLatency, setUpdateLatency] = useState<number>(0);
 
-  const fetchChains = async () => {
+  const fetchChains = async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
+      const startTime = Date.now();
       const response = await fetch("/cf/engine/state");
       const data = await response.json();
+      const endTime = Date.now();
+      
+      setUpdateLatency(endTime - startTime);
+      setLastUpdate(new Date());
       
       const chainsWithCounts = data.chains.map((chain: any) => ({
         chainId: chain.chainId,
@@ -95,9 +103,9 @@ export default function ChainsAdminPage() {
       setChains(chainsWithCounts);
     } catch (error) {
       console.error("Error fetching chains:", error);
-      toast.error("Error al cargar blockchains");
+      if (isInitial) toast.error("Error al cargar blockchains");
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   };
 
@@ -315,15 +323,23 @@ export default function ChainsAdminPage() {
   };
 
   useEffect(() => {
+    const clockInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    
+    return () => clearInterval(clockInterval);
+  }, []);
+
+  useEffect(() => {
     const initializeChains = async () => {
       await runHealthCheck();
-      await fetchChains();
+      await fetchChains(true);
     };
     
     initializeChains();
     
     const interval = setInterval(() => {
-      fetchChains();
+      fetchChains(false);
     }, 10000);
     
     return () => clearInterval(interval);
@@ -341,6 +357,15 @@ export default function ChainsAdminPage() {
     }
   }, [selectedChain]);
 
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  const getSecondsSinceUpdate = () => {
+    if (!lastUpdate) return 0;
+    return Math.floor((currentTime.getTime() - lastUpdate.getTime()) / 1000);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -350,7 +375,16 @@ export default function ChainsAdminPage() {
             Administra las blockchains, RPCs y DEXs del sistema MEV
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col items-end gap-1 text-sm">
+            <div className="font-mono text-lg font-semibold">{formatTime(currentTime)}</div>
+            <div className="flex gap-3 text-xs text-muted-foreground">
+              <span>Latencia: <span className="text-green-500 font-medium">{updateLatency}ms</span></span>
+              <span>Última actualización: <span className="text-blue-500 font-medium">{getSecondsSinceUpdate()}s</span></span>
+            </div>
+          </div>
+          <div className="h-10 w-px bg-border" />
+          <div className="flex gap-2">
           <Button
             variant="outline"
             onClick={() => runHealthCheck()}
