@@ -186,5 +186,55 @@ The system employs a 3-tier architecture:
 #### Persistence Flow Verified
 -   ✅ Motor changes from "6 chains, 30 DEXs" (hardcoded) to "9 chains, 6 DEXs" (database)
 -   ✅ RUST engine successfully scans Ethereum pairs (WETH/USDC, WETH/USDT) with real pool addresses
+-   ✅ RUST engine successfully scans BSC pairs (WBNB/USDC) with verified PancakeSwap V2 pool
 -   ✅ Dynamic configuration from PostgreSQL → JSON → RUST engine working end-to-end
 -   ✅ User can add blockchains via auto-discovery and motor automatically includes them after export+reload
+
+### Pool Address Validation System (October 5, 2025 - Session 3 Continued)
+
+#### Critical Security Implementation
+To prevent errors with real money trading, implemented rigorous pool address validation system:
+
+**Validation Service** (`server/pool-validator.ts`):
+- **Dual API Verification**: Validates pool addresses using DexScreener AND GeckoTerminal APIs
+- **Token Matching**: Verifies base/quote token addresses match pool configuration
+- **Liquidity Warnings**: Alerts on low liquidity pools ($<1,000) and low volume ($<100/24h)
+- **Cache System**: 5-minute cache to avoid rate limiting (300 req/min DexScreener, 30 req/min GeckoTerminal)
+- **Chain Support**: 12+ blockchains including Ethereum, BSC, Polygon, Base, Arbitrum, Optimism
+
+**Validation Endpoints**:
+- `POST /cf/engine/pairs/validate`: Validate single pool address before saving
+- `POST /cf/engine/pairs/find`: Find correct pool addresses for token pair with liquidity filtering
+- `POST /cf/engine/pairs/upsert`: Enhanced with automatic validation (fails on invalid addresses)
+
+**Export Protection**:
+- `engineConfigService.exportToJson()`: Validates ALL pool addresses before exporting config
+- **Fail-Fast**: Throws error and prevents export if ANY pool address is invalid
+- **Detailed Logging**: Console logs validation status for each pool with warnings/errors
+
+**Validation Results**:
+```typescript
+{
+  isValid: boolean,
+  poolAddress?: string,
+  dexId?: string,        // "uniswap_v3", "pancakeswap_v2", etc
+  liquidity?: number,    // USD liquidity
+  volume24h?: number,    // 24h volume
+  baseToken?: string,    // Token symbol
+  quoteToken?: string,   // Token symbol
+  error?: string,        // Validation error message
+  source?: 'dexscreener' | 'geckoterminal' | 'cache',
+  warnings?: string[]    // Low liquidity/volume warnings
+}
+```
+
+#### Validation Rules
+1. **Mandatory Validation**: All pool addresses must pass DexScreener OR GeckoTerminal verification
+2. **Token Verification**: Base/quote token addresses must match pool configuration
+3. **Liquidity Check**: Warns if liquidity < $1,000 (configurable)
+4. **Volume Check**: Warns if 24h volume < $100 (configurable)
+5. **Error Prevention**: Export fails completely if any pool is invalid (no partial exports)
+
+#### Recent Fix Applied
+- **BSC Pool Correction**: Fixed WBNB/USDC pool address from incorrect `0xd0b53...` to verified PancakeSwap V2 address `0xd99c7f6c65857ac913a8f880a4cb84032ab2fc5b` with $400K liquidity
+- **Verification Source**: Confirmed via DexScreener API and GeckoTerminal cross-reference
