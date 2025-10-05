@@ -1,0 +1,197 @@
+# Rust MEV Engine - Replit Configuration with Public Endpoints
+version = "3.6.0"
+mode = "testnet"
+
+[database]
+# Uses Replit's DATABASE_URL environment variable
+connection_string = "${DATABASE_URL}"
+max_connections = 10
+min_connections = 2
+
+# Public RPC Endpoints (no API keys required)
+# Ethereum Sepolia Testnet
+[[rpc_endpoints]]
+chain = "sepolia"
+url = "https://ethereum-sepolia.publicnode.com"
+weight = 10
+max_requests_per_second = 30
+
+[[rpc_endpoints]]
+chain = "sepolia"
+url = "https://rpc.sepolia.org"
+weight = 8
+max_requests_per_second = 20
+
+[[rpc_endpoints]]
+chain = "sepolia"
+url = "https://sepolia.gateway.tenderly.co"
+weight = 7
+max_requests_per_second = 20
+
+# Polygon Mumbai Testnet
+[[rpc_endpoints]]
+chain = "mumbai"
+url = "https://rpc.ankr.com/polygon_mumbai"
+weight = 10
+max_requests_per_second = 30
+
+[[rpc_endpoints]]
+chain = "mumbai"
+url = "https://polygon-mumbai-bor.publicnode.com"
+weight = 8
+max_requests_per_second = 20
+
+# Arbitrum Sepolia Testnet
+[[rpc_endpoints]]
+chain = "arbitrum-sepolia"
+url = "https://sepolia-rollup.arbitrum.io/rpc"
+weight = 10
+max_requests_per_second = 30
+
+[[rpc_endpoints]]
+chain = "arbitrum-sepolia"
+url = "https://arbitrum-sepolia.publicnode.com"
+weight = 8
+max_requests_per_second = 20
+
+# Optimism Sepolia Testnet
+[[rpc_endpoints]]
+chain = "optimism-sepolia"
+url = "https://sepolia.optimism.io"
+weight = 10
+max_requests_per_second = 30
+
+[[rpc_endpoints]]
+chain = "optimism-sepolia"
+url = "https://optimism-sepolia.publicnode.com"
+weight = 8
+max_requests_per_second = 20
+
+# Base Sepolia Testnet
+[[rpc_endpoints]]
+chain = "base-sepolia"
+url = "https://sepolia.base.org"
+weight = 10
+max_requests_per_second = 30
+
+[[rpc_endpoints]]
+chain = "base-sepolia"
+url = "https://base-sepolia.publicnode.com"
+weight = 8
+max_requests_per_second = 20
+
+# BSC Testnet
+[[rpc_endpoints]]
+chain = "bsc-testnet"
+url = "https://data-seed-prebsc-1-s1.binance.org:8545"
+weight = 10
+max_requests_per_second = 30
+
+[[rpc_endpoints]]
+chain = "bsc-testnet"
+url = "https://bsc-testnet.publicnode.com"
+weight = 8
+max_requests_per_second = 20
+
+# Chain Configurations
+[chains]
+enabled = ["sepolia", "mumbai", "arbitrum-sepolia", "optimism-sepolia", "base-sepolia", "bsc-testnet"]
+
+[chains.sepolia]
+chain_id = 11155111
+multicall3_address = "0xcA11bde05977b3631167028862bE2a173976CA11"
+flashloan_providers = ["aave-v3"]
+max_gas_price_gwei = 50.0
+min_profit_threshold_eth = 0.001
+block_time_ms = 12000
+
+[chains.mumbai]
+chain_id = 80001
+multicall3_address = "0xcA11bde05977b3631167028862bE2a173976CA11"
+flashloan_providers = ["aave-v3"]
+max_gas_price_gwei = 100.0
+min_profit_threshold_eth = 0.001
+block_time_ms = 2000
+
+[chains.arbitrum-sepolia]
+chain_id = 421614
+multicall3_address = "0xcA11bde05977b3631167028862bE2a173976CA11"
+flashloan_providers = ["aave-v3"]
+max_gas_price_gwei = 2.0
+min_profit_threshold_eth = 0.001
+block_time_ms = 250
+
+[chains.optimism-sepolia]
+chain_id = 11155420
+multicall3_address = "0xcA11bde05977b3631167028862bE2a173976CA11"
+flashloan_providers = ["aave-v3"]
+max_gas_price_gwei = 2.0
+min_profit_threshold_eth = 0.001
+block_time_ms = 2000
+
+[chains.base-sepolia]
+chain_id = 84532
+multicall3_address = "0xcA11bde05977b3631167028862bE2a173976CA11"
+flashloan_providers = []
+max_gas_price_gwei = 2.0
+min_profit_threshold_eth = 0.001
+block_time_ms = 2000
+
+[chains.bsc-testnet]
+chain_id = 97
+multicall3_address = "0xcA11bde05977b3631167028862bE2a173976CA11"
+flashloan_providers = []
+max_gas_price_gwei = 10.0
+min_profit_threshold_eth = 0.002
+block_time_ms = 3000
+
+# MEV Strategies (Testnet optimized)
+[strategies]
+enabled = [
+    "dex-arb",
+    "triangular-arb",
+    "atomic-arb"
+]
+
+[strategies.dex-arb]
+enabled = true
+dexes = ["uniswap-v3", "sushiswap", "pancakeswap"]
+min_roi = 0.005
+max_slippage = 0.01
+
+[strategies.triangular-arb]
+enabled = true
+max_hops = 3
+min_roi = 0.008
+
+[strategies.atomic-arb]
+enabled = true
+min_roi = 0.005
+
+# Risk Management (Testnet settings)
+[risk]
+max_position_size_eth = 1.0
+max_daily_loss_eth = 5.0
+enable_kill_switch = true
+kill_switch_loss_threshold_eth = 10.0
+required_safety_score = 50
+blacklisted_tokens = []
+whitelisted_tokens = []
+
+# Execution Configuration (Testnet)
+[execution]
+max_concurrent_trades = 2
+default_slippage = 0.01
+private_mempool = false  # Public mempool for testnet
+relays = []
+gas_strategy = "conservative"
+max_priority_fee_gwei = 2.0
+target_block_delay = 1
+
+# Monitoring Configuration
+[monitoring]
+enable_alerts = false
+alert_channels = []
+metrics_retention_days = 7
+enable_grafana = false
+prometheus_endpoint = "http://localhost:9090"
