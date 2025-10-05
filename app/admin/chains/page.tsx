@@ -50,6 +50,15 @@ interface RPC {
   lastOkAt: number | null;
 }
 
+interface DexSuggestion {
+  name: string;
+  slug: string;
+  tvl: number;
+  change1d: number;
+  change7d: number;
+  isAdded: boolean;
+}
+
 export default function ChainsAdminPage() {
   const [chains, setChains] = useState<Chain[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +68,10 @@ export default function ChainsAdminPage() {
   const [rpcs, setRpcs] = useState<RPC[]>([]);
   const [exporting, setExporting] = useState(false);
   const [reloading, setReloading] = useState(false);
+  const [dexSuggestions, setDexSuggestions] = useState<DexSuggestion[]>([]);
+  const [selectedDexes, setSelectedDexes] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [addingDexes, setAddingDexes] = useState(false);
 
   const fetchChains = async () => {
     try {
@@ -246,6 +259,68 @@ export default function ChainsAdminPage() {
     }
   };
 
+  const fetchDexSuggestions = async (chainId: number) => {
+    try {
+      setLoadingSuggestions(true);
+      const response = await fetch(`/cf/engine/dexes/suggest/${chainId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setDexSuggestions(data.suggestions || []);
+        if (data.suggestions.length === 0) {
+          toast.info("No hay DEXs nuevos disponibles para esta blockchain");
+        }
+      } else {
+        toast.error("Error al cargar sugerencias de DEXs");
+      }
+    } catch (error) {
+      console.error("Error fetching DEX suggestions:", error);
+      toast.error("Error obteniendo sugerencias de DEXs");
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const addSelectedDexes = async (chainId: number) => {
+    if (selectedDexes.length === 0) {
+      toast.error("Selecciona al menos un DEX");
+      return;
+    }
+
+    try {
+      setAddingDexes(true);
+      const response = await fetch("/cf/engine/dexes/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chainId, dexes: selectedDexes }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(`${data.count} DEXs agregados exitosamente`);
+        setSelectedDexes([]);
+        setDexSuggestions([]);
+        await fetchChains();
+      } else {
+        toast.error("Error al agregar DEXs");
+      }
+    } catch (error) {
+      console.error("Error adding DEXs:", error);
+      toast.error("Error agregando DEXs");
+    } finally {
+      setAddingDexes(false);
+    }
+  };
+
+  const toggleDexSelection = (dexName: string) => {
+    setSelectedDexes(prev => 
+      prev.includes(dexName) 
+        ? prev.filter(d => d !== dexName)
+        : [...prev, dexName]
+    );
+  };
+
   useEffect(() => {
     fetchChains();
   }, []);
@@ -352,10 +427,101 @@ export default function ChainsAdminPage() {
                   </div>
                 )}
 
-                {chain.dexes && chain.dexes.length > 0 && (
+                {chain.dexes && chain.dexes.length > 0 ? (
                   <div className="space-y-1">
-                    <div className="text-xs font-medium text-muted-foreground">
-                      DEXs configurados ({chain.dexes.length}):
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        DEXs configurados ({chain.dexes.length}):
+                      </div>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => {
+                              setSelectedChain(chain.chainId);
+                              fetchDexSuggestions(chain.chainId);
+                            }}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle>Agregar DEXs a {chain.name}</DialogTitle>
+                            <DialogDescription>
+                              Selecciona los DEXs que deseas agregar desde DeFi Llama (ordenados por TVL)
+                            </DialogDescription>
+                          </DialogHeader>
+
+                          {loadingSuggestions ? (
+                            <div className="flex items-center justify-center py-8">
+                              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+                            </div>
+                          ) : dexSuggestions.length > 0 ? (
+                            <div className="space-y-4">
+                              <div className="grid gap-2">
+                                {dexSuggestions.map((dex) => (
+                                  <div
+                                    key={dex.slug}
+                                    className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
+                                      selectedDexes.includes(dex.name)
+                                        ? "bg-primary/10 border-primary"
+                                        : "hover:bg-muted"
+                                    }`}
+                                    onClick={() => toggleDexSelection(dex.name)}
+                                  >
+                                    <div className="flex-1">
+                                      <div className="font-medium">{dex.name}</div>
+                                      <div className="text-sm text-muted-foreground">
+                                        TVL: ${(dex.tvl / 1e6).toFixed(2)}M
+                                        {dex.change1d && (
+                                          <span className={dex.change1d > 0 ? "text-green-500 ml-2" : "text-red-500 ml-2"}>
+                                            {dex.change1d > 0 ? "+" : ""}{dex.change1d.toFixed(2)}% 24h
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedDexes.includes(dex.name)}
+                                      onChange={() => toggleDexSelection(dex.name)}
+                                      className="h-4 w-4"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="flex items-center justify-between pt-4 border-t">
+                                <span className="text-sm text-muted-foreground">
+                                  {selectedDexes.length} DEX(s) seleccionado(s)
+                                </span>
+                                <Button
+                                  onClick={() => addSelectedDexes(chain.chainId)}
+                                  disabled={selectedDexes.length === 0 || addingDexes}
+                                >
+                                  {addingDexes ? (
+                                    <>
+                                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                      Agregando...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Plus className="h-4 w-4 mr-2" />
+                                      Agregar {selectedDexes.length > 0 && `(${selectedDexes.length})`}
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No hay DEXs disponibles para agregar
+                            </div>
+                          )}
+                        </DialogContent>
+                      </Dialog>
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {chain.dexes.slice(0, 4).map((dex) => (
@@ -368,6 +534,103 @@ export default function ChainsAdminPage() {
                           +{chain.dexes.length - 4} más
                         </Badge>
                       )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        Sin DEXs configurados
+                      </div>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedChain(chain.chainId);
+                              fetchDexSuggestions(chain.chainId);
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Agregar DEXs
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle>Agregar DEXs a {chain.name}</DialogTitle>
+                            <DialogDescription>
+                              Selecciona los DEXs que deseas agregar desde DeFi Llama (ordenados por TVL)
+                            </DialogDescription>
+                          </DialogHeader>
+
+                          {loadingSuggestions ? (
+                            <div className="flex items-center justify-center py-8">
+                              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+                            </div>
+                          ) : dexSuggestions.length > 0 ? (
+                            <div className="space-y-4">
+                              <div className="grid gap-2">
+                                {dexSuggestions.map((dex) => (
+                                  <div
+                                    key={dex.slug}
+                                    className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
+                                      selectedDexes.includes(dex.name)
+                                        ? "bg-primary/10 border-primary"
+                                        : "hover:bg-muted"
+                                    }`}
+                                    onClick={() => toggleDexSelection(dex.name)}
+                                  >
+                                    <div className="flex-1">
+                                      <div className="font-medium">{dex.name}</div>
+                                      <div className="text-sm text-muted-foreground">
+                                        TVL: ${(dex.tvl / 1e6).toFixed(2)}M
+                                        {dex.change1d && (
+                                          <span className={dex.change1d > 0 ? "text-green-500 ml-2" : "text-red-500 ml-2"}>
+                                            {dex.change1d > 0 ? "+" : ""}{dex.change1d.toFixed(2)}% 24h
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedDexes.includes(dex.name)}
+                                      onChange={() => toggleDexSelection(dex.name)}
+                                      className="h-4 w-4"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="flex items-center justify-between pt-4 border-t">
+                                <span className="text-sm text-muted-foreground">
+                                  {selectedDexes.length} DEX(s) seleccionado(s)
+                                </span>
+                                <Button
+                                  onClick={() => addSelectedDexes(chain.chainId)}
+                                  disabled={selectedDexes.length === 0 || addingDexes}
+                                >
+                                  {addingDexes ? (
+                                    <>
+                                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                      Agregando...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Plus className="h-4 w-4 mr-2" />
+                                      Agregar {selectedDexes.length > 0 && `(${selectedDexes.length})`}
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No hay DEXs disponibles para agregar
+                            </div>
+                          )}
+                        </DialogContent>
+                      </Dialog>
                     </div>
                   </div>
                 )}

@@ -1040,3 +1040,90 @@ engineApiRouter.post("/chains/toggle", async (req, res) => {
     res.status(500).json({ error: error?.message || "Failed to toggle chain" });
   }
 });
+
+// GET /api/engine/dexes/suggest/:chainId - Get suggested DEXs for a chain from DeFi Llama
+engineApiRouter.get("/dexes/suggest/:chainId", async (req, res) => {
+  try {
+    const { chainId } = req.params;
+    
+    const chainData = await db.select().from(chains).where(eq(chains.chainId, Number(chainId))).limit(1);
+    if (!chainData || chainData.length === 0) {
+      return res.status(404).json({ error: "Chain not found" });
+    }
+
+    const chainName = chainData[0].name;
+    const existingDexes = await db.select().from(chainDexes).where(eq(chainDexes.chainId, Number(chainId)));
+    const existingDexNames = existingDexes.map(d => d.dex.toLowerCase());
+
+    console.log(`🔍 Fetching DEX suggestions for ${chainName} from DeFi Llama...`);
+
+    const response = await fetch('https://api.llama.fi/protocols');
+    const protocols = await response.json();
+
+    const dexProtocols = protocols
+      .filter((p: any) => 
+        p.category === 'Dexes' &&
+        p.chains && p.chains.includes(chainName) &&
+        p.tvl > 100000
+      )
+      .sort((a: any, b: any) => b.tvl - a.tvl)
+      .slice(0, 20)
+      .map((p: any) => ({
+        name: p.name,
+        slug: p.slug,
+        tvl: p.tvl,
+        change1d: p.change_1d,
+        change7d: p.change_7d,
+        isAdded: existingDexNames.includes(p.name.toLowerCase())
+      }));
+
+    const suggestions = dexProtocols.filter((d: any) => !d.isAdded);
+    const alreadyAdded = dexProtocols.filter((d: any) => d.isAdded);
+
+    res.json({
+      success: true,
+      chainId: Number(chainId),
+      chainName,
+      suggestions,
+      alreadyAdded,
+      total: dexProtocols.length
+    });
+  } catch (error: any) {
+    console.error("Error getting DEX suggestions:", error);
+    res.status(500).json({ error: error?.message || "Failed to get DEX suggestions" });
+  }
+});
+
+// POST /api/engine/dexes/add - Add multiple DEXs to a chain
+engineApiRouter.post("/dexes/add", async (req, res) => {
+  try {
+    const { chainId, dexes } = req.body;
+
+    if (!chainId || !Array.isArray(dexes) || dexes.length === 0) {
+      return res.status(400).json({ error: "chainId and dexes array are required" });
+    }
+
+    const added = [];
+    for (const dexName of dexes) {
+      await db.insert(chainDexes).values({
+        chainId: Number(chainId),
+        dex: dexName,
+        isActive: true,
+      }).onConflictDoNothing();
+
+      added.push(dexName);
+      console.log(`✅ Added DEX: ${dexName} to chain ${chainId}`);
+    }
+
+    res.json({
+      success: true,
+      chainId: Number(chainId),
+      added,
+      count: added.length,
+      message: `Successfully added ${added.length} DEXs`
+    });
+  } catch (error: any) {
+    console.error("Error adding DEXs:", error);
+    res.status(500).json({ error: error?.message || "Failed to add DEXs" });
+  }
+});
