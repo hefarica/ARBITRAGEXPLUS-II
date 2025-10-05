@@ -142,3 +142,26 @@ The system employs a 3-tier architecture:
 -   ✅ Trading pair configuration
 -   ✅ Policy management (min_profit_usd, max_slippage_bps)
 -   ✅ State retrieval with full chain/asset/pair/policy data
+-   ✅ Auto-discovery of blockchains from DeFi Llama API (Base chain discovered with $5.4B TVL)
+-   ✅ RPC health checks with latency tracking (11/14 RPCs healthy, 78.6% uptime)
+-   ✅ GoPlus Security API integration for anti-rugpull scoring (WETH:100/100, USDC:100/100, USDT:30/100)
+
+### New Features (October 5, 2025 - Session 2)
+
+#### Backend Enhancements
+-   **Auto-Discovery** (`POST /cf/engine/discover`): Automatic blockchain discovery from DeFi Llama with TVL filtering and chainlist.org RPC integration
+-   **Health Checks** (`POST /cf/engine/rpcs/healthcheck`): Real-time RPC endpoint health monitoring with latency tracking and automatic status updates
+-   **Anti-Rugpull Scanning** (`POST /cf/engine/assets/scan`): GoPlus Security API integration for automated token risk scoring with 10+ security indicators
+-   **MEV Scanner Fix**: Improved error handling to prevent empty error messages from SIGTERM process termination
+
+#### Frontend Admin Pages
+-   **Admin Blockchains** (`/admin/chains`): Full blockchain management UI with RPC/DEX stats, health checks, auto-discovery, and latency metrics
+-   **Admin Assets** (`/admin/assets`): Asset and pair management with risk scoring visualization, bulk scanning, automatic pair generation, and search functionality
+-   **Sidebar Integration**: Added navigation links for both admin pages
+
+#### System Status
+-   3 blockchains configured (Ethereum, BSC, Base)
+-   5 assets with risk scores (WETH:100, USDC:100, USDT:30, WBNB:0, USDC-BSC:0)
+-   3 trading pairs active
+-   11/14 RPCs healthy (avg latency: 118-201ms)
+-   GoPlus Security API operational (30+ blockchains supported)

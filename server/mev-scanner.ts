@@ -85,7 +85,7 @@ export class MEVScanner {
 
   private async parseAndSaveOpportunities(output: string) {
     const lines = output.split("\n");
-    const opportunities: OpportunityMatch[] = [];
+    const foundOpportunities: OpportunityMatch[] = [];
 
     let currentOpp: Partial<OpportunityMatch> = {};
 
@@ -111,14 +111,14 @@ export class MEVScanner {
           currentOpp.pair &&
           currentOpp.profit
         ) {
-          opportunities.push(currentOpp as OpportunityMatch);
+          foundOpportunities.push(currentOpp as OpportunityMatch);
           currentOpp = {};
         }
       }
     }
 
     // Save to database
-    for (const opp of opportunities) {
+    for (const opp of foundOpportunities) {
       try {
         const [dexIn, dexOut] = opp.route.split("→").map((s) => s.trim());
         const profitUsd = parseFloat(
@@ -145,8 +145,8 @@ export class MEVScanner {
       }
     }
 
-    if (opportunities.length > 0) {
-      console.log(`💾 Saved ${opportunities.length} opportunities to database`);
+    if (foundOpportunities.length > 0) {
+      console.log(`💾 Saved ${foundOpportunities.length} opportunities to database`);
     }
   }
 
