@@ -70,11 +70,25 @@ export function Sidebar() {
     const fetchAlertCount = async () => {
       try {
         const res = await fetch('/api/alerts/history?limit=10')
+        
+        if (!res.ok) {
+          // If the response is not ok, just set count to 0
+          setAlertCount(0)
+          return
+        }
+        
         const history = await res.json()
-        const unread = history.filter((item: any) => !item.acknowledged).length
-        setAlertCount(unread)
+        
+        // Ensure history is an array before filtering
+        if (Array.isArray(history)) {
+          const unread = history.filter((item: any) => !item.acknowledged).length
+          setAlertCount(unread)
+        } else {
+          setAlertCount(0)
+        }
       } catch (error) {
-        console.error('Failed to fetch alert count:', error)
+        // Silently handle errors and just set count to 0
+        setAlertCount(0)
       }
     }
 

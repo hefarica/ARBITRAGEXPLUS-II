@@ -85,8 +85,16 @@ async function fetchWithValidation(url: string, options: FetchOptions = {}): Pro
  * GET request genérico con validación de datos
  */
 export async function apiGet<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const baseUrl = path.startsWith('/cf') ? CF_BASE_URL : API_BASE_URL;
-  const url = `${baseUrl}${path}`;
+  // When base URLs are empty, use the path directly (for local development)
+  let url = path;
+  
+  if (path.startsWith('/cf')) {
+    // For CloudFlare endpoints, use the CF_BASE_URL or just the path if empty
+    url = CF_BASE_URL ? `${CF_BASE_URL}${path}` : path;
+  } else if (API_BASE_URL) {
+    // For API endpoints, use the API_BASE_URL if available
+    url = `${API_BASE_URL}${path}`;
+  }
   
   const response = await fetchWithValidation(url, {
     ...options,
@@ -176,10 +184,12 @@ export async function apiDelete<T>(path: string, options: FetchOptions = {}): Pr
  */
 export async function checkBackendHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+    // Use the correct endpoint - /api/health
+    const url = API_BASE_URL ? `${API_BASE_URL}/api/health` : '/api/health';
+    const response = await fetch(url, { method: 'GET' });
     return response.ok;
   } catch (error) {
-    console.error('Error checking backend health:', error);
+    // Silently handle errors - don't log to console to avoid noise
     return false;
   }
 }

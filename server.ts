@@ -1507,6 +1507,12 @@ app.prepare().then(() => {
   server.get("/api/alerts/:id", async (req, res) => {
     try {
       const alertId = parseInt(req.params.id);
+      
+      // Validate that the ID is a valid number
+      if (isNaN(alertId)) {
+        return res.status(400).json({ error: "Invalid alert ID" });
+      }
+      
       const [alert] = await db
         .select()
         .from(alerts)
@@ -1555,6 +1561,12 @@ app.prepare().then(() => {
   server.put("/api/alerts/:id", async (req, res) => {
     try {
       const alertId = parseInt(req.params.id);
+      
+      // Validate that the ID is a valid number
+      if (isNaN(alertId)) {
+        return res.status(400).json({ error: "Invalid alert ID" });
+      }
+      
       const [updatedAlert] = await db
         .update(alerts)
         .set({
@@ -1578,6 +1590,12 @@ app.prepare().then(() => {
   server.delete("/api/alerts/:id", async (req, res) => {
     try {
       const alertId = parseInt(req.params.id);
+      
+      // Validate that the ID is a valid number
+      if (isNaN(alertId)) {
+        return res.status(400).json({ error: "Invalid alert ID" });
+      }
+      
       await db
         .delete(alerts)
         .where(eq(alerts.id, alertId));
@@ -1592,6 +1610,11 @@ app.prepare().then(() => {
   server.post("/api/alerts/:id/toggle", async (req, res) => {
     try {
       const alertId = parseInt(req.params.id);
+      
+      // Validate that the ID is a valid number
+      if (isNaN(alertId)) {
+        return res.status(400).json({ error: "Invalid alert ID" });
+      }
       
       // Get current state
       const [currentAlert] = await db
@@ -1624,6 +1647,11 @@ app.prepare().then(() => {
   server.post("/api/alerts/:id/test", async (req, res) => {
     try {
       const alertId = parseInt(req.params.id);
+      
+      // Validate that the ID is a valid number
+      if (isNaN(alertId)) {
+        return res.status(400).json({ error: "Invalid alert ID" });
+      }
       
       // Get the alert
       const [alert] = await db
@@ -1669,23 +1697,36 @@ app.prepare().then(() => {
       let query = db.select().from(alertHistory);
       
       if (alertId) {
-        query = query.where(eq(alertHistory.alertId, parseInt(alertId as string)));
+        const parsedAlertId = parseInt(alertId as string);
+        if (!isNaN(parsedAlertId)) {
+          query = query.where(eq(alertHistory.alertId, parsedAlertId));
+        }
       }
+      
+      const parsedLimit = parseInt(limit as string);
+      const finalLimit = isNaN(parsedLimit) ? 100 : parsedLimit;
       
       const history = await query
         .orderBy(desc(alertHistory.triggeredAt))
-        .limit(parseInt(limit as string));
+        .limit(finalLimit);
       
-      res.json(history);
+      // Always return an array, even if empty
+      res.json(history || []);
     } catch (error) {
       console.error("Error fetching alert history:", error);
-      res.status(500).json({ error: "Failed to fetch alert history" });
+      // Return empty array on error instead of error response
+      res.json([]);
     }
   });
 
   server.post("/api/alerts/history/:id/acknowledge", async (req, res) => {
     try {
       const historyId = parseInt(req.params.id);
+      
+      // Validate that the ID is a valid number
+      if (isNaN(historyId)) {
+        return res.status(400).json({ error: "Invalid history ID" });
+      }
       
       const [updated] = await db
         .update(alertHistory)
@@ -1745,6 +1786,10 @@ app.prepare().then(() => {
   });
 
   server.get("/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  server.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
