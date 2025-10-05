@@ -91,13 +91,18 @@ The system heavily relies on a PostgreSQL database for dynamic configuration man
 
 ## Recent Changes (October 2025)
 
-### Multi-DEX Arbitrage Scanning - Deduplication & Unique Names (Latest Update)
-- **Problem Solved**: Sistema exportaba 11 pares duplicados (mismo pool address repetido) en lugar de 5 únicos
-- **Solution Implemented**: Deduplication logic + unique names per DEX in `engine-config-service.ts`
+### Multi-Pool Discovery with Quote-Specific Filtering (Latest Update - October 5, 2025)
+- **Achievement**: Sistema expandido de 5 pares hardcodeados a **12 pools únicos** con filtrado correcto por stablecoin
+- **Solution Implemented**: Multi-pool discovery with canonical token variants + quote-specific filtering
 - **Technical Details**:
-  - **Pool Deduplication**: Set-based tracking prevents duplicate pool addresses (11 → 5 unique pairs)
-  - **Unique Naming**: Each pair includes DEX identifier (e.g., "WBNB/USDC @ PancakeSwap V2", "@ Biswap", "@ Uniswap V3")
-  - **Real-time UI Updates**: Streaming updates for chains/RPCs with global clock (HH:MM:SS), latency indicator, time since last update
-  - **No-flicker Updates**: Selective state updates (isInitial flag) avoid full page reloads on polling
-- **Motor Verification**: Rust engine correctly scans 5 unique pairs with distinguishable names, each scanned once per DEX
-- **Result**: Efficient scanning across ALL configured DEXs without duplicates (3 Binance pairs × 3 DEXs + 2 Ethereum pairs × 1 DEX = 5 unique scans)
+  - **Canonical Token System**: `canonical-tokens.ts` provides chain-specific addresses (USDC, USDC.e, USDT variants) for precise pool discovery
+  - **Quote-Specific Filtering**: Each pair searches only for its specific stablecoin variants (WETH/USDC finds only USDC pools, WETH/USDT finds only USDT pools)
+  - **Multi-Pool Discovery**: `findPoolsByAddress()` searches across quote variants, finds ALL fee tiers (Uniswap V3: 0.05%, 0.3%, 1%)
+  - **Deduplication Key**: `${dexId}|${pairAddress}` ensures each unique pool is tracked separately (same DEX, different fee tier = different pool)
+  - **Unique Naming**: Pool address suffix (last 6 chars) distinguishes identical pairs: `WBNB/USDC @ pancakeswap (0612C4)` vs `(B2FC5b)`
+- **Current Pairs & Pools**:
+  - **Binance WBNB/USDC**: 7 pools (3 PancakeSwap, 1 Biswap, 3 Uniswap fee tiers)
+  - **Ethereum WETH/USDC**: 2 pools (Uniswap with different fee tiers)
+  - **Ethereum WETH/USDT**: 3 pools (Uniswap with different fee tiers)
+  - **Motor Verification**: RUST engine correctly scans 12 unique pools: "Scan complete. Scanned 12 pairs, found 0 opportunities"
+- **Impact**: Sistema busca correctamente pools por stablecoin específica, evitando mezcla incorrecta de USDC/USDT. Cada fee tier es pool único para maximizar oportunidades de arbitraje.

@@ -38,6 +38,8 @@ export interface PoolValidationResult {
   volume24h?: number;
   baseToken?: string;
   quoteToken?: string;
+  baseTokenAddress?: string;
+  quoteTokenAddress?: string;
   error?: string;
   source?: 'dexscreener' | 'geckoterminal' | 'cache';
   warnings?: string[];
@@ -223,6 +225,8 @@ class PoolValidatorService {
             volume24h: pair.volume?.h24,
             baseToken: pair.baseToken?.symbol,
             quoteToken: pair.quoteToken?.symbol,
+            baseTokenAddress: pair.baseToken?.address,
+            quoteTokenAddress: pair.quoteToken?.address,
             source: 'dexscreener' as const
           });
         }

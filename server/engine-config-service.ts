@@ -4,7 +4,7 @@ import { eq, and } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 import { poolValidator } from "./pool-validator";
-import { getCanonicalTokens, getWNative, getStablecoins } from "./canonical-tokens";
+import { CANONICAL_TOKENS, getCanonicalTokens, getWNative, getStablecoins } from "./canonical-tokens";
 
 interface ConfigPair {
   name: string;
@@ -95,15 +95,25 @@ export class EngineConfigService {
             continue;
           }
 
-          const quoteAddresses = getStablecoins(Number(chain.chainId));
+          const pairQuoteLower = pair.quoteAddr.toLowerCase();
+          
+          let pairQuoteVariants: string[] = [];
+          
+          if (canonicalTokens.USDC.some(addr => addr.toLowerCase() === pairQuoteLower)) {
+            pairQuoteVariants = canonicalTokens.USDC;
+          } else if (canonicalTokens.USDT.some(addr => addr.toLowerCase() === pairQuoteLower)) {
+            pairQuoteVariants = canonicalTokens.USDT;
+          } else {
+            pairQuoteVariants = [pair.quoteAddr];
+          }
           
           console.log(`🔍 Finding pools for ${baseAsset.symbol}/${quoteAsset.symbol} across ${dexs.length} DEXs on ${chain.name}...`);
-          console.log(`   Using canonical addresses: base=${pair.baseAddr}, quote=${quoteAddresses.join(',')}`);
+          console.log(`   Using canonical addresses: base=${pair.baseAddr}, quote variants=${pairQuoteVariants.join(',')}`);
           
           const availablePools = await poolValidator.findPoolsByAddress(
             Number(chain.chainId),
             pair.baseAddr,
-            quoteAddresses
+            pairQuoteVariants.length > 0 ? pairQuoteVariants : [pair.quoteAddr]
           );
 
           console.table(availablePools.map(p => ({
@@ -131,12 +141,21 @@ export class EngineConfigService {
                   continue;
                 }
 
-                if (validatePools) {
+                if (validatePools && pool.quoteTokenAddress) {
+                  const poolQuoteAddrLower = pool.quoteTokenAddress.toLowerCase();
+                  const poolQuoteIsCanonical = pairQuoteVariants.some(addr => 
+                    addr.toLowerCase() === poolQuoteAddrLower
+                  );
+
+                  if (!poolQuoteIsCanonical) {
+                    console.warn(`⚠️ Pool quote token ${pool.quoteTokenAddress} (${pool.quoteToken}) not in canonical list for ${chain.name}, accepting anyway`);
+                  }
+
                   const validation = await poolValidator.validatePoolAddress(
                     Number(chain.chainId),
                     pool.poolAddress!,
                     pair.baseAddr,
-                    pair.quoteAddr
+                    pool.quoteTokenAddress
                   );
 
                   if (!validation.isValid) {
@@ -147,8 +166,9 @@ export class EngineConfigService {
                   }
                 }
 
+                const poolSuffix = pool.poolAddress!.slice(-6);
                 topPairs.push({
-                  name: `${baseAsset.symbol}/${quoteAsset.symbol} @ ${pool.dexId}`,
+                  name: `${baseAsset.symbol}/${quoteAsset.symbol} @ ${pool.dexId} (${poolSuffix})`,
                   token0: pair.baseAddr,
                   token1: pair.quoteAddr,
                   pairAddress: pool.poolAddress!,

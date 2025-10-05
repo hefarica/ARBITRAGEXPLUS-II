@@ -52,22 +52,46 @@
       ],
       "topPairs": [
         {
-          "name": "WBNB/USDC @ PancakeSwap V2",
+          "name": "WBNB/USDC @ pancakeswap (0612C4)",
           "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
           "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "pairAddress": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4"
         },
         {
-          "name": "WBNB/USDC @ Biswap",
+          "name": "WBNB/USDC @ pancakeswap (B2FC5b)",
+          "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+          "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+          "pairAddress": "0xd99c7F6C65857AC913a8f880A4cb84032AB2FC5b"
+        },
+        {
+          "name": "WBNB/USDC @ pancakeswap (1F1824)",
+          "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+          "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+          "pairAddress": "0x81A9b5F18179cE2bf8f001b8a634Db80771F1824"
+        },
+        {
+          "name": "WBNB/USDC @ biswap (791856)",
           "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
           "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "pairAddress": "0x06Cd679121Ec37B0A2FD673D4976B09d81791856"
         },
         {
-          "name": "WBNB/USDC @ Uniswap V3",
+          "name": "WBNB/USDC @ uniswap (4e6d48)",
           "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
           "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "pairAddress": "0x4141325bAc36aFFe9Db165e854982230a14e6d48"
+        },
+        {
+          "name": "WBNB/USDC @ uniswap (A1806E)",
+          "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+          "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+          "pairAddress": "0x6bcb0Ba386E9de0C29006e46B2f01f047cA1806E"
+        },
+        {
+          "name": "WBNB/USDC @ uniswap (9acfEc)",
+          "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+          "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+          "pairAddress": "0x5289A8Dbf7029eE0b0498a84777ed3941D9acfEc"
         }
       ]
     },
@@ -87,21 +111,39 @@
       ],
       "topPairs": [
         {
-          "name": "WETH/USDC @ Uniswap V2",
+          "name": "WETH/USDC @ uniswap (3f5640)",
           "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
           "token1": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
           "pairAddress": "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
         },
         {
-          "name": "WETH/USDT @ Uniswap V2",
+          "name": "WETH/USDC @ uniswap (32939F)",
+          "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "token1": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "pairAddress": "0xE0554a476A092703abdB3Ef35c80e0D76d32939F"
+        },
+        {
+          "name": "WETH/USDT @ uniswap (0dFa36)",
           "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
           "token1": "0xdac17f958d2ee523a2206206994597c13d831ec7",
           "pairAddress": "0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36"
+        },
+        {
+          "name": "WETH/USDT @ uniswap (1b0e9b)",
+          "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "token1": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+          "pairAddress": "0xc7bBeC68d12a0d1830360F8Ec58fA599bA1b0e9b"
+        },
+        {
+          "name": "WETH/USDT @ uniswap (7697F6)",
+          "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "token1": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+          "pairAddress": "0x11b815efB8f581194ae79006d24E0d814B7697F6"
         }
       ]
     }
   ],
   "totalChains": 9,
   "totalDexs": 12,
-  "lastUpdated": 1759691444038
+  "lastUpdated": 1759693930990
 }
