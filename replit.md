@@ -82,6 +82,21 @@ Preferred communication style: Simple, everyday language (Spanish preferred).
 
 ## Recent Changes
 
+### October 5, 2025 - Motor Rust MEV - Compilación Externa
+- ⚠️ **Limitación de Replit**: No puede compilar el motor Rust completo por falta de memoria/CPU
+- ✅ **Solución implementada**: Compilación externa con 5 opciones
+  1. GitHub Actions (`.github/workflows/build-rust-mev.yml`) - automático
+  2. Windows con WSL2 (documentado en `rust-mev-engine/BUILD_EXTERNAL.md`)
+  3. Linux nativo (Ubuntu/Debian con instrucciones completas)
+  4. macOS con Docker (contenedor Rust para cross-compile)
+  5. Motor minimal (fallback para pruebas)
+- ✅ **Infraestructura lista**:
+  - Carpeta `binaries/` para almacenar binario compilado
+  - Script `run-mev-engine.sh` para ejecutar motor cuando esté disponible
+  - Cargo.toml optimizado (rustls, perfiles dev-fast)
+  - Documentación completa y verificada por arquitecto
+- 📝 **Próximos pasos**: Usuario debe compilar motor externamente y subirlo a `binaries/mev-engine`
+
 ### October 4, 2025 - Sistema MEV Completo con Rust + Cloudflare
 - ✅ **Motor Rust MEV** creado en `rust-mev-engine/`
   - 13 estrategias MEV implementadas
