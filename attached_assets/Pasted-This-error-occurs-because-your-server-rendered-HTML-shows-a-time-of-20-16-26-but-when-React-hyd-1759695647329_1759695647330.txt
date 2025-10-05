@@ -1,0 +1,97 @@
+This error occurs because your server-rendered HTML shows a time of `"20:16:26"`, but when React hydrates the page in the browser, it renders `"15:16:26"`. This mismatch happens because **the server and client are generating different times** — likely because you're using `new Date()` or `Date.now()` directly in your component's render logic.
+
+### Why This Happens
+- **Server**: When Next.js prerenders your page, it generates HTML with the server's current time (e.g., 20:16:26 UTC).
+- **Client**: When the page loads in the browser, React re-renders the component using the client's local time (e.g., 15:16:26 EST).
+- React expects the initial client render to match the server HTML exactly — when it doesn’t, you get a hydration error.
+
+---
+
+### ✅ Solution: Use `useEffect` to Render Time Only on the Client
+
+Since the time is dynamic and *should* differ between server and client, **don’t render it during server-side rendering**. Instead, render a placeholder on the server and update it after the component mounts on the client.
+
+Here’s how to fix it:
+
+```tsx
+import { useState, useEffect } from 'react';
+
+export default function ChainsAdminPage() {
+  const [currentTime, setCurrentTime] = useState<string>(''); // Start empty on server
+
+  useEffect(() => {
+    // This runs only on the client after hydration
+    const update_time = () => {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString(); // or format as you need
+      setCurrentTime(timeString);
+    };
+
+    update_time(); // Set initial time on mount
+    const interval = setInterval(update_time, 1000); // Optional: update every second
+
+    return () => clearInterval(interval); // Cleanup
+  }, []);
+
+  return (
+    <div>
+      {/* Server renders empty string, client renders actual time */}
+      <p>{currentTime || 'Loading time...'}</p>
+    </div>
+  );
+}
+```
+
+### ✅ Alternative: If You Just Want to Show the Time Once (No Update)
+
+If you don’t need live updates, just render the time once on the client:
+
+```tsx
+import { useState, useEffect } from 'react';
+
+export default function ChainsAdminPage() {
+  const [currentTime, setCurrentTime] = useState<string>('');
+
+  useEffect(() => {
+    setCurrentTime(new Date().toLocaleTimeString());
+  }, []);
+
+  return (
+    <div>
+      <p>{currentTime || 'Loading...'}</p>
+    </div>
+  );
+}
+```
+
+---
+
+### 🚫 Avoid This (Causes the Error)
+```tsx
+// ❌ DON'T DO THIS
+export default function ChainsAdminPage() {
+  const currentTime = new Date().toLocaleTimeString(); // ← Runs on server AND client → MISMATCH!
+  return <p>{currentTime}</p>;
+}
+```
+
+---
+
+### 💡 Bonus: Suppress Warning (Not Recommended for This Case)
+
+You *could* suppress the warning with `suppressHydrationWarning`, but **this is a hack** — it hides the problem instead of fixing it. Only use it for truly non-critical static content like timestamps in footers where exact accuracy doesn’t matter.
+
+```tsx
+<p suppressHydrationWarning>{new Date().toLocaleTimeString()}</p>
+```
+
+> ⚠️ Not recommended here because the time is likely important UI content. Use `useEffect` instead.
+
+---
+
+### ✅ Summary: Best Practice
+- **Use `useState` + `useEffect`** to defer rendering of client-only values (time, window size, localStorage, etc.).
+- **Never use `Date()`, `window`, `localStorage`, etc. directly in component render logic** if you're using SSR.
+- **Always render the same content on server and client** — unless you intentionally delay rendering with `useEffect`.
+
+This will eliminate your hydration error and make your app robust.

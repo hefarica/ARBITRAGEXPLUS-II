@@ -73,7 +73,7 @@ export default function ChainsAdminPage() {
   const [selectedDexes, setSelectedDexes] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [addingDexes, setAddingDexes] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [updateLatency, setUpdateLatency] = useState<number>(0);
 
@@ -327,11 +327,13 @@ export default function ChainsAdminPage() {
   };
 
   const getSecondsSinceUpdate = () => {
-    if (!lastUpdate) return 0;
+    if (!lastUpdate || !currentTime) return 0;
     return Math.floor((currentTime.getTime() - lastUpdate.getTime()) / 1000);
   };
 
   useEffect(() => {
+    setCurrentTime(new Date());
+    
     const clockInterval = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
@@ -377,7 +379,9 @@ export default function ChainsAdminPage() {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-end gap-1 text-sm">
-            <div className="font-mono text-lg font-semibold">{formatTime(currentTime)}</div>
+            <div className="font-mono text-lg font-semibold">
+              {currentTime ? formatTime(currentTime) : '--:--:--'}
+            </div>
             <div className="flex gap-3 text-xs text-muted-foreground">
               <span>Latencia: <span className="text-green-500 font-medium">{updateLatency}ms</span></span>
               <span>Última actualización: <span className="text-blue-500 font-medium">{getSecondsSinceUpdate()}s</span></span>
