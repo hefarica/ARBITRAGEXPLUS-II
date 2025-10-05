@@ -279,11 +279,11 @@ fn log_opportunity(opp: &Opportunity, pair_name: &str, _unused: &str) {
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
 
-    println!("🚀 MEV Engine Minimal v3.6.0 - RUST");
+    println!("🚀 MEV Engine Minimal v3.6.0 - RUST (Dynamic Multi-Chain)");
     
     let config = load_scan_config()?;
     
-    println!("📊 Loaded {} chains with {} DEXs", config.total_chains, config.total_dexs);
+    println!("📊 Dynamic Config: {} chains with {} DEXs", config.total_chains, config.total_dexs);
     println!("🔄 Scan interval: 10 seconds");
     println!("⚡ Real-time arbitrage detection active\n");
 
