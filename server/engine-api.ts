@@ -524,7 +524,7 @@ engineApiRouter.post("/pairs/generate", async (req, res) => {
     const { chainId, policy_key = "default_risk" } = req.body;
 
     const policyData = await db.select().from(policies).where(eq(policies.key, policy_key)).limit(1);
-    const policy = policyData[0]?.valueJson || {
+    const policy = (policyData[0]?.valueJson as any) || {
       min_risk_score: 70,
       exclude_flags: ["mintable", "proxy_upgradable", "owner_can_pause", "low_liquidity", "honeypot_risk"],
     };
