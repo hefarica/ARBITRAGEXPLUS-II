@@ -1,86 +1,36 @@
 [package]
-name = "rust-mev-engine"
+name = "mev-engine-minimal"
 version = "3.6.0"
 edition = "2021"
-authors = ["ArbitrageX Team"]
 
 [dependencies]
-# Async runtime
-tokio = { version = "1.35", features = ["full"] }
-tokio-stream = "0.1"
+# Async runtime - minimal
+tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "time"] }
 
-# Ethereum
-ethers = { version = "2.0", default-features = false, features = ["ws", "rustls", "abigen"] }
-ethers-core = { version = "2.0", default-features = false }
-ethers-providers = { version = "2.0", default-features = false }
-ethers-signers = { version = "2.0", default-features = false }
-ethers-middleware = { version = "2.0", default-features = false }
-
-# HTTP client
+# HTTP client - minimal
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
-hyper = { version = "0.14", features = ["full"] }
-warp = "0.3"
+
+# Database - simplified
+postgres = { version = "0.19", features = ["with-chrono-0_4", "with-serde_json-1"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-toml = "0.8"
-
-# Database
-diesel = { version = "2.1", features = ["postgres", "r2d2", "chrono"] }
-diesel_migrations = "2.1"
-r2d2 = "0.8"
-
-# Logging and monitoring
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
-prometheus = "0.13"
-prometheus-hyper = "0.1"
 
 # Utils
 anyhow = "1.0"
-thiserror = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-futures = "0.3"
-async-trait = "0.1"
-dashmap = "5.5"
-parking_lot = "0.12"
-
-# Cryptography
-hex = "0.4"
-sha3 = "0.10"
-
-# Rate limiting
-governor = "0.6"
-nonzero_ext = "0.3"
-
-# Priority queue
-priority-queue = "1.3"
 
 # Environment variables
 dotenv = "0.15"
 
-[dev-dependencies]
-criterion = "0.5"
-mockito = "1.2"
-
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"
-
-[profile.dev]
-opt-level = 0
-debug = false
-incremental = true
-
-[profile.dev-fast]
-inherits = "dev"
-opt-level = 1
-debug = false
-incremental = true
+# UUID generation
+uuid = { version = "1.6", features = ["v4"] }
 
 [[bin]]
-name = "mev-engine"
-path = "src/main.rs"
+name = "mev-engine-minimal"
+path = "src/minimal.rs"
+
+[profile.dev]
+opt-level = 1
+debug = false

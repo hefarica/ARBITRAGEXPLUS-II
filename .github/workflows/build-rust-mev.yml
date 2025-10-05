@@ -1,0 +1,67 @@
+name: Build Rust MEV Engine
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'rust-mev-engine/**'
+      - '.github/workflows/build-rust-mev.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-gnu
+          override: true
+      
+      - name: Cache cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust-mev-engine/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Restore full Cargo.toml
+        run: |
+          cd rust-mev-engine
+          if [ -f Cargo.toml.full ]; then
+            mv Cargo.toml.full Cargo.toml
+          fi
+      
+      - name: Build MEV Engine
+        run: |
+          cd rust-mev-engine
+          cargo build --release --bin mev-engine
+          strip target/release/mev-engine
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: mev-engine-linux-x64
+          path: rust-mev-engine/target/release/mev-engine
+          
+      - name: Create binaries directory
+        run: mkdir -p binaries
+      
+      - name: Copy binary
+        run: |
+          cp rust-mev-engine/target/release/mev-engine binaries/
+          chmod +x binaries/mev-engine
+          ls -lh binaries/
+      
+      - name: Commit binary
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add binaries/mev-engine
+          git diff --quiet && git diff --staged --quiet || git commit -m "Build: Add compiled MEV engine binary [skip ci]"
+          git push || true
