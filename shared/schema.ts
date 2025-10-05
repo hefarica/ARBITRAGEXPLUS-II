@@ -1,4 +1,4 @@
-import { pgTable, text, integer, decimal, timestamp, boolean, jsonb, doublePrecision, bigint, varchar, real } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, decimal, timestamp, boolean, jsonb, doublePrecision, bigint, varchar, real, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const opportunities = pgTable("opportunities", {
@@ -253,7 +253,9 @@ export const assets = pgTable("assets", {
   lastReviewAt: bigint("last_review_at", { mode: "number" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  uniqueChainAddress: unique().on(table.chainId, table.address),
+}));
 
 // Trading Pairs for Scanning
 export const pairs = pgTable("pairs", {
@@ -264,7 +266,9 @@ export const pairs = pgTable("pairs", {
   enabled: boolean("enabled").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  uniquePair: unique().on(table.chainId, table.baseAddr, table.quoteAddr),
+}));
 
 // System Policies (ROI, risk thresholds, slippage, gas buffer, etc)
 export const policies = pgTable("policies", {

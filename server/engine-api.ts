@@ -12,7 +12,7 @@ engineApiRouter.get("/state", async (req, res) => {
       db.select().from(chains),
       db.select().from(chainRpcs).where(eq(chainRpcs.isActive, true)),
       db.select().from(chainDexes).where(eq(chainDexes.isActive, true)),
-      db.select().from(assets).where(gte(assets.riskScore, 70)),
+      db.select().from(assets).where(gte(assets.riskScore, 0)),
       db.select().from(pairs).where(eq(pairs.enabled, true)),
       db.select().from(policies),
     ]);
