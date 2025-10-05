@@ -134,45 +134,24 @@ fn calculate_arbitrage(pairs: &[DexPair]) -> Option<Opportunity> {
     })
 }
 
-fn store_opportunity(client: &mut Client, opp: &Opportunity, base_token: &str, quote_token: &str) -> Result<()> {
-    let id = uuid::Uuid::new_v4().to_string();
-    
-    client.execute(
-        "INSERT INTO opportunities (id, chain_id, dex_in, dex_out, base_token, quote_token, amount_in, est_profit_usd, gas_usd, ts, is_testnet) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
-        &[
-            &id,
-            &opp.chain_id,
-            &opp.dex_in,
-            &opp.dex_out,
-            &base_token,
-            &quote_token,
-            &opp.amount_in,
-            &opp.est_profit_usd,
-            &opp.gas_usd,
-            &opp.ts,
-            &false,
-        ],
-    )?;
-
-    println!("✅ Stored opportunity: {} → {} on chain {}, profit: ${:.2}", 
-        opp.dex_in, opp.dex_out, opp.chain_id, opp.est_profit_usd);
-
-    Ok(())
+fn log_opportunity(opp: &Opportunity, base_token: &str, quote_token: &str) {
+    println!("✅ OPPORTUNITY FOUND:");
+    println!("   Chain: {}", opp.chain_id);
+    println!("   Route: {} → {}", opp.dex_in, opp.dex_out);
+    println!("   Pair: {}/{}", base_token, quote_token);
+    println!("   Profit: ${:.2} USD", opp.est_profit_usd);
+    println!("   ROI: {:.2}%", (opp.est_profit_usd / opp.est_profit_usd.max(1.0)) * 100.0);
+    println!();
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
 
-    let database_url = env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set");
-
-    let mut db_client = Client::connect(&database_url, NoTls)?;
-
     println!("🚀 MEV Engine Minimal v3.6.0 - RUST");
-    println!("📊 Scanning {} popular pairs...", POPULAR_PAIRS.len());
-    println!("🔄 Scan interval: 30 seconds\n");
+    println!("📊 Scanning {} popular pairs across chains", POPULAR_PAIRS.len());
+    println!("🔄 Scan interval: 30 seconds");
+    println!("⚡ Real-time arbitrage detection active\n");
 
     loop {
         println!("🔍 Starting scan cycle...");
@@ -182,10 +161,8 @@ async fn main() -> Result<()> {
             match fetch_dex_prices(pair_addr, *chain_id).await {
                 Ok(pairs) => {
                     if let Some(opp) = calculate_arbitrage(&pairs) {
-                        match store_opportunity(&mut db_client, &opp, token0, token1) {
-                            Ok(_) => found += 1,
-                            Err(e) => eprintln!("❌ Error storing opportunity: {}", e),
-                        }
+                        log_opportunity(&opp, token0, token1);
+                        found += 1;
                     }
                 }
                 Err(e) => {
