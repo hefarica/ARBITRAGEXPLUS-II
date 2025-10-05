@@ -9,6 +9,7 @@ import { subDays } from "date-fns";
 import { AlertWebSocketServer } from "./server/websocket";
 import { mevScanner } from "./server/mev-scanner";
 import { ChainDexFetcher } from "./server/chain-dex-fetcher";
+import { engineApiRouter } from "./server/engine-api";
 
 const CHAIN_NAMES: Record<number, string> = {
   1: "Ethereum",
@@ -41,6 +42,8 @@ app.prepare().then(() => {
 
   server.use(cors());
   server.use(express.json());
+  
+  server.use("/api/engine", engineApiRouter);
 
   server.get("/cf/opportunities", async (req, res) => {
     try {

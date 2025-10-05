@@ -1,0 +1,132 @@
+Actúa como un arquitecto backend experto en Rust. Quiero que generes la base de un backend modular usando `Axum` o `Actix`, con rutas RESTful idempotentes para administrar Chains, RPCs, DEXes, Assets y Pairs.
+
+Requisitos:
+
+- Usar `serde` + `tokio-postgres` (o SQLX)
+- Endpoints: `/api/engine/state`, `addChain`, `updateChain`, `removeChain`, `assets/upsert`, `assets/risk`, `pairs/generate`, `pairs/upsert`, `policies/upsert`, etc.
+- Todo endpoint es idempotente (usa `upsert`)
+- Structs: `ChainCfg`, `Asset`, `Pair`
+- Validación de payloads (`serde` + `schema`)
+- Middlewares: API key auth, logging JSON, trace_id por request
+- Exportar métricas `/metrics` compatibles con Prometheus
+- Código modular (separar handlers, models, routes, db)
+
+Empieza por generar el archivo base de routes (`main.rs` o `lib.rs`).
+```
+
+--
+
+```markdown
+Eres un experto en bases de datos relacionales para sistemas de trading. Define el esquema SQL (PostgreSQL) para soportar este sistema:
+
+Tablas requeridas:
+
+- `chains(id, name, chain_id, evm, metamask_json, created_at, updated_at)`
+- `chain_rpcs(chain_id, url, is_active, last_latency_ms, last_ok_at)`
+- `chain_dexes(chain_id, dex, is_active)`
+- `assets(chain_id, address, symbol, decimals, name, risk_score, risk_flags[], sources_json, last_review_at)`
+- `pairs(chain_id, base_addr, quote_addr, enabled)`
+- `policies(key, value_json)`
+- `config_versions(version_id, snapshot_json, created_by, created_at, note)`
+- `audit_log(ts, actor, action, entity, payload)`
+
+Requisitos:
+
+- Usar claves primarias compuestas donde corresponda
+- Evitar duplicados (claves únicas)
+- Permitir `upsert` eficiente
+- Generar migración SQL lista para aplicar
+```
+
+---
+
+
+Actúa como un frontend engineer senior usando React + TypeScript (opcional: Next.js). Quiero un panel llamado `ChainsPanel++` que administre:
+
+- CRUD de chains, rpcs, dexes, assets
+- Import masivo de assets (direcciones pegadas)
+- Badges de riesgo (con colores + tooltip)
+- Botón “Generar Pairs Seguros” → muestra vista previa
+- Estado Engine (`✅` o `offline`) por chain/item
+- Panel de métricas `p50/p90/p99` live
+- Diff visual antes de aplicar cambios
+
+Componentiza bien. Usa `Zod` o `Yup` para validaciones. Muestra un ejemplo del componente `<AssetsTable />` con edición de `risk_score` y `risk_flags`.
+```
+
+---
+
+
+Actúa como un ingeniero de observabilidad. El sistema backend en Rust debe exportar:
+
+- `/metrics` en formato Prometheus
+- Métricas `scan_ns`, `opp_eval_ns` como histogramas (`hdrhistogram`)
+- Por cada ciclo: medir y registrar latencia p50, p90, p99
+- Contadores de errores por chain
+- Gauges para número de RPCs activos
+
+Adicional:
+
+- Implementa `trace_id` por request
+- Logs JSON estructurados por ciclo/opportunity
+- `GET /perf`: resumen para el frontend con p50/p90/p99
+
+Genera el módulo de métricas + ejemplo de uso en un handler.
+```
+
+---
+
+
+Actúa como experto en seguridad de APIs. Implementa en el backend RUST:
+
+- Autenticación por API Key (header `X-API-KEY`)
+- RBAC: roles `viewer`, `editor`, `admin`
+- Middleware para validar y enrutar por permisos
+- `CORS` configurable
+- Protección contra replay: `Idempotency-Key` en headers
+- Validación por IP (allow-list opcional)
+
+Quiero código para:
+
+1. Middleware `auth_middleware.rs`
+2. Cómo proteger un endpoint `POST /assets/upsert`
+```
+
+---
+
+```markdown
+Actúa como experto en diseño de APIs. A partir de esta estructura:
+
+- Endpoints de `/state`, `/addChain`, `/assets/upsert`, `/pairs/generate`, `/perf`, `/policies`, etc.
+- Métodos: `GET`, `POST`, `PATCH`
+- Todas las entidades (`ChainCfg`, `Asset`, `Pair`, `Policy`, etc.) son JSON
+- Campos clave: `chain_id`, `rpc_pool[]`, `dexes[]`, `risk_score`, `risk_flags[]`
+- Usar esquemas reutilizables
+
+Genera un archivo OpenAPI v3 (`openapi.yaml`) que defina todo el contrato. Usa `components/schemas`, `parameters`, `security`, etc.
+```
+
+---
+Eres un experto en testing de backends críticos. Quiero un plan de pruebas y ejemplos de código para:
+
+1. Tests unitarios: validación de payloads, `upsert` correcto, lógica de merge
+2. Tests de integración: CRUD completo sobre chains, assets, pairs
+3. Canary testing: aplicar cambios en solo una chain y monitorear
+4. Fixtures de datos: 3 chains, 5 RPCs, 2 DEXes, 10 assets
+
+Usar `tokio + #[tokio::test]` + `reqwest` o `hyper`. Muestra ejemplos en Rust con `assert_eq!`, mocks y validación de side effects.
+```
+
+---
+
+```markdown
+Actúa como un analista de riesgo on-chain. Quiero definir la lógica para generar **pairs seguros** usando esta política:
+
+- `risk_score ≥ 70`
+- Excluir flags: `["mintable","proxy_upgradable","owner_can_pause","low_liquidity","honeypot_risk"]`
+- `decimals ∈ [8–18]`
+- `symbol ≠ ""`
+- Solo bluechips como base: `[WETH, WBTC, DAI]`
+- Quote ∈ `[USDC, USDT, DAI]`
+
+Usa assets cargados en memoria y devuelve la lista de pairs válidos. Simula la función `generate_safe_pairs(assets: Vec<Asset>) -> Vec<Pair>` en Rust.

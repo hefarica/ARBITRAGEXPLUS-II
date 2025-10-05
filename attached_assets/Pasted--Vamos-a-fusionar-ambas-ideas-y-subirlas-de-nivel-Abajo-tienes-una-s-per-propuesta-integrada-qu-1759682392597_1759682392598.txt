@@ -1,0 +1,270 @@
+¡Vamos a fusionar ambas ideas y subirlas de nivel! Abajo tienes una **súper-propuesta integrada** que combina tu ChainsPanel (CRUD visual completo + DefiLlama/Chainlist + estado del Engine) con el workflow/arquitectura que te sugerí (arrays rápidos, métricas de latencia, idempotencia, merge seguro) y le añade **gestión de assets “anti-rugpull”** para que solo monitorees pares sanos.
+
+---
+
+# Propuesta unificada (Frontend ↔ Backend RUST ↔ Motor MEV)
+
+## 1) Visión de alto nivel
+
+Un **Config Graph** único y versionado que vive en tu backend RUST y que el Front puede editar en caliente:
+
+* **Chains**: {alias, chainId, metamask, rpcPool[], dexes[]}
+* **Assets/Tokens**: lista por chain con metadatos y **riesgo** (score, fuentes, banderas)
+* **Pairs**: combinaciones válidas (filtradas por riesgo)
+* **Policies**: parámetros de ruteo y ejecución (ROI, $ neto, slippage, gas buffer, cross-chain enable, etc.)
+* **Perf**: métricas p50/p90/p99 por escaneo y por evaluación de oportunidad
+
+Todo esto se **aplica al Engine** como arrays (cero strings en caliente, índices compactos) para máxima velocidad.
+
+---
+
+## 2) Base de datos (o storage) – esquema sugerido
+
+**Tablas principales**
+
+* `chains(id, name, chain_id, evm, metamask_json, created_at, updated_at)`
+* `chain_rpcs(chain_id, url, is_active, last_latency_ms, last_ok_at, PRIMARY KEY(chain_id, url))`
+* `chain_dexes(chain_id, dex, is_active, PRIMARY KEY(chain_id, dex))`
+* `assets(chain_id, address, symbol, decimals, name, risk_score, risk_flags, sources_json, last_review_at, PRIMARY KEY(chain_id, address))`
+* `pairs(chain_id, base_addr, quote_addr, enabled, PRIMARY KEY(chain_id, base_addr, quote_addr))`
+* `policies(key, value_json)`
+* `engine_state(snapshot_json, created_at)`  *(opcional, auditoría)*
+
+**Notas clave**
+
+* **Idempotencia**: todos los endpoints hacen *upsert*.
+* **Merge seguro**: nunca borras histórico al actualizar; un `updateChain` hace union de sets (DEX/RPC).
+* **Riesgo**: `risk_score` (0–100) + `risk_flags` (e.g. `["mintable","proxy_upgradable","owner_can_pause","low_liquidity"]`).
+* **Pairs** se generan al vuelo desde `assets` filtrando por riesgo (o se fijan manualmente).
+
+---
+
+## 3) Frontend: **ChainsPanel++ (Super)**
+
+Lo que ya tienes + extras:
+
+* **CRUD completo**: Chains / RPCs / DEXes / Assets (agregar/eliminar/editar).
+* **MetaMask builder** para EVM (chainId hex, currency, explorers).
+* **DefiLlama + Chainlist** con **fallback offline** (mocks/localStorage).
+* **Medición de latencia RPC** (rank en vivo, mínimo 5 válidos).
+* **Estado del Engine**: `✅` a nivel chain / rpc / dex / asset / pair.
+* **Gestión de Assets (anti-rugpull)**:
+
+  * Import masivo por dirección (pegar lista), **enriquecer** metadatos locales.
+  * Mostrar **riesgo** (badge color + tooltip con flags).
+  * Botón “**Generar Pairs Seguros**” (según política).
+* **Diff Viewer**: ver diferencias Front vs Engine antes de aplicar.
+* **Aplicar cambios**: `Add/Update/Remove` con confirmación y resumen.
+* **Bench en vivo**: panel de **p50/p90/p99** por escaneo y por evaluación de oportunidades (viene del backend).
+
+---
+
+## 4) API del Backend (RUST) – contrato
+
+### Estado
+
+* `GET /api/engine/state`
+
+  * Devuelve el **grafo actual**: chains + rpcs + dexes + assets (con riesgo) + policies + perf resumen.
+
+### CRUD de chains / rpcs / dexes
+
+* `POST /api/engine/addChain` → alta con arrays completos
+* `POST /api/engine/updateChain` → **merge** idempotente (restaura baseline + une payload)
+* `POST /api/engine/removeChain`
+* **Finos**:
+
+  * `POST /api/engine/addRpc` / `removeRpc`
+  * `POST /api/engine/addDex` / `removeDex`
+
+### Assets (anti-rugpull)
+
+* `POST /api/engine/assets/upsert`  (bulk: lista de {chain, address, symbol?, decimals?, name?})
+* `POST /api/engine/assets/risk`    (setear/actualizar `risk_score` y `risk_flags` en bulk)
+* `GET  /api/engine/assets?chain=...&min_score=...&flags_exclude=...`
+* `POST /api/engine/pairs/generate` (desde assets filtrados por política)
+* `POST /api/engine/pairs/upsert`   (opcional, para ajustes manuales)
+* `POST /api/engine/pairs/enable` / `disable`
+
+### Policies & Perf
+
+* `GET  /api/engine/policies`
+* `POST /api/engine/policies/upsert`  (ROI mínimo, $ neto, slippage caps, gas buffer, cross-chain on/off, etc.)
+* `GET  /api/engine/perf` (histogramas agregados y por chain)
+* **Opcional**: `GET /api/engine/opportunities/stream` (SSE/WebSocket)
+
+---
+
+## 5) “Anti-rugpull” – criterios y pipeline
+
+**Política por defecto (editable en UI)**
+
+* `risk_score ≥ 70`
+* Excluir flags críticas:
+  `["mintable","owner_can_pause","blacklist","proxy_upgradable","low_liquidity","no_timelock","no_multisig","honeypot_risk"]`
+* `decimals` válidos (8–18), `symbol` no vacío.
+* Liquidez mínima por pool (TVL) configurable por chain.
+
+**Fuentes sugeridas (puedes consolidar offline)**
+
+* Auditorías reputadas, listas de tokens verificados en DEX/scan, listas de “top stablecoins” y blue-chips por chain, tus propias observaciones de TVL/volumen.
+* El backend **no necesita** depender online para filtrar: guarda la evaluación en `assets.risk_*`.
+
+**Generación de pares**
+
+* *Preset Seguros*: [WETH/USDC, WBTC/USDC, WETH/USDT, stable-stable mayor] por chain.
+* *Derivados desde assets filtrados*: cartesian con whitelist (p. ej., `base ∈ bluechips`, `quote ∈ [USDC,USDT,DAI]`).
+
+---
+
+## 6) Motor MEV (RUST) – integración rápida
+
+### Structs (serde)
+
+```rust
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ChainCfg {
+    pub chain: String,
+    pub chain_id: Option<u64>,
+    pub metamask: Option<serde_json::Value>,
+    pub rpc_pool: Vec<String>,
+    pub dexes: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Asset {
+    pub chain: String,
+    pub address: String,
+    pub symbol: String,
+    pub decimals: u8,
+    pub name: String,
+    pub risk_score: u8,
+    pub risk_flags: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Pair {
+    pub chain: String,
+    pub base: String,
+    pub quote: String,
+    pub enabled: bool,
+}
+```
+
+### Hot-path
+
+* Convertir **todo** a índices (`u16/u32`) al cargar.
+* **Slicing** por `(chain,pair)` para comparar quotes.
+* **Filtros previos**: excluir pares con `risk_score<policy.min` o flags prohibidas antes de cotizar.
+* **Perf**: `hdrhistogram` para `scan_ns` y `opp_eval_ns` (p50/p90/p99).
+
+---
+
+## 7) Workflow de implementación (paso a paso)
+
+1. **DB/Storage**
+
+   * Crear tablas arriba. Migración mínima.
+2. **Endpoints**
+
+   * Implementar `GET /state`, `POST /addChain`, `POST /updateChain`, `POST /removeChain`.
+   * Añadir **assets** (`/assets/upsert`, `/assets/risk`) y **pairs** (`/pairs/generate`, `/pairs/upsert`).
+   * Publicar `GET /perf` y `GET /policies` + `POST /policies/upsert`.
+3. **Engine Loader**
+
+   * Al boot: cargar `chains`, `rpcs` (rankear), `dexes`, `assets` (filtrar riesgo), `pairs`.
+   * Construir índices y slices contiguos por `(chain,pair)`.
+4. **Front ChainsPanel++**
+
+   * Conectar a `/state`; pintar ✅ por item.
+   * CRUD Chains/RPC/DEX; import de assets (csv/pegar lista); mostrar riesgo.
+   * Botón **Generar Pairs Seguros** (llama `/pairs/generate`).
+   * Diff + Aplicar (llamadas `updateChain`, `assets/upsert`, etc.).
+5. **Perf UI**
+
+   * Panel con p50/p90/p99 (pull de `/perf` cada N segundos).
+6. **Policies**
+
+   * Editor visual (ROI, $neto, slippage, gas buffer, risk_min, flags_exclude).
+7. **Pruebas**
+
+   * Semillas mínimas por chain (3 DEX + 5 RPC + 5 assets seguros).
+   * Smoke de rutas 2-legs e intra-tier; luego triangular.
+
+---
+
+## 8) Checklist exhaustivo (corta y al grano)
+
+**Backend**
+
+* [ ] Tablas `chains`, `chain_rpcs`, `chain_dexes`, `assets`, `pairs`, `policies`, `engine_state`.
+* [ ] `GET /api/engine/state` con chains+rpcs+dexes+assets+pairs+policies+perf.
+* [ ] `POST /api/engine/addChain` (valida ≥5 RPCs, ≥2 DEX).
+* [ ] `POST /api/engine/updateChain` (merge, **restaura baseline**).
+* [ ] `POST /api/engine/removeChain`.
+* [ ] `POST /api/engine/addRpc` / `removeRpc`.
+* [ ] `POST /api/engine/addDex` / `removeDex`.
+* [ ] `POST /api/engine/assets/upsert` (bulk).
+* [ ] `POST /api/engine/assets/risk` (bulk set score/flags).
+* [ ] `POST /api/engine/pairs/generate` (según política).
+* [ ] `GET /api/engine/perf` (p50/p90/p99 scan & opp_eval).
+* [ ] `GET/POST /api/engine/policies` (risk/ROI/slippage/gas/cross-chain).
+
+**Engine**
+
+* [ ] Cargar config → **indices compactos** + **slices** por `(chain,pair)`.
+* [ ] Filtrar por **riesgo** antes de cotizar.
+* [ ] Medir y almacenar **latencias** (histogramas) por ciclo y por evaluación.
+* [ ] Registrar oportunidades con ROI, $ neto, gas, slippage estimado.
+
+**Frontend**
+
+* [ ] ChainsPanel++ con CRUD, MetaMask builder, latencias RPC, estado Engine ✅.
+* [ ] Gestión de assets: import, badges de riesgo, editar score/flags.
+* [ ] Botón “Generar Pairs Seguros”.
+* [ ] Diff visual + “Aplicar cambios”.
+* [ ] Badge Engine Online/Offline y Datos Online/Offline.
+* [ ] Panel **Perf** (p50/p90/p99).
+
+---
+
+## 9) Prompt para el equipo (cópielo tal cual)
+
+> **Objetivo:** Implementar un panel en Frontend para administrar Chains/RPCs/DEXes/Assets y políticas de riesgo; el Backend RUST expone endpoints idempotentes que guardan arrays; el Engine usa índices compactos y slices por `(chain,pair)`, filtra por riesgo y reporta métricas p50/p90/p99.
+>
+> **Entregables obligatorios:**
+>
+> 1. Endpoints:
+>
+>    * `GET /api/engine/state`, `GET /api/engine/perf`, `GET/POST /api/engine/policies`
+>    * `POST /api/engine/addChain|updateChain|removeChain`
+>    * `POST /api/engine/addRpc|removeRpc`, `POST /api/engine/addDex|removeDex`
+>    * `POST /api/engine/assets/upsert`, `POST /api/engine/assets/risk`
+>    * `POST /api/engine/pairs/generate`, `POST /api/engine/pairs/upsert`
+> 2. Persistencia con claves compuestas (evitar duplicados) e **idempotencia**.
+> 3. Política de riesgo por defecto: `risk_score ≥ 70` y excluir flags `["mintable","owner_can_pause","blacklist","proxy_upgradable","low_liquidity","no_timelock","no_multisig","honeypot_risk"]`. UI editable.
+> 4. ChainsPanel++:
+>
+>    * CRUD + MetaMask + latencias RPC + estado Engine ✅
+>    * Gestión de assets con riesgo + “Generar Pairs Seguros”
+>    * Diff + Aplicar + Panel de **Perf** (p50/p90/p99)
+> 5. Engine:
+>
+>    * Carga arrays → índices `u16/u32` y **slices contiguos**
+>    * Filtros de riesgo antes de cotizar
+>    * Medición con `hdrhistogram` y export en `/perf`
+>
+> **Criterios de aceptación:**
+>
+> * Agrego una chain desde el Front, con ≥5 RPC rankeados y ≥2 DEX; aparece ✅ en Engine.
+> * Importo 20 assets, seteo riesgo, genero `pairs` seguros; solo esos pares se escanean.
+> * Veo p50/p90/p99 de **scan** y **opp_eval** bajar al habilitar índices y filtros.
+> * `updateChain` **restaura** RPC/DEX baseline si borré algo por error.
+
+---
+
+## ¿Qué opción es “mejor”?
+
+* Tu documento del **ChainsPanel** ya es excelente para la **experiencia** y el CRUD.
+* Mi workflow añade la **arquitectura de índices rápidos**, **métricas de rendimiento** y, ahora, le sumamos la **capa de assets con riesgo** para que tu motor **solo escanee pares sanos**.
+  **La propuesta unificada es mejor** porque cierra el círculo: **configurable, seguro, medible y rápido**.

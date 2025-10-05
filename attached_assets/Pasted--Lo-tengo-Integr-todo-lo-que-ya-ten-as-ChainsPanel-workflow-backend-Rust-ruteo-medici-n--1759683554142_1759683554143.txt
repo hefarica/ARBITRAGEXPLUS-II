@@ -1,0 +1,188 @@
+¡Lo tengo! Integré **todo** lo que ya tenías (ChainsPanel + workflow/backend Rust + ruteo/medición + assets anti-rugpull) y añadí varias piezas que faltaban para que quede una solución **cerrada, segura, observable y reversible**. Abajo te digo **qué agregué** y luego dejo la **propuesta unificada** con workflow y checklist final.
+
+# Qué agregué que no estaba
+
+1. **Gestión de riesgos de assets a nivel producción**
+
+   * Esquema de `risk_score` (0-100) y `risk_flags` (e.g., `mintable`, `proxy_upgradable`, `blacklist`, `fee_on_transfer`, `low_liquidity`, `no_timelock`, `no_multisig`, `honeypot_risk`).
+   * **Listas allow/deny** por chain (whitelist/blacklist) con **versión** y **rollback**.
+   * **Generación de pairs seguros** desde políticas (blue-chips + stables) y *filters* por riesgo.
+
+2. **Observabilidad y rendimiento de nivel SRE**
+
+   * **Export Prometheus/OpenMetrics**: counters, gauges e histogramas (scan_ns, opp_eval_ns; p50/p90/p99 por chain).
+   * **Trazabilidad** (trace_id) por oportunidad y por ciclo; logs estructurados (JSON).
+   * **Alertas** por SLO (latencia media/p99, errores por chain, “no oportunidades” prolongado).
+
+3. **Confiabilidad/Resiliencia**
+
+   * **Rate-limit y backpressure** para probes RPC y cotizadores.
+   * **Circuit breakers** por RPC/DEX/chain y **retry con jitter**.
+   * **Health checks**: `/healthz` (vivo) y `/readyz` (dependencias OK).
+   * **Cola asíncrona** para tareas pesadas (reindex, refresh TVL).
+
+4. **Seguridad**
+
+   * **Auth** por API Key con **idempotency keys** en POST (evitar duplicados).
+   * **RBAC**: roles `viewer|editor|admin`.
+   * **CORS** y **IP allow-list** opcional.
+   * **Gestión de secretos** (RPC privados, claves puente) con vault/env cifrado.
+
+5. **Gestión de configuración “safe”**
+
+   * **Versionado** de la configuración (config graph) con **rollbacks** (`/api/engine/config/versions`, `/rollback/:version`).
+   * **Optimistic locking** (ETag/`config_rev`) para evitar pisadas entre usuarios.
+   * **JSON Schema** (+ validación) para payloads (chains, dexes, rpc, assets).
+
+6. **Cross-chain listo para producción**
+
+   * Módulo **Inventory Manager** (inventario espejo por chain) + **Rebalancer**.
+   * Abstracción **BridgeProvider** (si decides puentear), con costos/latencia modelados.
+   * Políticas de **tamaño máximo por hop** y **gas buffer** por chain.
+
+7. **Simulación y ejecución segura**
+
+   * **Dry-run/sandbox** (solo simula rutas y costes; no toca on-chain).
+   * **Whitelabel de mempool privado** (relays, Flashbots) y “private tx” toggle.
+   * **Pre-trade checks**: balance, allowances, deadlines y slippage caps por política.
+
+8. **Frontend mejorado para assets**
+
+   * Pestaña **Assets** con import masivo (direcciones), normalización (checksum), badges de riesgo, edición de `risk_score/flags`.
+   * Botón **“Generar Pairs Seguros”** (por chain) con vista previa/diff.
+
+9. **Entrega y pruebas**
+
+   * **OpenAPI/Swagger** del backend.
+   * **Tests**: unitarios (ruteo, filtros), integración (CRUD/API), **canary** (habilitar en 1 chain antes del resto).
+   * **Migrations** para DB (estructura nueva de assets/pairs/policies).
+
+---
+
+# Propuesta unificada (listo para implementar)
+
+## Modelo de datos (DB o storage)
+
+* **chains**(id, name, chain_id, evm, metamask_json, created_at, updated_at)
+* **chain_rpcs**(chain_id, url, is_active, last_latency_ms, last_ok_at, PRIMARY KEY(chain_id,url))
+* **chain_dexes**(chain_id, dex, is_active, PRIMARY KEY(chain_id,dex))
+* **assets**(chain_id, address, symbol, decimals, name, **risk_score**, **risk_flags[]**, sources_json, last_review_at, PRIMARY KEY(chain_id,address))
+* **pairs**(chain_id, base_addr, quote_addr, enabled, PRIMARY KEY(chain_id,base_addr,quote_addr))
+* **policies**(key, value_json)  // ROI, $neto, slippage caps, gas buffer, risk_min, flags_exclude, cross-chain on/off…
+* **config_versions**(version_id, snapshot_json, created_by, created_at, note)  // rollback
+* **audit_log**(ts, actor, action, entity, payload)
+
+> Todo endpoint **upsert** (idempotente), con **idempotency key** opcional.
+
+## API (además de lo que ya tienes)
+
+* **Estado y config**
+
+  * `GET /api/engine/state` → chains+rpcs+dexes+assets+pairs+policies + perf resumida
+  * `GET /api/engine/config/versions`
+  * `POST /api/engine/config/rollback` `{ "version": <id> }`
+* **Chains/RPC/DEX (ya definidos)**
+  `POST addChain | updateChain | removeChain | addRpc | removeRpc | addDex | removeDex`
+* **Assets & Pairs (nuevo)**
+
+  * `POST /api/engine/assets/upsert` `[ {chain,address,symbol,decimals,name} ]`
+  * `POST /api/engine/assets/risk` `[ {chain,address,risk_score,risk_flags[]} ]`
+  * `GET  /api/engine/assets?chain=X&min_score=70&flags_exclude=fee_on_transfer,proxy_upgradable`
+  * `POST /api/engine/pairs/generate` `{ chain, policy_key? }` → genera pares seguros
+  * `POST /api/engine/pairs/upsert` `[ {chain,base,quote,enabled} ]`
+* **Policies**
+
+  * `GET /api/engine/policies`
+  * `POST /api/engine/policies/upsert` `{ key, value_json }`
+* **Perf y Salud**
+
+  * `GET /api/engine/perf` (p50/p90/p99 por chain y global)
+  * `GET /metrics` (Prometheus)
+  * `GET /healthz` / `GET /readyz`
+* **Seguridad**
+
+  * Auth por API-Key (header), **RBAC** (scopes), **CORS** configurable.
+
+## Motor MEV (Rust): integración y hot-path
+
+* Cargar config → **índices compactos** (`u16/u32`) para chain/dex/token/pair.
+* **Slicing contiguo** por `(chain,pair)` para O(1) acceso a quotes; sin allocs en caliente.
+* Filtros **pre-cotización**: `risk_score≥policy.min && !flags_exclude && TVL≥min`.
+* **Histograma** `scan_ns` y `opp_eval_ns` (p50/p90/p99) exportado a `/metrics` y `/perf`.
+* **Circuit breakers** por RPC/DEX (abre al 5xx/timeout alto, cierra por éxito sostenido).
+* **Retry** con exponential backoff + jitter; **rate-limit** por RPC y por chain.
+* **Inventory Manager**: controla saldos por chain y re-balancea (si cross-chain activo).
+* **Dry-run** (simulación) y **private tx** (mempool privado) con toggle por política.
+
+## Frontend ChainsPanel++
+
+* Mantener lo actual y **añadir “Assets”**:
+
+  * Import masivo (pegar direcciones), normalización checksum.
+  * Editar `risk_score`/`risk_flags` con badges.
+  * **Generar Pairs Seguros** → vista previa → *diff* → aplicar (POST `pairs/generate`).
+* **Diff viewer** antes de `updateChain`.
+* **Badges**: Engine Online/Offline, Datos Online/Offline, y estado por ítem (✅ / —).
+* **Métricas**: mini-panel con `scan_ns` y `opp_eval_ns` p50/p90/p99 por chain.
+
+## Workflow de implementación (backend actual)
+
+1. **Migraciones DB**: crear tablas nuevas (assets/pairs/policies/config_versions/audit_log).
+2. **Schemas**: JSON Schema para `ChainCfg`, `Asset`, `Pair`, `Policies`.
+3. **Endpoints nuevos** (assets, pairs, perf, config versions/rollback).
+4. **Engine Loader**: construir índices y slices; aplicar **políticas de riesgo** antes de cotizar.
+5. **Observabilidad**: export `/metrics` + `/perf` + logs JSON con `trace_id`.
+6. **Confiabilidad**: rate-limit, retries con jitter, circuit breakers, health/readiness.
+7. **Seguridad**: API Key + RBAC, CORS, secrets en vault/env cifrado.
+8. **Canary**: habilitar en 1 chain → validar métricas/errores → expandir.
+9. **Rollback**: probar `config/rollback` desde el Front con un cambio simple.
+10. **Docs**: Swagger/OpenAPI y “Runbook” (procedimientos de fallas y KPIs).
+
+---
+
+# Checklist final (único, exhaustivo)
+
+**Frontend**
+
+* [ ] ChainsPanel con CRUD Chains/RPC/DEX y **pestaña Assets** (import/edición riesgo).
+* [ ] MetaMask builder EVM; medición de latencia RPC y ranking.
+* [ ] Botón **Generar Pairs Seguros** + *diff* + aplicar.
+* [ ] Badges de estado + mini-panel de perf (p50/p90/p99).
+* [ ] Fallback offline (mocks) y persistencia local básica.
+
+**Backend (API)**
+
+* [ ] `state`, `add/update/removeChain`, `add/removeRpc`, `add/removeDex`.
+* [ ] **Assets**: `assets/upsert`, `assets/risk`, `assets` (GET).
+* [ ] **Pairs**: `pairs/generate`, `pairs/upsert`.
+* [ ] **Policies**: `GET/POST policies`.
+* [ ] **Config**: `config/versions`, `config/rollback`.
+* [ ] **Perf/Salud**: `perf`, `metrics`, `healthz`, `readyz`.
+* [ ] **Seguridad**: API-Key, RBAC, CORS, idempotency keys.
+
+**Engine (Rust)**
+
+* [ ] Índices compactos + slices por `(chain,pair)`; sin allocs en ruteo.
+* [ ] Filtros de riesgo/TVL antes de cotizar.
+* [ ] Histogramas de latencia y export Prometheus.
+* [ ] Circuit breakers + retries + rate-limit.
+* [ ] Dry-run, private tx, deadlines/slippage caps.
+* [ ] Inventory Manager + Rebalancer (cross-chain).
+
+**Datos & riesgo**
+
+* [ ] `risk_score` y `risk_flags` definidos; allow/deny por chain.
+* [ ] Políticas de generación de pairs (blue-chip + stables).
+* [ ] Auditoría y versión de config con rollback probado.
+
+**Entrega**
+
+* [ ] OpenAPI/Swagger publicado.
+* [ ] Tests unitarios/integración + canary en 1 chain.
+* [ ] Runbook (SLOs, alertas, rollback).
+
+---
+
+## Resumen
+
+La propuesta integra tu **ChainsPanel** y mi **workflow** con un set completo de **seguridad, riesgo, resiliencia, observabilidad, versionado y rollback**, más **cross-chain production-ready**. Arriba listé **exactamente lo que agregué** (no estaba), y ya te dejé el **paso a paso** y el **checklist** para implementarlo en tu backend Rust y consolidarlo con el Frontend.

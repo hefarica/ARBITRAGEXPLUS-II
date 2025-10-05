@@ -1,0 +1,632 @@
+import React, { useEffect, useMemo, useState } from "react";
+
+/**
+ * ChainsPanel – v5 (Full Offline‑safe: Engine + Data Sources)
+ *
+ * 🔧 Fix principal
+ *   El error "TypeError: Failed to fetch" persistía porque además del Engine, las
+ *   **fuentes públicas** (DefiLlama/Chainlist) también requieren red. En entornos
+ *   sandbox sin Internet, las llamadas fallan. Ahora:
+ *   - Si las **APIs públicas** no responden, el panel usa **mock snapshots** locales
+ *     (EVM MetaMask‑compatibles + métricas sintéticas) y no revienta.
+ *   - Indicadores de estado: `Engine Online/Offline` y `Datos Online/Offline`.
+ *
+ * 🧩 Qué incluye
+ *   1) Adaptador de datos (DataAdapter) con fallback a mocks.
+ *   2) Adaptador de Engine (Engine.*Safe) con fallback a localStorage.
+ *   3) CRUD de Cadenas/DEX/RPC + medición de latencia y payload MetaMask.
+ *   4) Auto‑config del ENGINE_BASE_URL (window/query/localStorage/env) o modo offline.
+ *   5) Self‑tests ampliados (rank, engine mock, y mock de datos) que no bloquean producción.
+ */
+
+// ========================= CONFIG (EDITABLE) =========================
+const RESOLVE_ENGINE_BASE_URL = () => {
+  try {
+    const fromWindow = (typeof window !== "undefined" && (window as any).__ENGINE_BASE_URL__) || "";
+    const fromQuery = (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("engine") : null) || "";
+    const fromLS = (typeof window !== "undefined" && window.localStorage?.getItem("ENGINE_BASE_URL")) || "";
+    const fromEnv = (typeof process !== "undefined" && (process as any)?.env?.REACT_APP_ENGINE_BASE_URL) || "";
+    return String(fromWindow || fromQuery || fromLS || fromEnv || "");
+  } catch { return ""; }
+};
+const ENGINE_BASE_URL = RESOLVE_ENGINE_BASE_URL();
+
+const PATHS = {
+  state: "/api/engine/state",
+  addChain: "/api/engine/addChain",
+  updateChain: "/api/engine/updateChain",
+  removeChain: "/api/engine/removeChain",
+  addRpc: "/api/engine/addRpc",
+  removeRpc: "/api/engine/removeRpc",
+  addDex: "/api/engine/addDex",
+  removeDex: "/api/engine/removeDex",
+};
+
+// ========================= TIPOS =========================
+type LatencySample = { url: string; ms: number | null; ok: boolean; lastError?: string };
+interface ChainRow {
+  name: string; alias?: string; evm: boolean;
+  chainId?: number; chainIdHex?: string; nativeCurrency?: { name?: string; symbol?: string; decimals?: number };
+  explorers?: string[]; publicRpcs: string[]; latency: LatencySample[];
+  protocols?: number; tvlUsd?: number; change1d?: number; change7d?: number; change1m?: number;
+  stablesMcap?: number; dexVolume24h?: number; chainFees24h?: number; supportsFlash?: boolean;
+  suggestedProtocols: string[]; inEngine: boolean; engineRpcs: Set<string>; engineDexes: Set<string>; dexes: string[];
+  /** Snapshots iniciales cargados desde el ENGINE para restaurar en Actualizar */
+  baselineDexes?: Set<string>;
+  baselineRpcs?: Set<string>;
+}
+}
+
+// ========================= UTILIDADES =========================
+const MIN_PUBLIC_RPCS = 5;
+const ETH_BLOCKNUMBER_BODY = (id = 1) => ({ jsonrpc: "2.0", id, method: "eth_blockNumber", params: [] });
+const formatMoney = (n: number | null | undefined) => n == null || Number.isNaN(n) ? "–" : (() => { const abs = Math.abs(n); const f = (v: number) => v.toLocaleString(undefined,{maximumFractionDigits:2}); if (abs>=1e12) return "$"+f(n/1e12)+"t"; if(abs>=1e9) return "$"+f(n/1e9)+"b"; if(abs>=1e6) return "$"+f(n/1e6)+"m"; return "$"+f(n); })();
+const pct = (n: number | null | undefined) => (n == null || Number.isNaN(n) ? "–" : (n >= 0 ? "+" : "") + n.toFixed(2) + "%");
+const norm = (s?: string) => (s ?? "").toLowerCase().replace(/smart\s*chain/g,"bsc").replace(/binance\s*(smart\s*)?chain/g,"bsc").replace(/mainnet/g,"").replace(/one$/g,"").replace(/[^a-z0-9]/g,"");
+const ALIAS: Record<string,string[]> = { BSC:["bsc","bnbchain","binancesmartchain","bnbsmartchain"], Polygon:["polygon","matic"], Arbitrum:["arbitrum","arbitrumone"], Optimism:["optimism","op"], Base:["base"], Avalanche:["avalanche","avax"], Fantom:["fantom","ftm"], Ethereum:["ethereum","eth"] };
+
+// Sugerencias de protocolos (top 5 por cadena)
+const FLASH_PROTOCOL_SUGGESTIONS: Record<string,string[]> = {
+  Ethereum:["Aave V3","Uniswap V3 (flash swap)","Balancer V2","MakerDAO D3M","dYdX"],
+  Arbitrum:["Aave V3","Uniswap V3 (flash swap)","Balancer V2","Camelot V3","Radiant"],
+  Optimism:["Aave V3","Uniswap V3 (flash swap)","Velodrome V2","Synthetix","Beethoven X"],
+  Base:["Aave V3","Uniswap V3 (flash swap)","Aerodrome","Balancer V2","Compound V3"],
+  Polygon:["Aave V3","Uniswap V3 (flash swap)","Balancer V2","QuickSwap V3","Compound V3"],
+  BSC:["Uniswap V3 (flash swap)","Pancake V3","Wombat","Venus","Thena"],
+  Avalanche:["Aave V3","Uniswap V3 (flash swap)","Trader Joe V2.1","Benqi","Platypus"],
+  Fantom:["Aave V3","SpookySwap","Beethoven X","Equalizer","Geist (legacy)"],
+};
+const FLASH_SUPPORTED = new Set(Object.keys(FLASH_PROTOCOL_SUGGESTIONS));
+
+// ========================= DATA ADAPTER (Online / Offline) =========================
+async function fetchJSON<T>(url: string, init?: RequestInit, timeoutMs = 7000): Promise<T> {
+  const controller = new AbortController(); const t = setTimeout(()=>controller.abort(), timeoutMs);
+  try { const r = await fetch(url, { ...(init||{}), signal: controller.signal }); if(!r.ok) throw new Error(`${url} -> ${r.status}`); return await r.json(); }
+  finally { clearTimeout(t); }
+}
+interface ChainListItem { chainId:number; name?:string; shortName?:string; nativeCurrency?:{name?:string;symbol?:string;decimals?:number}; rpc?:string[]; explorers?:{url?:string}[]; }
+
+// Mocks offline mínimos (5 cadenas populares EVM)
+const MOCK_CHAINLIST: ChainListItem[] = [
+  { chainId:1, name:"Ethereum", shortName:"eth", nativeCurrency:{name:"Ether",symbol:"ETH",decimals:18}, rpc:["https://cloudflare-eth.com ","https://rpc.ankr.com/eth "], explorers:[{url:"https://etherscan.io "}] },
+  { chainId:56, name:"BSC", shortName:"bsc", nativeCurrency:{name:"BNB",symbol:"BNB",decimals:18}, rpc:["https://bsc-dataseed1.binance.org ","https://bsc-dataseed2.binance.org "], explorers:[{url:"https://bscscan.com "}] },
+  { chainId:137, name:"Polygon", shortName:"matic", nativeCurrency:{name:"MATIC",symbol:"MATIC",decimals:18}, rpc:["https://polygon-rpc.com ","https://rpc.ankr.com/polygon "], explorers:[{url:"https://polygonscan.com "}] },
+  { chainId:42161, name:"Arbitrum", shortName:"arb1", nativeCurrency:{name:"Ether",symbol:"ETH",decimals:18}, rpc:["https://arb1.arbitrum.io/rpc ","https://rpc.ankr.com/arbitrum "], explorers:[{url:"https://arbiscan.io "}] },
+  { chainId:8453, name:"Base", shortName:"base", nativeCurrency:{name:"Ether",symbol:"ETH",decimals:18}, rpc:["https://mainnet.base.org ","https://developer-access-mainnet.base.org "], explorers:[{url:"https://basescan.org "}] },
+];
+const MOCK_LLAMA = [
+  { chain:"Ethereum", protocols:1600, tvl:9.5e10, change_1d:0.4, change_7d:10.2, change_1m:5.1 },
+  { chain:"BSC", protocols:1000, tvl:8.6e9, change_1d:-0.2, change_7d:12.9, change_1m:17.7 },
+  { chain:"Polygon", protocols:800, tvl:1.5e10, change_1d:0.5, change_7d:6.2, change_1m:8.1 },
+  { chain:"Arbitrum", protocols:900, tvl:4.1e9, change_1d:9.5, change_7d:26.6, change_1m:27.1 },
+  { chain:"Base", protocols:700, tvl:5.4e9, change_1d:1.0, change_7d:12.6, change_1m:14.8 },
+];
+const MOCK_STABLES = { chains:[ {name:"Ethereum", totalCirculatingUSD:1.6e11}, {name:"BSC", totalCirculatingUSD:1.4e10}, {name:"Polygon", totalCirculatingUSD:9e9}, {name:"Arbitrum", totalCirculatingUSD:1.1e10}, {name:"Base", totalCirculatingUSD:4.7e9} ] };
+const MOCK_DEX = { chains:[ {name:"Ethereum", total24h:2.7e9}, {name:"BSC", total24h:1.16e9}, {name:"Polygon", total24h:4.3e8}, {name:"Arbitrum", total24h:5.95e8}, {name:"Base", total24h:1.16e9} ] };
+const MOCK_FEES = { chains:[ {name:"Ethereum", total24h:5.6e8}, {name:"BSC", total24h:1e8}, {name:"Polygon", total24h:4e7}, {name:"Arbitrum", total24h:1.7e7}, {name:"Base", total24h:1e8} ] };
+
+const DataAdapter = {
+  online: false,
+  async chains() {
+    try { const x = await fetchJSON<any[]>("https://api.llama.fi/chains "); DataAdapter.online = true; return x; } catch { DataAdapter.online = false; return MOCK_LLAMA; }
+  },
+  async stables() {
+    try { const x = await fetchJSON<any>("https://stablecoins.llama.fi/stablecoins?includeChains=true"); DataAdapter.online = true; return x; } catch { DataAdapter.online = false; return MOCK_STABLES as any; }
+  },
+  async dex() {
+    try { const x = await fetchJSON<any>(" https://api.llama.fi/overview/dexs?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true"); DataAdapter.online = true; return x; } catch { DataAdapter.online = false; return MOCK_DEX as any; }
+  },
+  async fees() {
+    try { const x = await fetchJSON<any>(" https://api.llama.fi/overview/fees?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true"); DataAdapter.online = true; return x; } catch { DataAdapter.online = false; return MOCK_FEES as any; }
+  },
+  async chainlist(): Promise<ChainListItem[]> {
+    try { const x = await fetchJSON<ChainListItem[]>(" https://chainid.network/chains.json "); DataAdapter.online = true; return x; } catch { DataAdapter.online = false; return MOCK_CHAINLIST; }
+  },
+};
+
+function matchChainToChainlist(defiName: string | undefined, chainlist: ChainListItem[]): ChainListItem | undefined {
+  const d = norm(defiName); if (!d) return undefined;
+  let item = chainlist.find((c) => norm(c.name) === d || norm(c.shortName) === d);
+  if (item) return item;
+  for (const [k, arr] of Object.entries(ALIAS)) { if (arr.includes(d)) { item = chainlist.find((c) => norm(c.name) === norm(k) || norm(c.shortName) === norm(k)); if (item) return item; } }
+  item = chainlist.find((c) => norm(c.name).includes(d)); return item;
+}
+function buildMetaMaskParams(ci?: ChainListItem) {
+  if (!ci) return undefined; const chainIdHex = "0x" + ci.chainId.toString(16);
+  const explorers = (ci.explorers || []).map((e) => e.url!).filter(Boolean);
+  const rpcUrls = (ci.rpc || []).filter(Boolean).map((u) => u.trim()).filter((u) => !/(\$\{|YOUR_API_KEY|api-key|\{|<API_KEY>)/i.test(u));
+  return { chainId: chainIdHex, chainName: ci.name || `Chain ${ci.chainId}`, nativeCurrency: ci.nativeCurrency || { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls, blockExplorerUrls: explorers };
+}
+
+// ========================= ENGINE ADAPTER (Online / Offline) =========================
+const LS_KEY = "__engine_state_mock__";
+function readLS() { try { return JSON.parse(localStorage.getItem(LS_KEY) || '{"chains":[]}'); } catch { return { chains: [] }; } }
+function writeLS(state: any) { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch {} }
+async function httpJSON(path: string, method: "GET" | "POST" = "GET", body?: any) {
+  const url = ENGINE_BASE_URL ? ENGINE_BASE_URL + path : ""; if (!url) throw new Error("ENGINE_BASE_URL not set (offline)");
+  if (method === "GET") return await fetchJSON(url); return await fetchJSON(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+}
+const Engine = {
+  online: false,
+  async getStateSafe(): Promise<any> { try { const r = await httpJSON(PATHS.state, "GET"); Engine.online = true; return r; } catch { Engine.online = false; return readLS(); } },
+  async addChainSafe(payload: any) { try { const r = await httpJSON(PATHS.addChain, "POST", payload); Engine.online = true; return r; } catch { Engine.online = false; const s = readLS(); const i = s.chains.findIndex((c: any)=>c.chain===payload.chain); if(i>=0) s.chains[i] = { ...s.chains[i], ...payload, chain: payload.chain }; else s.chains.push({ chain: payload.chain, rpcPool: payload.rpcPool||[], dexes: payload.dexes||[] }); writeLS(s); return { ok:true, offline:true }; } },
+  async updateChainSafe(payload: any) { try { const r = await httpJSON(PATHS.updateChain, "POST", payload); Engine.online = true; return r; } catch { Engine.online = false; const s = readLS(); const i = s.chains.findIndex((c:any)=>c.chain===payload.chain); if(i>=0) s.chains[i] = { ...s.chains[i], ...payload }; else s.chains.push({ chain: payload.chain, rpcPool: payload.rpcPool||[], dexes: payload.dexes||[] }); writeLS(s); return { ok:true, offline:true }; } },
+  async removeChainSafe(payload: any) { try { const r = await httpJSON(PATHS.removeChain, "POST", payload); Engine.online = true; return r; } catch { Engine.online = false; const s = readLS(); s.chains = (s.chains||[]).filter((c:any)=>c.chain!==payload.chain); writeLS(s); return { ok:true, offline:true }; } },
+  async addRpcSafe(payload: any) { try { const r = await httpJSON(PATHS.addRpc, "POST", payload); Engine.online = true; return r; } catch { Engine.online = false; const s=readLS(); const it=(s.chains||[]).find((c:any)=>c.chain===payload.chain); if(it) it.rpcPool = Array.from(new Set([...(it.rpcPool||[]), payload.url])); writeLS(s); return { ok:true, offline:true }; } },
+  async removeRpcSafe(payload: any) { try { const r = await httpJSON(PATHS.removeRpc, "POST", payload); Engine.online = true; return r; } catch { Engine.online = false; const s=readLS(); const it=(s.chains||[]).find((c:any)=>c.chain===payload.chain); if(it) it.rpcPool = (it.rpcPool||[]).filter((x:string)=>x!==payload.url); writeLS(s); return { ok:true, offline:true }; } },
+  async addDexSafe(payload: any) { try { const r = await httpJSON(PATHS.addDex, "POST", payload); Engine.online = true; return r; } catch { Engine.online = false; const s=readLS(); const it=(s.chains||[]).find((c:any)=>c.chain===payload.chain); if(it) it.dexes = Array.from(new Set([...(it.dexes||[]), payload.dex])); writeLS(s); return { ok:true, offline:true }; } },
+  async removeDexSafe(payload: any) { try { const r = await httpJSON(PATHS.removeDex, "POST", payload); Engine.online = true; return r; } catch { Engine.online = false; const s=readLS(); const it=(s.chains||[]).find((c:any)=>c.chain===payload.chain); if(it) it.dexes = (it.dexes||[]).filter((x:string)=>x!==payload.dex); writeLS(s); return { ok:true, offline:true }; } },
+};
+
+// ========================= PROBES =========================
+async function probeRpc(chainName: string, url: string, timeoutMs = 4500): Promise<LatencySample> {
+  const controller = new AbortController(); const t = setTimeout(()=>controller.abort(), timeoutMs); const t0 = performance.now();
+  try { const r = await fetch(url,{method:"POST",signal:controller.signal,headers:{"Content-Type":"application/json"},body:JSON.stringify(ETH_BLOCKNUMBER_BODY())}); const ok=r.ok; const t1=performance.now(); return { url, ms: ok? t1-t0 : null, ok, lastError: ok? undefined : `${r.status}` }; } catch(e:any){ return { url, ms: null, ok:false, lastError:String(e?.message||e) }; } finally { clearTimeout(t); }
+}
+function rankRpcs(samples: LatencySample[], cap=MIN_PUBLIC_RPCS){ const ok=samples.filter(s=>s.ok&&typeof s.ms==="number"); ok.sort((a,b)=>a.ms!-b.ms!); return ok.slice(0,cap); }
+
+// ========================= COMPONENTE =========================
+export default function ChainsPanel(){
+  const [rows,setRows]=useState<ChainRow[]>([]);
+  const [loading,setLoading]=useState(false);
+  const [filter,setFilter]=useState<string>("");
+  const [onlyFlash,setOnlyFlash]=useState(false);
+  const [busy,setBusy]=useState<string|null>(null);
+  const [msg,setMsg]=useState<string|null>(null);
+  const [engineOnline,setEngineOnline]=useState<boolean>(false);
+  const [dataOnline,setDataOnline]=useState<boolean>(false);
+
+  useEffect(()=>{(async()=>{
+    setLoading(true);
+    try{
+      const [llama, stables, dex, fees, chainlist] = await Promise.all([
+        DataAdapter.chains(), DataAdapter.stables(), DataAdapter.dex(), DataAdapter.fees(), DataAdapter.chainlist()
+      ]);
+      setDataOnline(DataAdapter.online);
+      const engine=await Engine.getStateSafe(); setEngineOnline(Engine.online);
+
+      const stBy:Record<string,number>={}; if(stables?.chains) for(const c of stables.chains) if(c?.name) stBy[c.name]=c.totalCirculatingUSD||0;
+      const dexBy:Record<string,number>={}; if(Array.isArray(dex?.chains)) for(const d of dex.chains) dexBy[d?.name]=d?.total24h||0;
+      const feeBy:Record<string,number>={}; if(Array.isArray(fees?.chains)) for(const f of fees.chains) feeBy[f?.name]=f?.total24h||0;
+
+      const engineMap:Record<string,{rpcPool:Set<string>;dexes:Set<string>}>={};
+      for(const it of (engine?.chains||[])){ const key=it?.chain||it?.name; if(!key) continue; engineMap[key]={ rpcPool:new Set<string>(it?.rpcPool||[]), dexes:new Set<string>(it?.dexes||[]) } }
+
+      const assembled:ChainRow[]=(llama||[]).map((c:any)=>{ const srcName:String=(c?.chain??c?.name??"Unknown").toString(); const match=matchChainToChainlist(String(srcName), chainlist); const metamask=buildMetaMaskParams(match); const evm=!!match; const name=match?.name||String(srcName); const publicRpcs=metamask?.rpcUrls||[]; const suggested=(FLASH_PROTOCOL_SUGGESTIONS[name]||FLASH_PROTOCOL_SUGGESTIONS[String(srcName)]||[]).slice(0,5); const eng=engineMap[name]||engineMap[String(srcName)]||{rpcPool:new Set<string>(),dexes:new Set<string>()}; return { name, alias:name!==srcName?String(srcName):undefined, evm, chainId:match?.chainId, chainIdHex:metamask?.chainId, nativeCurrency:metamask?.nativeCurrency, explorers:metamask?.blockExplorerUrls||[], publicRpcs, latency:[], protocols:c?.protocols??undefined, tvlUsd:typeof c?.tvl==="number"?c.tvl:undefined, change1d:c?.change_1d, change7d:c?.change_7d, change1m:c?.change_1m, stablesMcap:stBy[String(srcName)]??stBy[name], dexVolume24h:dexBy[String(srcName)]??dexBy[name], chainFees24h:feeBy[String(srcName)]??feeBy[name], supportsFlash:FLASH_SUPPORTED.has(name)||FLASH_SUPPORTED.has(String(srcName)), suggestedProtocols:suggested, inEngine:!!engineMap[name]||!!engineMap[String(srcName)], engineRpcs:eng.rpcPool, engineDexes:eng.dexes,
+            dexes:Array.from(eng.dexes.size?eng.dexes:new Set(suggested)),
+            baselineDexes:new Set(eng.dexes),
+            baselineRpcs:new Set(eng.rpcPool)
+          } as ChainRow; });
+      setRows(assembled);
+    }catch(e){ console.error(e); } finally{ setLoading(false); }
+  })()},[]);
+
+  const filtered=useMemo(()=>{ const f=(typeof filter==="string"?filter:"").toLowerCase(); return rows.filter(r=>{ if(onlyFlash&&!r.supportsFlash) return false; return !f||r.name.toLowerCase().includes(f)||(r.alias?.toLowerCase().includes(f)??false); }); },[rows,filter,onlyFlash]);
+
+  function patchRow(name:string, patch:Partial<ChainRow>){ setRows(prev=>prev.map(r=>r.name===name?{...r,...patch}:r)); }
+
+  async function measureLatency(r:ChainRow){ setBusy(r.name); try{ const candidates=r.publicRpcs.slice(0,20); const samples=await Promise.all(candidates.map(u=>probeRpc(r.name,u))); patchRow(r.name,{latency:rankRpcs(samples,Math.max(MIN_PUBLIC_RPCS,samples.length))}); } finally{ setBusy(null); } }
+  function metamaskPayload(r:ChainRow){ if(!r.evm) return null; return { chainId:r.chainIdHex, chainName:r.name, nativeCurrency:r.nativeCurrency, rpcUrls:r.publicRpcs, blockExplorerUrls:r.explorers }; }
+
+  async function addChain(r:ChainRow){ setBusy(r.name); setMsg(null); try{ if((r.latency?.length||0)<MIN_PUBLIC_RPCS&&r.publicRpcs.length) await measureLatency(r); const payload={ chain:r.name, chainId:r.chainId??null, metamask:metamaskPayload(r), rpcPool:rankRpcs(r.latency,Math.max(MIN_PUBLIC_RPCS,r.latency.length)).map(s=>s.url), dexes:r.dexes, metadata:{ tvlUsd:r.tvlUsd??null, change1d:r.change1d??null, change7d:r.change7d??null, change1m:r.change1m??null, dexVolume24h:r.dexVolume24h??null, chainFees24h:r.chainFees24h??null, stablesMcap:r.stablesMcap??null, supportsFlash:r.supportsFlash??false, alias:r.alias??null, evm:r.evm } }; await Engine.addChainSafe(payload); setEngineOnline(Engine.online); patchRow(r.name,{ inEngine:true, engineDexes:new Set(r.dexes), engineRpcs:new Set(payload.rpcPool) }); setMsg(`Agregada en Engine: ${r.name}${Engine.online?"":" (offline mock)"}`);} catch(e:any){ setMsg(`Error add: ${String(e?.message||e)}`);} finally{ setBusy(null);} }
+  async function updateChain(r:ChainRow){ setBusy(r.name); setMsg(null); try{ await Engine.updateChainSafe({ chain:r.name, rpcPool:Array.from(r.engineRpcs), dexes:Array.from(r.engineDexes), metamask:metamaskPayload(r) }); setEngineOnline(Engine.online); setMsg(`Actualizada en Engine: ${r.name}${Engine.online?"":" (offline mock)"}`);} catch(e:any){ setMsg(`Error update: ${String(e?.message||e)}`);} finally{ setBusy(null);} }
+  // Nueva variante: Actualizar restaurando DEXes/RPCs base del Engine
+  async function updateChainAndRestore(r: ChainRow){
+    setBusy(r.name); setMsg(null);
+    try{
+      const restoredDexes = new Set<string>([
+        ...Array.from(r.engineDexes || new Set()),
+        ...Array.from(r.baselineDexes || new Set()),
+      ]);
+      const restoredRpcs = new Set<string>([
+        ...Array.from(r.engineRpcs || new Set()),
+        ...Array.from(r.baselineRpcs || new Set()),
+      ]);
+      for (const d of r.dexes || []) restoredDexes.add(d);
+      patchRow(r.name,{ engineDexes:restoredDexes, engineRpcs:restoredRpcs, dexes:Array.from(restoredDexes) });
+      await Engine.updateChainSafe({ chain:r.name, rpcPool:Array.from(restoredRpcs), dexes:Array.from(restoredDexes), metamask:metamaskPayload(r) });
+      setEngineOnline(Engine.online);
+      setMsg(`Actualizada en Engine: ${r.name}${Engine.online?"":" (offline mock)"} — DEXes restaurados (${Array.from(restoredDexes).length})`);
+    }catch(e:any){ setMsg(`Error update (restore): ${String(e?.message||e)}`);} finally{ setBusy(null);} }
+
+  async function removeChain(r:ChainRow){ setBusy(r.name); setMsg(null); try{ await Engine.removeChainSafe({ chain:r.name }); setEngineOnline(Engine.online); patchRow(r.name,{ inEngine:false, engineDexes:new Set(), engineRpcs:new Set() }); setMsg(`Eliminada en Engine: ${r.name}${Engine.online?"":" (offline mock)"}`);} catch(e:any){ setMsg(`Error remove: ${String(e?.message||e)}`);} finally{ setBusy(null);} }
+  async function addDex(r:ChainRow, dex:string){ const v=dex.trim(); if(!v) return; const dexes=new Set(r.engineDexes); dexes.add(v); patchRow(r.name,{engineDexes:dexes,dexes:Array.from(dexes)}); await Engine.addDexSafe({chain:r.name,dex:v}); setEngineOnline(Engine.online); }
+  async function removeDex(r:ChainRow, dex:string){ const dexes=new Set(r.engineDexes); dexes.delete(dex); patchRow(r.name,{engineDexes:dexes,dexes:Array.from(dexes)}); await Engine.removeDexSafe({chain:r.name,dex}); setEngineOnline(Engine.online); }
+  async function addRpc(r:ChainRow, url:string){ const v=url.trim(); if(!v) return; const rpcs=new Set(r.engineRpcs); rpcs.add(v); patchRow(r.name,{engineRpcs:rpcs}); await Engine.addRpcSafe({chain:r.name,url:v}); setEngineOnline(Engine.online); }
+  async function removeRpc(r:ChainRow, url:string){ const rpcs=new Set(r.engineRpcs); rpcs.delete(url); patchRow(r.name,{engineRpcs:rpcs}); await Engine.removeRpcSafe({chain:r.name,url}); setEngineOnline(Engine.online); }
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight">Chain On‑Ramp Panel</h1>
+          <p className="text-sm text-slate-600 max-w-3xl">TVL/volúmenes (DefiLlama) + MetaMask (Chainlist). CRUD de cadenas, RPCs y DEXes amarrado a tu ENGINE (con fallback offline).</p>
+          <div className="flex gap-2 text-xs">
+            <span className={`px-2 py-1 rounded-lg border ${engineOnline?"border-emerald-300 bg-emerald-50 text-emerald-700":"border-amber-300 bg-amber-50 text-amber-700"}`}>Engine: {engineOnline?"Online":"Offline (mock)"}</span>
+            <span className={`px-2 py-1 rounded-lg border ${dataOnline?"border-emerald-300 bg-emerald-50 text-emerald-700":"border-amber-300 bg-amber-50 text-amber-700"}`}>Datos: {dataOnline?"Online":"Offline (mock)"}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <input value={filter} onChange={(e)=>setFilter(e.target.value)} placeholder="Filtrar por cadena…" className="w-60 px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={onlyFlash} onChange={(e)=>setOnlyFlash(e.target.checked)} />Solo con flash‑loan/swap</label>
+        </div>
+      </div>
+
+      {msg && <div className="text-sm rounded-xl border border-emerald-300 bg-emerald-50 p-3">{msg}</div>}
+
+      <div className="overflow-auto rounded-2xl border border-slate-200">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 sticky top-0 z-10">
+            <tr className="text-left text-slate-600">
+              <th className="px-4 py-3">Cadena</th>
+              <th className="px-4 py-3">EVM</th>
+              <th className="px-4 py-3">chainId</th>
+              <th className="px-4 py-3">DeFi TVL</th>
+              <th className="px-4 py-3">1d</th>
+              <th className="px-4 py-3">7d</th>
+              <th className="px-4 py-3">1m</th>
+              <th className="px-4 py-3">Stables</th>
+              <th className="px-4 py-3">DEX Vol</th>
+              <th className="px-4 py-3">Fees</th>
+              <th className="px-4 py-3">Flash?</th>
+              <th className="px-4 py-3">En Engine</th>
+              <th className="px-4 py-3">DEXes (✅=en Engine)</th>
+              <th className="px-4 py-3">RPCs (✅=en Engine)</th>
+              <th className="px-4 py-3">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={15} className="px-4 py-10 text-center text-slate-500">Cargando…</td></tr>
+            ) : (
+              filtered.map((r) => (
+                <tr key={r.name} className="border-t border-slate-100 align-top">
+                  <td className="px-4 py-3 font-medium">
+                    <div className="flex flex-col">
+                      <span>{r.name}</span>
+                      {r.alias && <span className="text-xs text-slate-400">(DefiLlama: {r.alias})</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">{r.evm?"Sí":"No"}</td>
+                  <td className="px-4 py-3">{r.chainId?`${r.chainId} (${r.chainIdHex})`:"—"}</td>
+                  <td className="px-4 py-3">{formatMoney(r.tvlUsd)}</td>
+                  <td className={`px-4 py-3 ${r.change1d!>=0?"text-emerald-600":"text-rose-600"}`}>{pct(r.change1d)}</td>
+                  <td className={`px-4 py-3 ${r.change7d!>=0?"text-emerald-600":"text-rose-600"}`}>{pct(r.change7d)}</td>
+                  <td className={`px-4 py-3 ${r.change1m!>=0?"text-emerald-600":"text-rose-600"}`}>{pct(r.change1m)}</td>
+                  <td className="px-4 py-3">{formatMoney(r.stablesMcap)}</td>
+                  <td className="px-4 py-3">{formatMoney(r.dexVolume24h)}</td>
+                  <td className="px-4 py-3">{formatMoney(r.chainFees24h)}</td>
+                  <td className="px-4 py-3">{r.supportsFlash?"Sí":"No"}</td>
+                  <td className="px-4 py-3">{r.inEngine?"✅":"—"}</td>
+
+                  {/* DEXES */}
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2 max-w-[320px]">
+                      {Array.from(new Set([...(r.dexes||[])])).map((d)=>(
+                        <span key={d} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-2xl text-xs bg-slate-50 border" title={r.engineDexes.has(d)?"En Engine":"No en Engine"}>
+                          {r.engineDexes.has(d)?"✅":"—"} {d}
+                          <button className="text-slate-400 hover:text-rose-500" onClick={()=>removeDex(r,d)} title="Quitar">×</button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <input placeholder="Agregar DEX…" className="w-40 px-2 py-1 rounded-lg border" onKeyDown={async(e)=>{ if(e.key==="Enter"){ await addDex(r,(e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value=""; } }} />
+                      <button className="px-3 py-1.5 rounded-lg border" onClick={async()=>{ for(const d of r.suggestedProtocols) await addDex(r,d); }} title="Agregar sugeridos">Sugeridos → Engine</button>
+                    </div>
+                  </td>
+
+                  {/* RPCs */}
+                  <td className="px-4 py-3">
+                    <div className="space-y-1 max-w-[360px]">
+                      {Array.from(new Set([...(r.latency.length ? r.latency.map((s)=>s.url) : r.publicRpcs)])).slice(0,8).map((u)=>(
+                        <div key={u} className="flex items-center gap-2">
+                          <div className="truncate" title={u}>{r.engineRpcs.has(u)?"✅ ":"— "}{u}</div>
+                          {r.latency.length ? (()=>{ const s=r.latency.find((x)=>x.url===u); return <span className="text-xs border rounded px-1">{s?.ms?`${Math.round(s.ms)} ms`:"fail"}</span>; })() : null}
+                          <button className="text-slate-400 hover:text-rose-500" onClick={()=>removeRpc(r,u)} title="Quitar">×</button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <input placeholder="Agregar RPC…" className="w-52 px-2 py-1 rounded-lg border" onKeyDown={async(e)=>{ if(e.key==="Enter"){ await addRpc(r,(e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value=""; } }} />
+                      <button disabled={busy===r.name} onClick={()=>measureLatency(r)} className="px-3 py-1.5 rounded-lg border disabled:opacity-50">{busy===r.name?"Midiendo…":"Probar RPCs"}</button>
+                    </div>
+                  </td>
+
+                  {/* Acciones */}
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="flex flex-col gap-2">
+                      <button disabled={busy===r.name} onClick={()=>addChain(r)} className="px-3 py-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">{busy===r.name?"Enviando…":"Agregar a Engine"}</button>
+                      <button disabled={busy===r.name} onClick={()=>updateChainAndRestore(r)} className="px-3 py-1.5 rounded-xl border">Actualizar</button>
+                      <button disabled={busy===r.name} onClick={()=>removeChain(r)} className="px-3 py-1.5 rounded-xl border border-rose-300 text-rose-600">Eliminar</button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="text-xs text-slate-500">
+        <p>Para conectar tu backend real, define `window.__ENGINE_BASE_URL__ = "https://TU_HOST"` o usa `?engine=https://TU_HOST`. En modo offline, los datos y el engine usan mocks persistidos en `localStorage`.</p>
+      </div>
+    </div>
+  );
+}
+
+// ========================= SELF‑TESTS =========================
+export function __runChainsPanelTests_v5(){
+  // rankRpcs
+  const ranked = rankRpcs([{url:"a",ms:50,ok:true},{url:"b",ms:10,ok:true},{url:"c",ms:null,ok:false}],2);
+  if(!(ranked.length===2 && ranked[0].url==="b" && ranked[1].url==="a")) console.error("rankRpcs v5 FAIL", ranked);
+  // Data mocks disponibles
+  if(!MOCK_CHAINLIST.length || !MOCK_LLAMA.length) console.error("Mocks vacíos");
+  // Engine mock round‑trip
+  (async()=>{ const name="TestChain"; await Engine.removeChainSafe({chain:name}); await Engine.addChainSafe({chain:name,rpcPool:["https://r1"],dexes:["Uniswap"]}); await Engine.addRpcSafe({chain:name,url:"https://r2"}); await Engine.addDexSafe({chain:name,dex:"Sushi"}); await Engine.removeRpcSafe({chain:name,url:"https://r1"}); await Engine.removeDexSafe({chain:name,dex:"Uniswap"}); const st=await Engine.getStateSafe(); const it=(st.chains||[]).find((c:any)=>c.chain===name); if(!it||!(it.rpcPool||[]).includes("https://r2")||(it.rpcPool||[]).includes("https://r1")||!(it.dexes||[]).includes("Sushi")||(it.dexes||[]).includes("Uniswap")) console.error("Engine mock round‑trip FAIL", it); })();
+}
+try{ // Ejecuta en dev únicamente
+  // @ts-ignore
+  if(typeof process!=="undefined" && process.env?.NODE_ENV==="development") __runChainsPanelTests_v5();
+}catch{}
+
+
+
+Omitir e ir al contenido
+Historial del chat
+
+Tú dijiste:
+Imagen cargada
+requiero un panel asi, en donde pueda obtener toda la información necesaria de mi ENGINE RUST y agregar las blockchains que quiera, esta información quiza la puedo conseguir toda de defillama por ejemplo, en donde al darle click vaya y me traiga toda la información que se requiere para agregar una cadena con sus RPCS publicos (minimo 5) y que sean confiables para hacer monitoreo en tiempo real, si ya estan agregados, solo agregará las fuentes RPCS nuevas, no hay limite de RPCS  a colocar por cada blockchain, ya sabemos que el aqui tendrá que elegir los mejores por latencia sin saturar los requets permitidos, ni ralentizar la aplicación. en esta imagen está el ejemplo de lo que quiero que construyas en nuestra aplicación, agregando columna para identificar si tiene protocolos para lending de flash loans, flash swaps o lo equivalente, en ese misma fila sugiera los 5 protocolos mas confiables para agregar el seguimiento y monitoreo en la busqueda de arbitrages, de esa imagen usa las columnas necesarias para contemplar como fuente de información clave, las que te digo si son fundamentales, porque de alli tienen que salir un boton de agregar y con ello, se envia la información a mi motor ENGINE RUST en forma de arrays y con ello se habilita esta blockchain para que se inicie el monitoreo con sus minimo 5 DEX o protocolos para arbitrar. me entiendes?
+ChatGPT Plus
+
+Pensó durante 17s
+¡Sí, te entiendo perfecto! Te dejé en el canvas un componente React listo (“ChainsPanel”) que hace justo eso:
+
+Lista cadenas desde DefiLlama (TVL y cambios) y cruza con Stablecoins, DEX 24h y Fees 24h.
+
+Detecta si la cadena tiene capacidad de flash-loan/flash-swap y sugiere 5 protocolos confiables por cadena (Aave, Uniswap v3 flash swap, Balancer, etc. según el ecosistema).
+
+Descubre RPCs públicos desde Chainlist, permite probar latencia (JSON-RPC eth_blockNumber o getSlot en Solana) y rankear los mejores.
+
+Botón “Agregar a Engine”: envía a tu ENGINE RUST un payload con arrays (rpcPool, suggestedProtocols y metadatos de la cadena). Si no hay latencias medidas, el botón primero las mide y luego envía.
+
+Qué ajustar rápido (todo está señalado en comentarios del código):
+
+Cambia ENGINE_BASE_URL si tu motor escucha en otra URL o ruta.
+
+Si alguna API te bloquea por CORS, apunta esos fetch a tu backend y haz de proxy.
+
+Amplía el catálogo FLASH_PROTOCOL_SUGGESTIONS si quieres más cadenas/protocolos.
+
+Para no-EVM (p.ej., Solana), ya incluyo probe específico; puedes añadir más en NON_EVM.
+
+Flujo de uso:
+
+Abre tu app y renderiza <ChainsPanel />.
+
+Filtra por la cadena (ej. “Base”).
+
+Clic en Probar RPCs → mide y ordena por latencia (min. 5).
+
+Revisa Top 5 protocolos sugeridos (flash-loan/swap).
+
+Clic en Agregar a Engine → se POSTea chain, chainId, rpcPool (rankeado), suggestedProtocols y métricas (TVL, volumen, fees…).
+
+Si la cadena ya existe en tu motor, tu backend puede anexar sólo RPCs nuevos (deduplica por URL).
+
+¿Quieres que lo conecte a endpoints específicos de tu engine (nombres de ruta/payload exacto) o que añada UI para agregar/editar RPCs manuales y marcar DEX mínimos por cadena? Puedo dejarte esas extensiones en el mismo panel sin tocar tu Rust.
+
+ChatGPT Plus
+
+Pensó durante 1m 1s
+Listo. Corregí el bug y reforcé el componente:
+
+blindé todos los .toLowerCase() (filtro y discoverRpcsForChain) para que jamás fallen si llegan undefined/null.
+
+discoverRpcsForChain ahora compara en minúsculas y tolera campos faltantes de Chainlist.
+
+añadí self-tests livianos (__runChainsPanelTests()) para rankRpcs, discoverRpcsForChain(undefined) y los formateadores toMoney/toPct. No rompen producción y se ejecutan automáticamente solo en NODE_ENV=development.
+
+¿Así te funciona sin explotar? Si quieres, puedo agregar:
+
+campo para agregar RPCs manualmente por cadena y deduplicarlos,
+
+selector para marcar los 5 DEX mínimos por cadena y enviarlos al engine en el payload,
+
+persistencia local (localStorage) de filtros y últimos RPCs validados.
+
+Tú dijiste:
+Imagen cargada
+Pero no hay scraping y no se trae informaciòn de valor para saber que cadena es y tampoco aparecen los datos que se requieren para agregarlas (como por ejemplo lo que pide metamask para agregar una), requiero que las blockchain y vengan con esos datos para que sean compatibles y tengan la data que requiere mi engine rust, de igual manera, requiero que desde aqui pueda eliminar blockchain y agregar o quitar DEXES
+ChatGPT Plus
+
+Pensó durante 20s
+Perfecto—ya lo actualicé en el canvas a v2 con lo que pediste:
+
+Empareja DefiLlama ↔ Chainlist con fuzzy matching y alias (BSC/BNB, Arbitrum One, Polygon/Matic, etc.).
+
+Para cadenas EVM trae todos los campos MetaMask listos:
+chainId (hex) · chainName · nativeCurrency {name,symbol,decimals} · rpcUrls · blockExplorerUrls.
+
+Muestra ese payload en “MetaMask params” por si lo quieres copiar/usar directo.
+
+CRUD completo desde la tabla:
+
+Agregar/Actualizar/Eliminar cadena en tu Engine (endpoints: /api/engine/addChain, /api/engine/updateChain, /api/engine/removeChain).
+
+Agregar/Quitar DEXes por cadena (chips con ✕).
+
+Agregar/Quitar RPCs y medir latencia (ranking automático; exige mínimo 5 válidos).
+
+Mantiene TVL/1d/7d/1m, stables, DEX vol, fees y la columna Flash? con Top 5 protocolos sugeridos.
+
+Para no-EVM (Solana/Tron/Bitcoin) no hay MetaMask, pero sí puedes administrar RPCs/DEXes y enviarlos al Engine.
+
+Antes de seguir afinando, dos preguntas rápidas para cuadrar al 100%:
+
+¿Tus rutas del Engine y payload final son exactamente estos?
+
+POST /api/engine/addChain
+{ "chain": "Base", "chainId": 8453, "metamask": {...}, "rpcPool": ["..."], "dexes": ["..."], "metadata": {...} }
+
+POST /api/engine/updateChain
+{ "chain": "Base", "rpcPool": ["..."], "dexes": ["..."], "metamask": {...} }
+
+POST /api/engine/removeChain
+{ "chain": "Base" }
+Si cambian nombres/propiedades, dime el contrato exacto y lo ajusto ya.
+
+¿Quieres que bloquee el botón Agregar/Actualizar si no hay al menos N DEXes (p. ej. 5) y N RPCs válidos medidos, o que permita enviarlo “como esté” y tu Engine valide?
+
+Cuando me confirmes eso, dejo listas validaciones adicionales (por ejemplo, no permitir RPCs con placeholders YOUR_API_KEY) y, si quieres, agrego un selector de “5 DEX mínimos” por cadena con presets por ecosistema.
+
+Tú dijiste:
+Imagen cargada
+mev-engine
+Archivo
+aGREGAR A ENGINE debe quedar amarrado a mi motor ENGINE en el backend MEV que es un archivo como el que te comparto, de igual manera al seleccionar ELIMINAR debe quedar amarrado a mi motor ENGINE en el backend MEV y eliminarlo de mi motor MEV de arbitrage, junto con los dexes que operan en esa blockchain, de igual manera los dexes sugeridos, pueden ser agregados a los DEXES EN esa blockchain o eliminados. lo mismo para los RPCS y debe haber un campo que me muestre si la blockchain, los RPCS, los dexes, ya está en mi ENGINE MEV en el backend (debe aparecer cuales hay en mi base de datos engine ycuales no), los que estan se pueden eliminar y los que faltan se puedan agregar. Sigue el desarrollo como tabla estructuralmente organizada para que todo sea visualmente intuitivo para configurar mi ENGINE MEV y que directamente desde la fuente atraves desde los arrays, esto sea totalmente facilmente configurable y adaptable a mis necesidades
+ChatGPT Plus
+
+Pensó durante 11s
+Tú dijiste:
+que pasó?
+ChatGPT Plus
+¡Gracias por avisar! Parece que mi intento anterior de actualizar el canvas no se aplicó bien. Ya lo corregí y subí v3 (Engine-aware) al canvas.
+
+Qué cambió ahora:
+
+El panel se sincroniza con tu ENGINE MEV (endpoint configurable GET /api/engine/state) y pinta:
+
+✅ si la cadena ya está en tu engine.
+
+✅ por RPC y por DEX si ya existen en tu engine.
+
+Los botones Agregar / Actualizar / Eliminar quedaron amarrados al backend. Puedes ajustar las rutas en el objeto PATHS al inicio del archivo (las actuales son):
+
+GET /api/engine/state
+
+POST /api/engine/addChain
+
+POST /api/engine/updateChain
+
+POST /api/engine/removeChain
+
+POST /api/engine/addRpc, removeRpc, addDex, removeDex
+(Si tu backend no tiene esos endpoints finos, el panel hace fallback a updateChain mandando los arrays completos).
+
+CRUD desde la tabla:
+
+DEXes: agregar (Enter) / quitar (✕) y botón “Sugeridos → Engine”.
+
+RPCs: agregar (Enter) / quitar (✕) y “Probar RPCs” para medir latencia y rankear.
+
+Para EVM, sigue mostrando payload MetaMask construido desde Chainlist (chainId hex, nativeCurrency, rpcUrls, explorers).
+
+Sigue mostrando métricas de DefiLlama: TVL, 1d/7d/1m, stables, DEX vol, fees, flash-loan.
+
+Necesito tu OK sobre dos cosas para que quede 100% conectado a tu motor:
+
+¿Estos endpoints y payloads coinciden con tu ENGINE MEV? Si no, dime el contrato exacto (rutas y campos) y lo ajusto en el código ya.
+
+¿Quieres validaciones duras (ej. no permitir “Agregar a Engine” hasta que haya ≥5 RPCs válidos y ≥5 DEXes), o que el backend haga la validación?
+
+Cuando me confirmes, dejo bloqueos/avisos UI y, si quieres, agrego paginación, export/import de configuración en JSON y guardado local (localStorage) de los últimos cambios.
+
+ChatGPT Plus
+
+Ha dejado de pensar
+ChatGPT Plus
+
+Ha dejado de pensar
+ChatGPT Plus
+
+Pensó durante 36s
+Listo: corregí el fallo “TypeError: Failed to fetch” rehaciendo el componente a v4 (Engine-aware + Offline-safe). El problema ocurría porque el código intentaba llamar a http://localhost:8080 en un entorno donde ese host no es accesible. Ahora:
+
+Detecta si el ENGINE_BASE_URL está disponible; si no, entra en modo offline (mock) y no revienta.
+
+Implementé un Engine Adapter con fallback a localStorage para state/add/update/remove (…Safe), así la UI sigue operativa sin backend.
+
+Mostramos un badge “Engine: Online / Offline (mock)”.
+
+Puedes definir la URL del backend por window.__ENGINE_BASE_URL__, ?engine=…, localStorage.ENGINE_BASE_URL o REACT_APP_ENGINE_BASE_URL.
+
+Mantiene todo lo que ya tenías: DefiLlama + Chainlist, CRUD de DEXes y RPCs, medición de latencia, envío a Engine (real o mock).
+
+Además añadí self-tests livianos (__runChainsPanelTests_v4) para:
+
+rankRpcs (orden por latencia),
+
+normalización/alias de cadenas,
+
+round-trip del engine mock (add/remove de RPCs/DEXes y cadena).
+
+Para conectarlo a tu backend real
+En el navegador de tu app:
+
+// en la consola
+window.__ENGINE_BASE_URL__ = "https://TU_HOST:PUERTO"
+o entra con ?engine=https://TU_HOST:PUERTO.
+Si tus rutas/payloads difieren, dime el contrato exacto (endpoints + shape) y lo ajusto en los métodos Engine.*Safe.
+
+¿Quieres que bloquee “Agregar a Engine” si no hay ≥5 RPCs válidos y ≥5 DEXes o prefieres que tu backend valide?
+
+Tú dijiste:
+Imagen cargada
+REvisa bien que sucede, recuerda que toda esa data llega a nuestro ENGINE MEV realizado en lenguaje RUST
+ChatGPT Plus
+
+Pensó durante 9s
+Tú dijiste:
+Imagen cargada
+Cuando le dé actualizar, que vuelva y cargue los dexes que habian, asi los haya eliminado con razon o sin ella (por error) y desee cargarlos nuevamente. resuelve ese tema de la longitud tu
+ChatGPT Plus
+
+Pensó durante 21s
+Chains Panel – Defi Llama‑powered On‑ramp To Your Rust Engine
+· typescript
+import React, { useEffect, useMemo, useState } from "react";
+
+/**
+ * ChainsPanel – v5 (Full Offline‑safe: Engine + Data Sources)
+ *
+ * 🔧 Fix principal
+ *   El error "TypeError: Failed to fetch" persistía porque además del Engine, las
+ *   **fuentes públicas** (DefiLlama/Chainlist) también requieren red. En entornos
+ *   sandbox sin Internet, las llamadas fallan. Ahora:
+ *   - Si las **APIs públicas** no responden, el panel usa **mock snapshots** locales
+ *     (EVM MetaMask‑compatibles + métricas sintéticas) y no revienta.
+ *   - Indicadores de estado: `Engine Online/Offline` y `Datos Online/Offline`.
+ *
+ * 🧩 Qué incluye
+ *   1) Adaptador de datos (DataAdapter) con fallback a mocks.
+ *   2) Adaptador de Engine (Engine.*Safe) con fallback a localStorage.
+ *   3) CRUD de Cadenas/DEX/RPC + medición de latencia y payload MetaMask.
+ *   4) Auto‑config del ENGINE_BASE_URL (window/query/localStorage/env) o modo offline.
+ *   5) Self‑tests ampliados (rank, engine mock, y mock de datos) que no bloquean producción.
+ */
+
+// ========================= CONFIG (EDITABLE) =========================
+const RESOLVE_ENGINE_BASE_URL = () => {
+  try {
+    const fromWindow = (typeof window !== "undefined" && (window as any).__ENGINE_BASE_URL__) || "";
+    const fromQuery = (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("engine") : null) || "";
+    const fromLS = (typeof window !== "undefined" && window.localStorage?.getItem("ENGINE_BASE_URL")) || "";
+    const fromEnv = (typeof process !== "undefined" && (process as any)?.env?.REACT_APP_ENGINE_BASE_URL) || "";
+    return String(fromWindow || fromQuery || fromLS || fromEnv || "");
+  } catch { return ""; }
+};
+const ENGINE_BASE_URL = RESOLVE_ENGINE_BASE_URL();
+
+const PATHS = {
+  state: "/api/engine/state",
+  addChain: "/api/engine/addChain",
+
+
+
+
+Ningún archivo seleccionadoNingún archivo seleccionado
+ChatGPT puede cometer errores. Considera verificar la información importante.
+
+
+Por favor dime sientiendes lo que esamos haciendo y dame un workflow para implementar esto en mi Frontend y que se conecte con mi backend con arrays y dinamicamente trayendo los datos que se requieren para agregarlas (como por ejemplo lo que pide metamask para agregar una), requiero que las blockchain, dexes, RPC`S vengan con esos datos para que sean compatibles y tengan la data que requiere mi engine rust, de igual manera, requiero que desde aqui pueda eliminar blockchain y agregar o quitar aGREGAR A ENGINE debe quedar amarrado a mi motor ENGINE en el backend MEV que es un archivo como el que te comparto, de igual manera al seleccionar ELIMINAR debe quedar amarrado a mi motor ENGINE en el backend MEV y eliminarlo de mi motor MEV de arbitrage, junto con los dexes que operan en esa blockchain, de igual manera los dexes sugeridos, pueden ser agregados a los DEXES EN esa blockchain o eliminados. lo mismo para los RPCS y debe haber un campo que me muestre si la blockchain, los RPCS, los dexes, ya está en mi ENGINE MEV en el backend (debe aparecer cuales hay en mi base de datos engine ycuales no), los que estan se pueden eliminar y los que faltan se puedan agregar. Sigue el desarrollo como tabla estructuralmente organizada para que todo sea visualmente intuitivo para configurar mi ENGINE MEV y que directamente desde la fuente atraves desde los arrays, esto sea totalmente facilmente configurable y adaptable a mis necesidadesDEXES

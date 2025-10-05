@@ -207,3 +207,102 @@ export type InsertAlert = typeof alerts.$inferInsert;
 
 export type AlertHistory = typeof alertHistory.$inferSelect;
 export type InsertAlertHistory = typeof alertHistory.$inferInsert;
+
+// Chain Management System Tables
+export const chains = pgTable("chains", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar("name", { length: 100 }).notNull().unique(),
+  chainId: bigint("chain_id", { mode: "number" }).notNull().unique(),
+  evm: boolean("evm").notNull().default(true),
+  metamaskJson: jsonb("metamask_json"), // MetaMask add network params
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const chainRpcs = pgTable("chain_rpcs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  chainId: bigint("chain_id", { mode: "number" }).notNull().references(() => chains.chainId, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  lastLatencyMs: real("last_latency_ms"),
+  lastOkAt: bigint("last_ok_at", { mode: "number" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const chainDexes = pgTable("chain_dexes", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  chainId: bigint("chain_id", { mode: "number" }).notNull().references(() => chains.chainId, { onDelete: "cascade" }),
+  dex: varchar("dex", { length: 100 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Assets with Anti-Rugpull Risk Scoring
+export const assets = pgTable("assets", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  chainId: bigint("chain_id", { mode: "number" }).notNull().references(() => chains.chainId, { onDelete: "cascade" }),
+  address: varchar("address", { length: 42 }).notNull(),
+  symbol: varchar("symbol", { length: 20 }).notNull(),
+  decimals: integer("decimals").notNull().default(18),
+  name: varchar("name", { length: 200 }),
+  riskScore: integer("risk_score").notNull().default(0), // 0-100, higher is safer
+  riskFlags: jsonb("risk_flags").default("[]"), // ["mintable", "proxy_upgradable", etc]
+  sourcesJson: jsonb("sources_json").default("{}"), // Metadata sources
+  lastReviewAt: bigint("last_review_at", { mode: "number" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Trading Pairs for Scanning
+export const pairs = pgTable("pairs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  chainId: bigint("chain_id", { mode: "number" }).notNull().references(() => chains.chainId, { onDelete: "cascade" }),
+  baseAddr: varchar("base_addr", { length: 42 }).notNull(),
+  quoteAddr: varchar("quote_addr", { length: 42 }).notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// System Policies (ROI, risk thresholds, slippage, gas buffer, etc)
+export const policies = pgTable("policies", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  valueJson: jsonb("value_json").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Config Versioning for Rollback Support
+export const configVersions = pgTable("config_versions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  versionId: varchar("version_id", { length: 50 }).notNull().unique(),
+  snapshotJson: jsonb("snapshot_json").notNull(),
+  createdBy: varchar("created_by", { length: 100 }).default("system"),
+  note: text("note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type Chain = typeof chains.$inferSelect;
+export type InsertChain = typeof chains.$inferInsert;
+
+export type ChainRpc = typeof chainRpcs.$inferSelect;
+export type InsertChainRpc = typeof chainRpcs.$inferInsert;
+
+export type ChainDex = typeof chainDexes.$inferSelect;
+export type InsertChainDex = typeof chainDexes.$inferInsert;
+
+export type Asset = typeof assets.$inferSelect;
+export type InsertAsset = typeof assets.$inferInsert;
+
+export type Pair = typeof pairs.$inferSelect;
+export type InsertPair = typeof pairs.$inferInsert;
+
+export type Policy = typeof policies.$inferSelect;
+export type InsertPolicy = typeof policies.$inferInsert;
+
+export type ConfigVersion = typeof configVersions.$inferSelect;
+export type InsertConfigVersion = typeof configVersions.$inferInsert;
