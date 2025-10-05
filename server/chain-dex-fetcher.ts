@@ -240,15 +240,17 @@ export class ChainDexFetcher {
         continue;
       }
 
+      const pairs = POPULAR_PAIRS[chainName];
+      if (!pairs || pairs.length === 0) {
+        console.log(`⚠️  Skipping ${chainName} - no real pairs available (no placeholders allowed)`);
+        continue;
+      }
+
       const dexs = chainDexsMap.get(chainName) || [];
       const top5Dexs = dexs
         .sort((a, b) => b.tvl - a.tvl)
         .slice(0, 5)
         .map(d => d.name);
-
-      const pairs = POPULAR_PAIRS[chainName] || [
-        { name: 'Generic/USDC', token0: '0x0000000000000000000000000000000000000000', token1: '0x0000000000000000000000000000000000000000', pairAddress: '0x0000000000000000000000000000000000000000' }
-      ];
 
       scanConfig.chains.push({
         name: chainName,

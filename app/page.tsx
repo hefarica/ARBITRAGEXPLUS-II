@@ -54,6 +54,7 @@ export default function Page(){
       threshold: string;
       totalChains: number;
       totalPairs: number;
+      totalDexs: number;
     }>("/api/mev-scanner/details"),
     refetchInterval: 5000,
   })
@@ -235,7 +236,7 @@ export default function Page(){
                     </DialogHeader>
                     {scannerDetails && (
                       <div className="space-y-4 mt-4">
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                           <Card className="p-3">
                             <div className="text-sm text-muted-foreground">Blockchains</div>
                             <div className="text-2xl font-bold">{scannerDetails.totalChains}</div>
@@ -243,6 +244,10 @@ export default function Page(){
                           <Card className="p-3">
                             <div className="text-sm text-muted-foreground">Pares</div>
                             <div className="text-2xl font-bold">{scannerDetails.totalPairs}</div>
+                          </Card>
+                          <Card className="p-3">
+                            <div className="text-sm text-muted-foreground">DEXs</div>
+                            <div className="text-2xl font-bold">{scannerDetails.totalDexs}</div>
                           </Card>
                           <Card className="p-3">
                             <div className="text-sm text-muted-foreground">Intervalo</div>
