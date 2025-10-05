@@ -72,34 +72,65 @@ export class EngineConfigService {
         });
 
         if (baseAsset && quoteAsset) {
-          const pairAddress = pair.pairAddr || "0x0000000000000000000000000000000000000000";
+          console.log(`🔍 Finding pools for ${baseAsset.symbol}/${quoteAsset.symbol} across ${dexs.length} DEXs on ${chain.name}...`);
+          
+          const availablePools = await poolValidator.findCorrectPoolAddress(
+            Number(chain.chainId),
+            pair.baseAddr,
+            pair.quoteAddr,
+            500
+          );
 
-          if (validatePools && pair.pairAddr && pair.pairAddr !== "0x0000000000000000000000000000000000000000") {
-            console.log(`🔍 Validating pool ${baseAsset.symbol}/${quoteAsset.symbol} on ${chain.name}...`);
-            const validation = await poolValidator.validatePoolAddress(
-              Number(chain.chainId),
-              pair.pairAddr,
-              pair.baseAddr,
-              pair.quoteAddr
-            );
+          const addedDexes = new Set<string>();
 
-            if (!validation.isValid) {
-              const error = `🚨 CRITICAL: Invalid pool address for ${baseAsset.symbol}/${quoteAsset.symbol} on ${chain.name} (Chain ${chain.chainId}): ${pair.pairAddr} - ${validation.error}`;
-              validationErrors.push(error);
-              console.error(error);
-            } else if (validation.warnings && validation.warnings.length > 0) {
-              console.warn(`⚠️ Pool ${baseAsset.symbol}/${quoteAsset.symbol}:`, validation.warnings.join(', '));
+          for (const dexName of dexs) {
+            const dexNameLower = dexName.toLowerCase().replace(/\s+/g, '');
+            
+            const matchingPool = availablePools.find(pool => {
+              const poolDexLower = (pool.dexId || '').toLowerCase().replace(/\s+/g, '');
+              return poolDexLower.includes(dexNameLower) || dexNameLower.includes(poolDexLower);
+            });
+
+            if (matchingPool && matchingPool.poolAddress) {
+              if (validatePools) {
+                const validation = await poolValidator.validatePoolAddress(
+                  Number(chain.chainId),
+                  matchingPool.poolAddress,
+                  pair.baseAddr,
+                  pair.quoteAddr
+                );
+
+                if (!validation.isValid) {
+                  const error = `🚨 CRITICAL: Invalid pool for ${baseAsset.symbol}/${quoteAsset.symbol} on ${dexName} (${chain.name}): ${matchingPool.poolAddress} - ${validation.error}`;
+                  validationErrors.push(error);
+                  console.error(error);
+                  continue;
+                }
+              }
+
+              topPairs.push({
+                name: `${baseAsset.symbol}/${quoteAsset.symbol}`,
+                token0: pair.baseAddr,
+                token1: pair.quoteAddr,
+                pairAddress: matchingPool.poolAddress,
+              });
+              
+              addedDexes.add(dexName);
+              console.log(`✅ ${baseAsset.symbol}/${quoteAsset.symbol} on ${dexName}: ${matchingPool.poolAddress} (Liquidity: $${matchingPool.liquidity?.toLocaleString()})`);
             } else {
-              console.log(`✅ Pool ${baseAsset.symbol}/${quoteAsset.symbol} validated successfully`);
+              console.warn(`⚠️ No pool found for ${baseAsset.symbol}/${quoteAsset.symbol} on ${dexName}`);
             }
           }
 
-          topPairs.push({
-            name: `${baseAsset.symbol}/${quoteAsset.symbol}`,
-            token0: pair.baseAddr,
-            token1: pair.quoteAddr,
-            pairAddress,
-          });
+          if (addedDexes.size === 0 && pair.pairAddr && pair.pairAddr !== "0x0000000000000000000000000000000000000000") {
+            console.log(`📝 Using fallback pool address for ${baseAsset.symbol}/${quoteAsset.symbol}`);
+            topPairs.push({
+              name: `${baseAsset.symbol}/${quoteAsset.symbol}`,
+              token0: pair.baseAddr,
+              token1: pair.quoteAddr,
+              pairAddress: pair.pairAddr,
+            });
+          }
         }
       }
 
