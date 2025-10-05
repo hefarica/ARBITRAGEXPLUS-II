@@ -316,11 +316,23 @@ export default function ChainsAdminPage() {
 
   useEffect(() => {
     fetchChains();
+    
+    const interval = setInterval(() => {
+      fetchChains();
+    }, 10000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     if (selectedChain) {
       fetchRpcs(selectedChain);
+      
+      const interval = setInterval(() => {
+        fetchRpcs(selectedChain);
+      }, 5000);
+      
+      return () => clearInterval(interval);
     }
   }, [selectedChain]);
 
