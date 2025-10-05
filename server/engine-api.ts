@@ -7,6 +7,7 @@ import { poolValidator } from "./pool-validator";
 import { mevScanner } from "./mev-scanner";
 import { refPoolsService } from "./ref-pools-service";
 import { getWebSocketServer } from "./websocket-instance";
+import { arbitrageSimulator } from "./arbitrage-simulator";
 
 export const engineApiRouter = Router();
 
@@ -1488,3 +1489,29 @@ engineApiRouter.post("/ref-pools/upsert", async (req, res) => {
   }
 });
 
+
+// GET /api/engine/opportunities/scan - Scan for arbitrage opportunities
+engineApiRouter.get("/opportunities/scan", async (req, res) => {
+  try {
+    const chainId = req.query.chainId ? Number(req.query.chainId) : undefined;
+    
+    const opportunities = await arbitrageSimulator.findOpportunities(chainId);
+    
+    if (opportunities.length === 0) {
+      return res.json({
+        message: "No arbitrage opportunities found under current constraints.",
+        opportunities: []
+      });
+    }
+    
+    res.json({
+      ok: true,
+      count: opportunities.length,
+      opportunities,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error("Error scanning for arbitrage opportunities:", error);
+    res.status(500).json({ error: error?.message || "Failed to scan for opportunities" });
+  }
+});

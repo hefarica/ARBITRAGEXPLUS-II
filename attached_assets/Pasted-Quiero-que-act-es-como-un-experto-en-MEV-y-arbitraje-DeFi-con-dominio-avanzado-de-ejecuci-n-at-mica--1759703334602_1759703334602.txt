@@ -1,0 +1,38 @@
+Quiero que actúes como un experto en MEV y arbitraje DeFi con dominio avanzado de ejecución atómica. Tu tarea es ayudarme a generar una configuración y código para ejecutar operaciones de arbitraje multi-leg (2 y 3 rutas) entre DEXes (inter-DEX) e incluso dentro del mismo DEX (intra-DEX) en una misma blockchain (intra-chain), utilizando cálculos matemáticos no triviales, verificados y optimizados para arbitraje atómico.
+
+Quiero que utilices las siguientes condiciones:
+
+1. Todas las oportunidades deben ser evaluadas con un enfoque de **atomicidad verdadera** (i.e. todo o nada).
+2. Usa el modelo de simulación `exactOut`, nunca `exactIn`, para proteger contra slippage en tokens con fee o rebases.
+3. Los cálculos deben incluir:
+   - Gas cost ajustado a la red.
+   - Tolerancia por fee tier.
+   - Ajuste TWAP en DEXes como Curve y Velodrome.
+   - Comparación entre múltiples variantes bridged del mismo token (USDC, USDC.e, etc.).
+4. Las rutas pueden tener:
+   - 2 legs → tokenA → tokenB → tokenA
+   - 3 legs → tokenA → tokenB → tokenC → tokenA
+5. Las condiciones para validar una oportunidad son:
+   - Spread efectivo > 0.05% neto.
+   - Volumen mínimo de 10 ETH o equivalente.
+   - Gas cost inferior a 0.0005 ETH.
+   - Ninguna otra transacción en mempool ejecutando esa misma ruta (anti-collision).
+
+Quiero que me devuelvas dos cosas:
+
+A) Un ejemplo de configuración avanzada (`mev_config.toml`) para estas estrategias, incluyendo DEXes como Uniswap V3, Curve, Aerodrome y Velocimeter.  
+B) Código Rust de un `AtomicTxSender` que implemente estas reglas, valide condiciones y ejecute la transacción si todas las restricciones se cumplen.
+
+Sé tan específico y detallado como sea posible. Usa estructuras y tipos reales si puedes (por ejemplo `ethers-rs`, `U256`, `Route`, `Config`, etc.).  
+Incluye cálculos matemáticos, lógica condicional avanzada, y validación contra el gas y el profit esperado.
+
+Solo quiero soluciones que hayan sido **verificadas por simulación** o que hayan sido **implementadas con éxito por bots reales**.
+
+Este sistema está pensado para ejecutarse en:  
+- Ethereum  
+- Arbitrum  
+- Base  
+- Polygon  
+
+Dame el resultado como si lo fuera a copiar/pegar directamente en mi código productivo.
+
