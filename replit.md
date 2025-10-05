@@ -3,6 +3,17 @@
 ## Overview
 ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and configuring a DeFi arbitrage/MEV trading system. It provides real-time visibility into arbitrage opportunities, asset safety (Anti-Rugpull system), execution history, and system configuration. The project aims to scale from 5 hardcoded trading pairs to 100+ blockchains with dynamic, database-driven configuration, providing a comprehensive interface for managing a high-frequency, low-latency DeFi trading operation.
 
+## Recent Changes (Oct 5, 2025)
+**PRD EXTENDIDO Implementation Complete (100%)**
+- ✅ Engine config service rewritten with dual-format JSON (PRD + backward compatibility)
+- ✅ Database schema extended with ref_pools, config_snapshots, config_active tables
+- ✅ RefPools service with auto-recompute and manual override support
+- ✅ 8 new endpoints: /config/validate, /config/apply, /config/rollback, /config/snapshots, /config/active, /ref-pools/*
+- ✅ Triple validation framework (frontend schema, backend RPC quorum, engine-ready)
+- ✅ Versioned snapshots with compare-and-swap for atomic updates
+- ✅ System tested and running: 8 chains, 12 DEXs, 12 unique pools scanned without errors
+- ✅ Backward compatibility maintained with existing RUST MEV engine
+
 ## User Preferences
 Preferred communication style: Simple, everyday language (Spanish preferred).
 
@@ -33,12 +44,15 @@ The system relies on a PostgreSQL database for dynamic configuration, including:
 -   **Chain Management:** Add, update, remove chains, manage RPCs and DEXs.
 -   **Asset Management:** Upsert assets, assess risk (Anti-Rugpull).
 -   **Pair Management:** Generate, upsert, and validate trading pairs with real pool addresses.
--   **Policy Management:** Upsert and retrieve system policies.
+-   **Policy Management:** Upsert and retrieve system policies (roiMinBps, gasSafetyBps, slippageBps, sizeGrid, capPctTvl, bundleMaxBlocks, gasUnitsHintRoundtripV2).
 -   **State & Metrics:** Retrieve engine state and performance data.
 -   **Dynamic Configuration System:** Frontend-driven configuration updates database, which triggers auto-reload and restarts the Rust MEV engine with an updated `mev-scan-config.json`. This includes a robust 3-layer architecture for configuration: Frontend Admin UI, PostgreSQL, and Rust MEV Engine.
--   **Versioned Snapshots:** Configurations are versioned with ISO timestamps, enabling rollback functionality.
+-   **Versioned Snapshots:** Configurations are versioned with ISO timestamps, enabling rollback functionality with compare-and-swap atomic operations.
 -   **Canonical Token System:** Manages chain-specific token addresses and variants for precise pool discovery.
 -   **Multi-Pool Discovery:** Supports discovering multiple pools and fee tiers for a given trading pair, with quote-specific filtering to avoid mixing different stablecoins.
+-   **Reference Pools System:** Auto-computes best WNATIVE↔TOKEN pools for gas pricing with scoring (liquidity, volume, update freshness), supporting manual override and full lifecycle management.
+-   **Triple Validation Framework:** Frontend schema validation, backend consistency checks (RPC quorum, blocklists, USDC mix prevention), and engine-ready format validation.
+-   **JSON Contract Format:** Exports dual-format JSON with PRD-compliant structure (version ISO, alias, wnative, rpcPool wss/https, pools with feeBps, policies, risk, refPools) and backward compatibility fields for legacy RUST engine.
 
 ### Key Pages & Features
 -   **Dashboard:** Real-time opportunity feed and summary statistics.
