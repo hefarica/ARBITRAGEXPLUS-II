@@ -17,6 +17,13 @@ interface ConfigPool {
   feeBps: number;
 }
 
+interface LegacyPair {
+  name: string;
+  token0: string;
+  token1: string;
+  pairAddress: string;
+}
+
 interface ConfigAsset {
   address: string;
   symbol: string;
@@ -60,13 +67,16 @@ interface ConfigRefPool {
 }
 
 interface ConfigChain {
+  name: string;
   chainId: number;
   alias: string;
   wnative: string;
   rpcPool: RpcPool;
+  dexs: string[];
   dexes: ConfigDex[];
   assets: ConfigAsset[];
   pools: ConfigPool[];
+  topPairs: LegacyPair[];
   policies: ConfigPolicies;
   risk: ConfigRisk;
   refPools: ConfigRefPool[];
@@ -75,6 +85,9 @@ interface ConfigChain {
 interface EngineConfig {
   version: string;
   chains: ConfigChain[];
+  totalChains: number;
+  totalDexs: number;
+  lastUpdated: number;
 }
 
 export class EngineConfigService {
@@ -95,9 +108,14 @@ export class EngineConfigService {
       }
     }
 
+    const totalDexs = configChains.reduce((sum, chain) => sum + chain.dexs.length, 0);
+    
     const config: EngineConfig = {
       version,
       chains: configChains,
+      totalChains: configChains.length,
+      totalDexs,
+      lastUpdated: Date.now(),
     };
 
     return config;
@@ -151,7 +169,7 @@ export class EngineConfigService {
       tags: this.inferAssetTags(a, wnative),
     }));
 
-    const configPools = await this.buildConfigPools(
+    const { configPools, legacyPairs } = await this.buildConfigPools(
       Number(chain.chainId),
       chainPairs,
       dexes.map(d => d.dex)
@@ -167,13 +185,16 @@ export class EngineConfigService {
     const configRisk = await this.getChainRisk(Number(chain.chainId));
 
     const chainConfig: ConfigChain = {
+      name: chain.name,
       chainId: Number(chain.chainId),
       alias: chain.name.toLowerCase().replace(/\s+/g, '-'),
       wnative: wnative.toLowerCase(),
       rpcPool,
+      dexs: dexes.map(d => d.dex),
       dexes: configDexes,
       assets: configAssets,
       pools: configPools,
+      topPairs: legacyPairs,
       policies: chainPolicies,
       risk: configRisk,
       refPools: configRefPools,
@@ -221,8 +242,9 @@ export class EngineConfigService {
     chainId: number,
     chainPairs: any[],
     dexes: string[]
-  ): Promise<ConfigPool[]> {
+  ): Promise<{ configPools: ConfigPool[]; legacyPairs: LegacyPair[] }> {
     const configPools: ConfigPool[] = [];
+    const legacyPairs: LegacyPair[] = [];
     const canonicalTokens = getCanonicalTokens(chainId);
 
     for (const pair of chainPairs) {
@@ -288,12 +310,20 @@ export class EngineConfigService {
             feeBps,
           });
           
+          const poolAddressShort = pool.poolAddress.slice(-6);
+          legacyPairs.push({
+            name: `${baseAsset.symbol}/${quoteAsset.symbol} @ ${dexNameLower} (${poolAddressShort})`,
+            token0: pair.baseAddr.toLowerCase(),
+            token1: pair.quoteAddr.toLowerCase(),
+            pairAddress: pool.poolAddress.toLowerCase(),
+          });
+          
           seenDexPool.add(key);
         }
       }
     }
 
-    return configPools;
+    return { configPools, legacyPairs };
   }
 
   private extractFeeBps(pool: any): number {
