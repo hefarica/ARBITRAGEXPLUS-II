@@ -1,4 +1,5 @@
 import { engineConfigService } from './engine-config-service';
+import { priceFeedService } from './price-feed-service';
 
 interface Pool {
   chainId: number;
@@ -10,6 +11,7 @@ interface Pool {
   reserve0?: string;
   reserve1?: string;
   liquidity?: string;
+  realPrice?: number;
 }
 
 interface ArbitrageRoute {
@@ -80,7 +82,26 @@ export class ArbitrageSimulator {
     const opportunities: ArbitrageRoute[] = [];
     const tokenPairs = new Map<string, Pool[]>();
 
+    const pairAddresses = pools.map(p => p.pairAddress);
+    let pricesMap: Map<string, any>;
+    
+    try {
+      pricesMap = await priceFeedService.getPoolPrices(chainId, pairAddresses);
+      
+      for (const pool of pools) {
+        const priceData = pricesMap.get(pool.pairAddress.toLowerCase());
+        if (priceData) {
+          pool.realPrice = priceData.baseToQuotePrice;
+        }
+      }
+    } catch (error) {
+      console.error(`[ArbitrageSimulator] Failed to fetch prices for chain ${chainId}:`, error);
+      return [];
+    }
+
     for (const pool of pools) {
+      if (!pool.realPrice) continue;
+      
       const key = this.getTokenPairKey(pool.token0, pool.token1);
       if (!tokenPairs.has(key)) {
         tokenPairs.set(key, []);
@@ -97,6 +118,7 @@ export class ArbitrageSimulator {
           const pool2 = poolsForPair[j];
 
           if (pool1.dexId === pool2.dexId) continue;
+          if (!pool1.realPrice || !pool2.realPrice) continue;
 
           const opportunity = await this.simulate2LegRoute(chainId, pool1, pool2);
           if (opportunity) {
@@ -131,14 +153,32 @@ export class ArbitrageSimulator {
   private async find3LegOpportunities(chainId: number, pools: Pool[]): Promise<ArbitrageRoute[]> {
     const opportunities: ArbitrageRoute[] = [];
     
-    const tokenGraph = this.buildTokenGraph(pools);
+    const pairAddresses = pools.map(p => p.pairAddress);
+    
+    try {
+      const pricesMap = await priceFeedService.getPoolPrices(chainId, pairAddresses);
+      
+      for (const pool of pools) {
+        const priceData = pricesMap.get(pool.pairAddress.toLowerCase());
+        if (priceData) {
+          pool.realPrice = priceData.baseToQuotePrice;
+        }
+      }
+    } catch (error) {
+      console.error(`[ArbitrageSimulator] Failed to fetch prices for 3-leg on chain ${chainId}:`, error);
+      return [];
+    }
+    
+    const poolsWithPrices = pools.filter(p => p.realPrice);
+    const tokenGraph = this.buildTokenGraph(poolsWithPrices);
     
     for (const startToken of tokenGraph.keys()) {
       const routes = this.findCircularRoutes(startToken, tokenGraph, 3);
       
       for (const route of routes) {
-        const routePools = this.getPoolsForRoute(route, pools);
+        const routePools = this.getPoolsForRoute(route, poolsWithPrices);
         if (routePools.length !== 3) continue;
+        if (routePools.some(p => !p.realPrice)) continue;
 
         const testAmounts = [0.01, 0.05, 0.1];
         for (const amountIn of testAmounts) {
@@ -204,15 +244,15 @@ export class ArbitrageSimulator {
   }
 
   private simulateSwap(amountIn: number, pool: Pool): number {
+    if (!pool.realPrice || pool.realPrice <= 0) {
+      return 0;
+    }
+
     const feeMultiplier = 1 - (pool.feeBps / 10000);
-    
-    const basePrice = 1.0;
-    const priceVariance = (Math.random() - 0.5) * 0.02;
-    const marketPrice = basePrice * (1 + priceVariance);
     
     const slippageFactor = 1 - (amountIn * 0.0001);
     
-    const amountOut = amountIn * marketPrice * feeMultiplier * slippageFactor;
+    const amountOut = amountIn * pool.realPrice * feeMultiplier * slippageFactor;
     
     return amountOut;
   }
