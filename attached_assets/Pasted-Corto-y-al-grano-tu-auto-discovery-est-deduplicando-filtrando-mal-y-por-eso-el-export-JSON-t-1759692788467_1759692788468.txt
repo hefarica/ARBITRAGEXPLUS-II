@@ -1,0 +1,116 @@
+Corto y al grano: **tu “auto-discovery” está deduplicando/filtrando mal** y por eso el export JSON termina con 1 DEX por cadena cuando el par es súper popular.
+
+## Qué está mal (los 3 golpes)
+
+1. **Deduplicas por símbolo o por (token0, token1) en vez de por `pairAddress`.**
+
+   * En **Uniswap V3** hay múltiples pools por *fee tier* (0.01/0.05/0.3/1%) y cada uno es **otro pool** (otra `pairAddress`).
+   * Si colapsas por símbolo `WETH/USDC`, te “come” los V3 tiers y cualquier V2/V3 coexistente.
+   * Resultado: “solo 3 DEX únicos (Pancake V2, Biswap, Uniswap V3) y los demás parecen duplicados”.
+
+2. **Buscas por símbolo genérico (USDC) y no por dirección** y además **no normalizas variantes**.
+
+   * En varias chains conviven **USDC nativo**, **USDC.e**, **bridged**, etc. Si consultas DexScreener por `USDC` sin dirección **no encuentras** o mezclas cosas.
+   * También el “WETH” real en cada chain es el **wrapped native** (WETH, WBNB, WAVAX…) → hay que usar **la dirección exacta** por chain.
+
+3. **Tu filtro de “sin datos / duplicados” está barriendo pools válidos**.
+
+   * DexScreener a veces devuelve `txns` o `volume` muy bajo o nulo para pools nuevos; si filtras por `vol24h > X` ó `txCount > X`, los eliminas.
+   * En V3, si coges solo **1 fee tier** “porque el resto es duplicado”, reduces a 1 DEX “único” aunque haya 3–4 pools reales.
+
+---
+
+## Cómo corregirlo (pasos exactos)
+
+### A) Usa **direcciones canónicas por cadena** (no símbolos)
+
+Mantén un mapa estático/actualizable:
+
+```ts
+// Por chainId
+const CANON = {
+  1:  { WNATIVE: "0xC02a...WETH",  USDC: ["0xA0b8...USDC"] },
+  10: { WNATIVE: "0x4200...WETH",  USDC: ["0x7F5c...USDC.e","0x0b2a...USDC"] },
+  137:{ WNATIVE: "0x7ceB...WETH",  USDC: ["0x2791...USDC"] },
+  42161:{ WNATIVE:"0x82aF...WETH", USDC: ["0xFF97...USDC.e","0xaf88...USDC"] },
+  8453:{ WNATIVE:"0x4200...WETH",  USDC: ["0x8335...USDbC"] },
+  56: { WNATIVE:"0xBB4C...WBNB",   USDC: ["0x8ac7...USDC"] },
+  43114:{WNATIVE:"0xB31f...WAVAX",  USDC: ["0xB97E...USDC","0xA7D7...USDC.e"] },
+  // ...
+};
+```
+
+### B) Consulta DexScreener por **dirección**, no por símbolo
+
+* `GET https://api.dexscreener.com/latest/dex/tokens/{chain}/{tokenAddress}`
+* Une resultados por intersección de **pairAddress** que contengan **ambos** tokens (WNATIVE y *cualquiera* de las USDC de esa chain).
+
+### C) **Normaliza y no colapses pools distintos**
+
+* Clave única = **`dexId|pairAddress`**.
+* Si es V3, trata **cada fee tier** como pool distinto (viene como pools separados en DexScreener).
+* No deduplicar por `baseSymbol/quoteSymbol`.
+
+```ts
+type Pool = { chainId:number; dexId:string; pairAddress:string; baseToken:string; quoteToken:string; fee?:number; };
+const seen = new Set<string>();
+for (const p of poolsFromDexScreener) {
+  const key = `${p.dexId}|${p.pairAddress.toLowerCase()}`;
+  if (seen.has(key)) continue;
+  seen.add(key);
+  // guarda pool
+}
+```
+
+### D) Ajusta los filtros (no mates pools válidos)
+
+* No uses `vol24h` como *hard filter*; úsalo para **priorizar** (sorting).
+* Mantén un mínimo razonable (p. ej. `liquidityUSD >= 10k`) pero **no descartes** otros si tu objetivo es descubrir DEXes.
+
+### E) Registra el **proceso de búsqueda** en Node
+
+Los logs que ves en RUST solo muestran el **JSON final**. Para auditar discovery:
+
+```ts
+console.info(`[disc] chain=${chainId} tokens=${WNATIVE},${USDCs.join(",")}`);
+console.info(`[disc] found=${pools.length}, uniques=${seen.size}`);
+console.table(pools.map(p => ({
+  dex: p.dexId, pair: p.pairAddress,
+  base: short(p.baseToken), quote: short(p.quoteToken), fee: p.fee, liq: p.liquidityUsd
+})));
+```
+
+Y después del export:
+
+```ts
+console.info(`[export] chain=${chainId} dexes=${uniqueDexes.size} pools=${uniquePools.size}`);
+```
+
+### F) No mezcles `ETH` vs `WETH`
+
+* Tus escaneos dicen “WETH/USDC” (bien), pero asegúrate de que al construir rutas/llamadas a routers uses **wrapped** y **direcciones** correctas en cada DEX/chain.
+
+---
+
+## Señales de que era esto
+
+* “Solo 3 DEXs tienen pools únicos … el resto parecen duplicados” → síntoma clásico de **colapso por símbolo** y **unificación V3**.
+* “No aparecen 6 DEXes para un par tan popular” → frecuente cuando **USDC** no es la misma (`USDC` vs `USDC.e`/`bridged`) y se consulta por símbolo.
+
+---
+
+## ¿Quieres que lo deje integrado en tu servidor Node?
+
+Puedo modificar tu exportador para:
+
+1. construir el **canon de tokens por chain**,
+2. consultar DexScreener por **direcciones**,
+3. generar `pools` únicos por `dexId|pairAddress` (incluyendo múltiples **fee tiers**),
+4. **ordenar por liquidez/volumen** (sin hard cut),
+5. exportar los **6 mejores DEXes** por chain para tu motor.
+
+Dime:
+
+* En qué chains estás apuntando ahora,
+* Si tu export espera `dexes: string[]` o `pools: { dexId, pairAddress }[]` (o ambos),
+* Y el mínimo de liquidez/volumen que quieras para priorizar.

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getCanonicalTokens } from './canonical-tokens';
 
 const CHAIN_NAME_MAP: Record<number, string> = {
   1: 'ethereum',
@@ -176,6 +177,67 @@ class PoolValidatorService {
         return { isValid: false, error: 'Pool not found (404)' };
       }
       return { isValid: false, error: `GeckoTerminal API error: ${error.message}` };
+    }
+  }
+
+  async findPoolsByAddress(
+    chainId: number,
+    baseTokenAddress: string,
+    quoteTokenAddresses: string[]
+  ): Promise<PoolValidationResult[]> {
+    try {
+      const chainName = DEXSCREENER_CHAIN_MAP[chainId];
+      if (!chainName) {
+        console.warn(`Chain ${chainId} not supported by DexScreener`);
+        return [];
+      }
+
+      console.log(`[disc] chain=${chainId} searching base=${baseTokenAddress} quote=${quoteTokenAddresses.join(',')}`);
+
+      const url = `https://api.dexscreener.com/latest/dex/tokens/${baseTokenAddress}`;
+      const response = await axios.get(url, { timeout: 10000 });
+
+      if (response.data?.pairs) {
+        const quoteAddressesLower = quoteTokenAddresses.map(a => a.toLowerCase());
+        const seen = new Set<string>();
+        const uniquePools: PoolValidationResult[] = [];
+
+        const matchingPairs = response.data.pairs.filter((pair: any) => 
+          pair.chainId === chainName &&
+          quoteAddressesLower.includes(pair.quoteToken?.address?.toLowerCase())
+        );
+
+        for (const pair of matchingPairs) {
+          const key = `${pair.dexId}|${pair.pairAddress.toLowerCase()}`;
+          
+          if (seen.has(key)) {
+            continue;
+          }
+
+          seen.add(key);
+          uniquePools.push({
+            isValid: true,
+            poolAddress: pair.pairAddress,
+            dexId: pair.dexId,
+            liquidity: pair.liquidity?.usd,
+            volume24h: pair.volume?.h24,
+            baseToken: pair.baseToken?.symbol,
+            quoteToken: pair.quoteToken?.symbol,
+            source: 'dexscreener' as const
+          });
+        }
+
+        uniquePools.sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0));
+
+        console.log(`[disc] found=${matchingPairs.length} pools, unique=${uniquePools.length} (by dexId|pairAddress)`);
+        
+        return uniquePools;
+      }
+
+      return [];
+    } catch (error: any) {
+      console.error('Error finding pools by address:', error.message);
+      return [];
     }
   }
 
