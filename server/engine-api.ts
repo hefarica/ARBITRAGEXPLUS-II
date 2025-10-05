@@ -350,6 +350,131 @@ engineApiRouter.post("/assets/risk", async (req, res) => {
   }
 });
 
+// POST /api/engine/assets/scan - Automated anti-rugpull scanning with GoPlus API
+engineApiRouter.post("/assets/scan", async (req, res) => {
+  try {
+    const { chainId, addresses } = req.body;
+
+    if (!chainId || !addresses || !Array.isArray(addresses)) {
+      return res.status(400).json({ error: "chainId and addresses array are required" });
+    }
+
+    console.log(`🔎 Scanning ${addresses.length} assets on chain ${chainId} for rugpull risks...`);
+
+    const results = [];
+
+    for (const address of addresses) {
+      try {
+        // Call GoPlus Security API
+        const url = `https://api.gopluslabs.io/api/v1/token_security/${chainId}`;
+        const params = new URLSearchParams({ contract_addresses: address.toLowerCase() });
+        
+        const response = await fetch(`${url}?${params}`);
+        const data = await response.json();
+
+        if (data.code !== 1 || !data.result || !data.result[address.toLowerCase()]) {
+          console.log(`⚠️  ${address}: API returned no data`);
+          results.push({ address, error: "No security data available" });
+          continue;
+        }
+
+        const tokenData = data.result[address.toLowerCase()];
+
+        // Calculate risk score (0-100, higher is safer)
+        let score = 100;
+        const flags = [];
+
+        // Critical risks (-50 points each)
+        if (tokenData.is_honeypot === "1") {
+          score -= 50;
+          flags.push("honeypot");
+        }
+        if (tokenData.is_proxy === "1" && tokenData.can_take_back_ownership === "1") {
+          score -= 50;
+          flags.push("proxy_upgradable");
+        }
+
+        // High risks (-20 points each)
+        if (tokenData.is_mintable === "1") {
+          score -= 20;
+          flags.push("mintable");
+        }
+        if (tokenData.is_blacklisted === "1") {
+          score -= 20;
+          flags.push("blacklist_function");
+        }
+        if (tokenData.transfer_pausable === "1") {
+          score -= 20;
+          flags.push("pausable");
+        }
+
+        // Medium risks (-10 points each)
+        if (tokenData.is_anti_whale === "1") {
+          score -= 10;
+          flags.push("anti_whale");
+        }
+        if (tokenData.external_call === "1") {
+          score -= 10;
+          flags.push("external_call");
+        }
+
+        // Tax warnings (-5 points each)
+        const buyTax = parseFloat(tokenData.buy_tax || "0");
+        const sellTax = parseFloat(tokenData.sell_tax || "0");
+        if (buyTax > 0.1) {
+          score -= 5;
+          flags.push(`high_buy_tax_${(buyTax * 100).toFixed(0)}pct`);
+        }
+        if (sellTax > 0.1) {
+          score -= 5;
+          flags.push(`high_sell_tax_${(sellTax * 100).toFixed(0)}pct`);
+        }
+
+        // Ensure score is between 0-100
+        score = Math.max(0, Math.min(100, score));
+
+        // Update database
+        await db.update(assets)
+          .set({
+            riskScore: score,
+            riskFlags: flags,
+            lastReviewAt: Date.now(),
+            updatedAt: sql`now()`,
+          })
+          .where(and(
+            eq(assets.chainId, Number(chainId)),
+            eq(assets.address, address.toLowerCase())
+          ));
+
+        results.push({
+          address,
+          score,
+          flags,
+          holderCount: tokenData.holder_count || "unknown",
+          buyTax: (buyTax * 100).toFixed(2) + "%",
+          sellTax: (sellTax * 100).toFixed(2) + "%",
+        });
+
+        console.log(
+          `${score >= 70 ? "✅" : score >= 40 ? "⚠️ " : "❌"} ${address}: Score ${score}/100, Flags: ${flags.join(", ") || "none"}`
+        );
+      } catch (error: any) {
+        console.error(`❌ Error scanning ${address}:`, error?.message);
+        results.push({ address, error: error?.message || "Scan failed" });
+      }
+    }
+
+    res.json({
+      success: true,
+      scanned: addresses.length,
+      results,
+    });
+  } catch (error) {
+    console.error("Error scanning assets:", error);
+    res.status(500).json({ error: "Failed to scan assets" });
+  }
+});
+
 // GET /api/engine/assets - Query assets with filters
 engineApiRouter.get("/assets", async (req, res) => {
   try {
@@ -551,5 +676,200 @@ engineApiRouter.get("/perf", async (req, res) => {
   } catch (error) {
     console.error("Error fetching performance metrics:", error);
     res.status(500).json({ error: "Failed to fetch performance metrics" });
+  }
+});
+
+// POST /api/engine/rpcs/healthcheck - Check health and latency of all RPCs
+engineApiRouter.post("/rpcs/healthcheck", async (req, res) => {
+  try {
+    const { chainId, timeout = 5000 } = req.body;
+
+    console.log(`🏥 Starting RPC health check${chainId ? ` for chain ${chainId}` : " for all chains"}...`);
+
+    let rpcsToCheck;
+    if (chainId) {
+      rpcsToCheck = await db.select().from(chainRpcs).where(eq(chainRpcs.chainId, Number(chainId)));
+    } else {
+      rpcsToCheck = await db.select().from(chainRpcs);
+    }
+
+    const results = {
+      total: rpcsToCheck.length,
+      healthy: 0,
+      unhealthy: 0,
+      rpcs: [] as any[],
+    };
+
+    for (const rpc of rpcsToCheck) {
+      const startTime = Date.now();
+      let isHealthy = false;
+      let latencyMs = null;
+      let error = null;
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        const response = await fetch(rpc.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            method: "eth_blockNumber",
+            params: [],
+            id: 1,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.result) {
+            latencyMs = Date.now() - startTime;
+            isHealthy = true;
+            results.healthy++;
+          } else {
+            error = "No result in response";
+            results.unhealthy++;
+          }
+        } else {
+          error = `HTTP ${response.status}`;
+          results.unhealthy++;
+        }
+      } catch (err: any) {
+        error = err.name === "AbortError" ? "Timeout" : err.message;
+        results.unhealthy++;
+      }
+
+      // Update RPC in database
+      await db.update(chainRpcs)
+        .set({
+          lastLatencyMs: latencyMs,
+          lastOkAt: isHealthy ? Date.now() : rpc.lastOkAt,
+          isActive: isHealthy,
+        })
+        .where(eq(chainRpcs.id, rpc.id));
+
+      results.rpcs.push({
+        id: rpc.id,
+        chainId: rpc.chainId,
+        url: rpc.url,
+        healthy: isHealthy,
+        latencyMs: latencyMs,
+        error: error,
+      });
+
+      console.log(
+        isHealthy
+          ? `✅ ${rpc.url}: ${latencyMs}ms`
+          : `❌ ${rpc.url}: ${error}`
+      );
+    }
+
+    res.json({
+      success: true,
+      ...results,
+    });
+  } catch (error) {
+    console.error("Error running health check:", error);
+    res.status(500).json({ error: "Failed to run health check" });
+  }
+});
+
+// POST /api/engine/discover - Auto-discover blockchains from DeFi Llama
+engineApiRouter.post("/discover", async (req, res) => {
+  try {
+    const { minTvl = 100_000_000, limit = 20 } = req.body;
+
+    console.log(`🔍 Discovering blockchains with TVL > $${minTvl.toLocaleString()}...`);
+
+    // Fetch chains from DeFi Llama
+    const response = await fetch("https://api.llama.fi/v2/chains");
+    if (!response.ok) {
+      throw new Error(`DeFi Llama API error: ${response.status}`);
+    }
+
+    const chainsData = await response.json();
+    
+    // Filter and sort by TVL
+    const eligibleChains = chainsData
+      .filter((chain: any) => {
+        const tvl = chain.tvl || 0;
+        const hasChainId = chain.chainId && !isNaN(parseInt(chain.chainId));
+        return tvl >= minTvl && hasChainId;
+      })
+      .sort((a: any, b: any) => (b.tvl || 0) - (a.tvl || 0))
+      .slice(0, limit);
+
+    const discovered = [];
+    const errors = [];
+
+    for (const chain of eligibleChains) {
+      try {
+        const chainId = parseInt(chain.chainId);
+        
+        // Check if chain already exists
+        const existing = await db.select().from(chains).where(eq(chains.chainId, chainId));
+        if (existing.length > 0) {
+          console.log(`⏭️  Skipping ${chain.name} (already exists)`);
+          continue;
+        }
+
+        // Fetch RPCs from chainlist.org
+        const chainlistResponse = await fetch(`https://chainid.network/chains.json`);
+        const chainlistData = await chainlistResponse.json();
+        const chainInfo = chainlistData.find((c: any) => c.chainId === chainId);
+
+        const rpcs = chainInfo?.rpc
+          ?.filter((rpc: string) => rpc.startsWith("https://") && !rpc.includes("${"))
+          .slice(0, 5) || [];
+
+        if (rpcs.length < 3) {
+          console.log(`⚠️  ${chain.name}: Not enough public RPCs (${rpcs.length}/3 minimum)`);
+          errors.push({ chain: chain.name, reason: "Insufficient RPCs" });
+          continue;
+        }
+
+        // Insert chain
+        const [newChain] = await db.insert(chains).values({
+          name: chain.name,
+          chainId: chainId,
+          evm: true,
+        }).returning();
+
+        // Insert RPCs
+        for (const rpc of rpcs) {
+          await db.insert(chainRpcs).values({
+            chainId: chainId,
+            url: rpc,
+            isActive: true,
+          });
+        }
+
+        discovered.push({
+          name: chain.name,
+          chainId: chainId,
+          tvl: chain.tvl,
+          rpcs: rpcs.length,
+        });
+
+        console.log(`✅ Added ${chain.name} (TVL: $${(chain.tvl / 1e9).toFixed(2)}B, RPCs: ${rpcs.length})`);
+      } catch (error: any) {
+        console.error(`❌ Error adding ${chain.name}:`, error);
+        errors.push({ chain: chain.name, reason: error?.message || "Unknown error" });
+      }
+    }
+
+    res.json({
+      success: true,
+      discovered: discovered.length,
+      chains: discovered,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error) {
+    console.error("Error discovering chains:", error);
+    res.status(500).json({ error: "Failed to discover chains" });
   }
 });
