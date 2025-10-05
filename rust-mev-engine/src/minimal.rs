@@ -32,7 +32,7 @@ struct DexScreenerResponse {
 
 #[derive(Debug)]
 struct Opportunity {
-    chain_id: i32,
+    chain_id: i64,
     dex_in: String,
     dex_out: String,
     base_token: String,
@@ -56,7 +56,7 @@ struct PairConfig {
 struct ChainConfig {
     name: String,
     #[serde(rename = "chainId")]
-    chain_id: i32,
+    chain_id: i64,
     dexs: Vec<String>,
     #[serde(rename = "topPairs")]
     top_pairs: Vec<PairConfig>,
@@ -91,7 +91,7 @@ fn load_scan_config() -> Result<ScanConfig> {
     Ok(config)
 }
 
-fn chain_id_to_name(chain_id: i32) -> &'static str {
+fn chain_id_to_name(chain_id: i64) -> &'static str {
     match chain_id {
         1 => "ethereum",
         5 => "goerli",
@@ -175,20 +175,20 @@ fn chain_id_to_name(chain_id: i32) -> &'static str {
         81457 => "blast",
         103090 => "crystaleum",
         167000 => "taiko",
-        245022934 => "neon-evm",
+        245022934_i64 => "neon-evm",
         534352 => "scroll",
         7777777 => "zora",
-        888888888 => "vision",
-        1313161554 => "aurora",
-        1351057110 => "skale",
-        1666600000 => "harmony",
+        888888888_i64 => "vision",
+        1313161554_i64 => "aurora",
+        1351057110_i64 => "skale",
+        1666600000_i64 => "harmony",
         11155111 => "sepolia",
-        11297108109 => "palm",
+        11297108109_i64 => "palm",
         _ => "ethereum",
     }
 }
 
-async fn fetch_dex_prices(pair_address: &str, chain_id: i32) -> Result<Vec<DexPair>> {
+async fn fetch_dex_prices(pair_address: &str, chain_id: i64) -> Result<Vec<DexPair>> {
     let chain_name = chain_id_to_name(chain_id);
 
     let url = format!("https://api.dexscreener.com/latest/dex/pairs/{}/{}", chain_name, pair_address);
@@ -207,7 +207,7 @@ async fn fetch_dex_prices(pair_address: &str, chain_id: i32) -> Result<Vec<DexPa
     Ok(response.pairs.unwrap_or_default())
 }
 
-fn calculate_arbitrage(pairs: &[DexPair], token0: &str, token1: &str, chain_id: i32) -> Option<Opportunity> {
+fn calculate_arbitrage(pairs: &[DexPair], token0: &str, token1: &str, chain_id: i64) -> Option<Opportunity> {
     if pairs.len() < 2 {
         return None;
     }

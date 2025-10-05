@@ -1,0 +1,147 @@
+¡Lo tengo! Ese error de **`#[deny(overflowing_literals)]`** salta cuando un literal numérico sin sufijo **no cabe** en el tipo que el compilador está infiriendo (casi siempre termina siendo `i32`). Te dejo cómo **localizarlo rápido**, **arreglarlo bien** y **prevenirlo** en todo el proyecto.
+
+---
+
+## 1) Encuentra el/los literales problemáticos
+
+En la raíz del repo, busca literales “grandes” (decimales o hex) sin sufijo:
+
+```bash
+# decimales con 10+ dígitos (ajusta si hace falta)
+rg -n --no-heading -g '!target' -e '\b\d{10,}\b' src**/*
+
+# hex grandes (0x seguido de 9+ dígitos/letters)
+rg -n --no-heading -g '!target' -e '\b0x[0-9a-fA-F]{9,}\b' src**/*
+
+# milisegundos / nanos sospechosos (a veces desbordan al multiplicar)
+rg -n --no-heading 'from_(millis|micros|nanos)\(|\*\s*1000' src**/*
+```
+
+> Si el binario que falla es `mev-engine-minimal`, restringe a ese target: `rg -n src/bin/mev-engine-minimal.rs src/mev_engine_minimal/**`.
+
+Corre también:
+
+```bash
+cargo clean
+RUSTFLAGS="-Doverflowing_literals" cargo check
+```
+
+Rust te va a señalar el **archivo y la línea exacta** del primer literal que desborda.
+
+---
+
+## 2) Arregla con el **tipo correcto** (y semántica DeFi)
+
+Pistas rápidas sobre **qué tipo usar** según el dato:
+
+* **Timestamps/epoch ms/ns** → `u64`
+
+  ```rust
+  const START_MS: u64 = 1_725_000_000_000;
+  std::time::Duration::from_millis(250_u64);
+  ```
+
+* **Alturas de bloque / chainId** → `u64` para bloque, `u64`/`u32` para chainId
+
+  ```rust
+  let latest_block: u64 = 19_999_999;
+  let chain_id: u32 = 42161; // cabe en u32
+  ```
+
+* **Gas price / cantidades en wei** → `u128` o `U256` (si usas `ethers`/`alloy`)
+
+  ```rust
+  let gas_price_wei: u128 = 35_000_000_000; // 35 gwei
+  // o:
+  // use ethers::types::U256;
+  // let gas_price = U256::from_dec_str("35000000000")?;
+  ```
+
+* **Máscaras/constantes hex** → agrega sufijo adecuado
+
+  ```rust
+  let mask = 0xFFFF_FFFFu32;
+  let big  = 0x1_0000_0000u64;
+  ```
+
+* **Multiplicaciones que crecen** (ej.: `secs * 1000`) → tipa los literales
+
+  ```rust
+  let timeout_ms: u64 = secs as u64 * 1_000u64;
+  ```
+
+* **Valores negativos grandes** → usa `i64` con sufijo o anotación
+
+  ```rust
+  let delta: i64 = -9_000_000_000;
+  // o
+  let delta = -9_000_000_000i64;
+  ```
+
+> Evita confiar en la inferencia cuando el número es grande: **siempre** pon sufijo o anotación.
+
+---
+
+## 3) Reconstruye
+
+```bash
+cargo build --release
+# o el job del workflow que tengas
+```
+
+Si aparece otro literal conflictivo, repite paso 1–2 (a veces hay varios).
+
+---
+
+## 4) Prevención (recomendado)
+
+* **Centraliza** números grandes en `const` bien tipadas:
+
+  ```rust
+  pub const GWEI: u128 = 1_000_000_000;
+  pub const SECOND: u64 = 1_000; // ms
+  ```
+
+* Activa lints útiles en el crate raíz:
+
+  ```rust
+  #![deny(overflowing_literals)]
+  #![warn(clippy::unnecessary_cast, clippy::as_conversions)]
+  ```
+
+* Usa helpers semánticos:
+
+  ```rust
+  fn ms(x: u64) -> std::time::Duration { std::time::Duration::from_millis(x) }
+  let backoff = ms(250); // en vez de 250 “pelado”
+  ```
+
+* Para **wei/precisión alta**, prefiere `U256` y constructores de cadena (`from_dec_str`) para evitar errores de literal.
+
+---
+
+## 5) Ejemplos reales de fixes típicos
+
+```rust
+// ❌ Fallará (#![deny(overflowing_literals)]): por defecto intenta i32
+let ts = 1725000000000;          
+
+// ✅ Arreglo
+let ts: u64 = 1_725_000_000_000;
+
+// ❌ Hex grande sin sufijo → i32 por defecto
+let mask = 0x1_0000_0000;        
+
+// ✅ Arreglo
+let mask = 0x1_0000_0000u64;
+
+// ❌ Multiplicación que sube a i32 por inferencia
+let timeout = 30 * 1000;         
+
+// ✅ Arreglo
+let timeout: u64 = 30u64 * 1_000u64;
+```
+
+---
+
+Si quieres, te ayudo a **peinar el repo** y te devuelvo un **diff** con todos los sufijos/anotaciones correctas donde haga falta (bloques, timestamps, gwei, wei, máscaras hex). Solo dime si el error te aparece en un **archivo concreto** y lo ajusto línea por línea.
