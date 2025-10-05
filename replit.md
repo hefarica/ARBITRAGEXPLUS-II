@@ -1,7 +1,7 @@
 # ArbitrageX Supreme V3.6 Dashboard
 
 ## Overview
-ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard designed for monitoring and configuring a DeFi arbitrage/MEV trading system. It provides real-time visibility into arbitrage opportunities across multiple blockchains, asset safety evaluations (Anti-Rugpull system), execution history, and system configuration management. The project aims to offer a comprehensive UI layer for a sophisticated 3-tier arbitrage system, emphasizing real-time data visualization and strict validation of live data.
+ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard designed for monitoring and configuring a DeFi arbitrage/MEV trading system. It provides real-time visibility into arbitrage opportunities across multiple blockchains, asset safety evaluations (Anti-Rugpull system), execution history, and system configuration management. The project is expanding from 5 hardcoded trading pairs to support 100+ blockchains with dynamic configuration through a database-driven backend infrastructure.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language (Spanish preferred).
@@ -37,9 +37,19 @@ The system employs a 3-tier architecture:
 
 ### API Architecture
 -   **Dual API Strategy**: Primary Cloudflare Workers edge endpoints (`/cf/*`) and fallback direct backend API (`/api/*`).
+-   **Engine API** (`/cf/engine/*`): RESTful configuration API for managing chains, assets, trading pairs, and policies.
 -   **Proxy Layer**: Next.js API routes act as proxy.
 -   **Request Retry Logic**: Automatic retry with exponential backoff.
 -   **Rate Limiting**: Token-bucket rate limiting in proxy routes.
+
+### Engine API Endpoints (Database-Driven Configuration)
+-   **Chain Management**: `POST /cf/engine/addChain`, `POST /cf/engine/updateChain`, `POST /cf/engine/removeChain`
+-   **RPC Management**: `POST /cf/engine/addRpc`, `POST /cf/engine/removeRpc`
+-   **DEX Management**: `POST /cf/engine/addDex`, `POST /cf/engine/removeDex`
+-   **Asset Management**: `POST /cf/engine/assets/upsert`, `POST /cf/engine/assets/risk`
+-   **Pair Management**: `POST /cf/engine/pairs/generate`, `POST /cf/engine/pairs/upsert`
+-   **Policy Management**: `POST /cf/engine/policies/upsert`, `GET /cf/engine/policies`
+-   **State & Metrics**: `GET /cf/engine/state`, `GET /cf/engine/perf`
 
 ### Key Pages & Features
 -   **Dashboard**: Real-time opportunity feed, summary statistics, live table view.
@@ -95,12 +105,40 @@ The system employs a 3-tier architecture:
 -   **ESLint**
 -   **Prettier**
 
+### Database Schema (PostgreSQL via Neon)
+-   **chains**: Blockchain configurations with chain_id, name, EVM compatibility
+-   **chain_rpcs**: RPC endpoints per chain with latency tracking and health monitoring
+-   **chain_dexes**: DEX configurations per chain with active status
+-   **assets**: Token metadata with anti-rugpull risk scoring (0-100 scale)
+-   **pairs**: Trading pairs with enable/disable control
+-   **policies**: System policies (min profit, slippage, gas limits) with JSON values
+-   **config_versions**: Configuration versioning for rollback capability
+-   **Unique Constraints**: 
+    - `assets(chain_id, address)` - Prevents duplicate tokens per chain
+    - `pairs(chain_id, base_addr, quote_addr)` - Prevents duplicate trading pairs
+
 ### External Services (Configured via Environment)
 -   **Cloudflare Workers**: Edge computing for API proxy and WebSocket relay.
 -   **Backend API**: Rust/Node.js arbitrage engine (expected at configurable URL).
--   **PostgreSQL**: Database (backend dependency).
+-   **PostgreSQL (Neon)**: Primary database for configuration, chains, assets, and pairs.
 -   **Redis**: Caching layer (backend dependency).
 
 ### Optional Integrations
 -   **Grafana**: Metrics visualization.
 -   **Prometheus**: Metrics collection.
+
+## Recent Changes (October 5, 2025)
+
+### Backend Infrastructure Expansion
+-   **Database Schema**: Expanded from 3 tables to 10 tables for comprehensive configuration management
+-   **Engine API**: Implemented 14 RESTful endpoints for chain/asset/pair/policy management
+-   **Route Migration**: Moved all engine endpoints from `/api/engine/*` to `/cf/engine/*` to avoid Next.js routing conflicts
+-   **Unique Constraints**: Added composite UNIQUE constraints on assets and pairs tables for reliable upsert operations
+-   **Real Data Only**: All endpoints validated with real Ethereum tokens (WETH, USDC, USDT) and public RPC endpoints
+
+### Testing Status
+-   ✅ Chain addition with 5+ RPCs and multiple DEXs
+-   ✅ Asset upsert with real token addresses
+-   ✅ Trading pair configuration
+-   ✅ Policy management (min_profit_usd, max_slippage_bps)
+-   ✅ State retrieval with full chain/asset/pair/policy data
