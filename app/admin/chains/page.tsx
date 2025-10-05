@@ -648,7 +648,7 @@ export default function ChainsAdminPage() {
                 <div className="flex gap-2 pt-2">
                   <div className="flex items-center gap-2">
                     <Switch
-                      checked={chain.isActive}
+                      checked={chain.isActive || false}
                       onCheckedChange={(checked) => toggleChain(chain.chainId, checked)}
                       className="data-[state=checked]:bg-green-500"
                     />
