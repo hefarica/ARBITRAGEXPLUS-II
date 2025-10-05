@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -147,9 +148,8 @@ export default function ChainsAdminPage() {
       const data = await response.json();
       
       if (data.success) {
-        toast.success(`Blockchain ${isActive ? "activada" : "desactivada"}`);
+        toast.success(`Blockchain ${isActive ? "activada" : "desactivada"} - Motor actualizado automáticamente`);
         await fetchChains();
-        await autoSaveAndReload();
       } else {
         toast.error("Error al cambiar estado");
       }
@@ -291,11 +291,10 @@ export default function ChainsAdminPage() {
       const data = await response.json();
 
       if (data.success) {
-        toast.success(`${data.count} DEXs agregados exitosamente`);
+        toast.success(`${data.count} DEXs agregados - Motor actualizado automáticamente ✅`);
         setSelectedDexes([]);
         setDexSuggestions([]);
         await fetchChains();
-        await autoSaveAndReload();
       } else {
         toast.error("Error al agregar DEXs");
       }
@@ -380,7 +379,9 @@ export default function ChainsAdminPage() {
                     <Network className="h-5 w-5 text-primary" />
                     <CardTitle className="text-lg">{chain.name}</CardTitle>
                   </div>
-                  <Badge variant={chain.isActive ? "default" : "secondary"}>
+                  <Badge 
+                    className={chain.isActive ? "bg-green-500 text-white hover:bg-green-600" : "bg-gray-500 text-white"}
+                  >
                     {chain.isActive ? "Activa" : "Inactiva"}
                   </Badge>
                 </div>
@@ -628,13 +629,16 @@ export default function ChainsAdminPage() {
                 )}
 
                 <div className="flex gap-2 pt-2">
-                  <Button
-                    variant={chain.isActive ? "destructive" : "default"}
-                    size="sm"
-                    onClick={() => toggleChain(chain.chainId, !chain.isActive)}
-                  >
-                    {chain.isActive ? "Desactivar" : "Activar"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={chain.isActive}
+                      onCheckedChange={(checked) => toggleChain(chain.chainId, checked)}
+                      className="data-[state=checked]:bg-green-500"
+                    />
+                    <Label className="text-sm cursor-pointer" onClick={() => toggleChain(chain.chainId, !chain.isActive)}>
+                      {chain.isActive ? "Activa" : "Inactiva"}
+                    </Label>
+                  </div>
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button

@@ -1,12 +1,6 @@
 {
   "chains": [
     {
-      "name": "OP Mainnet",
-      "chainId": 10,
-      "dexs": [],
-      "topPairs": []
-    },
-    {
       "name": "Gnosis",
       "chainId": 100,
       "dexs": [],
@@ -25,23 +19,6 @@
       "topPairs": []
     },
     {
-      "name": "BNB Smart Chain",
-      "chainId": 56,
-      "dexs": [
-        "PancakeSwap V2",
-        "PancakeSwap V3",
-        "Biswap"
-      ],
-      "topPairs": [
-        {
-          "name": "WBNB/USDC",
-          "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "pairAddress": "0xd99c7f6c65857ac913a8f880a4cb84032ab2fc5b"
-        }
-      ]
-    },
-    {
       "name": "Berachain",
       "chainId": 80094,
       "dexs": [],
@@ -52,9 +29,67 @@
       "chainId": 25,
       "dexs": [],
       "topPairs": []
+    },
+    {
+      "name": "Ethereum",
+      "chainId": 1,
+      "dexs": [
+        "Uniswap V2",
+        "Uniswap V3",
+        "Curve DEX"
+      ],
+      "topPairs": [
+        {
+          "name": "WETH/USDC",
+          "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "token1": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "pairAddress": "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640"
+        },
+        {
+          "name": "WETH/USDT",
+          "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "token1": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+          "pairAddress": "0x4e68ccd3e89f51c3074ca5072bbac773960dfa36"
+        }
+      ]
+    },
+    {
+      "name": "Polygon",
+      "chainId": 137,
+      "dexs": [],
+      "topPairs": []
+    },
+    {
+      "name": "Optimism",
+      "chainId": 10,
+      "dexs": [],
+      "topPairs": []
+    },
+    {
+      "name": "Binance",
+      "chainId": 56,
+      "dexs": [
+        "PancakeSwap V2",
+        "PancakeSwap V3",
+        "Biswap",
+        "Uniswap V3",
+        "Curve DEX",
+        "Uniswap V2",
+        "PancakeSwap AMM",
+        "Uniswap V3",
+        "Curve DEX"
+      ],
+      "topPairs": [
+        {
+          "name": "WBNB/USDC",
+          "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+          "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+          "pairAddress": "0xd99c7f6c65857ac913a8f880a4cb84032ab2fc5b"
+        }
+      ]
     }
   ],
-  "totalChains": 7,
-  "totalDexs": 3,
-  "lastUpdated": 1759688767863
+  "totalChains": 9,
+  "totalDexs": 12,
+  "lastUpdated": 1759690120847
 }

@@ -8,6 +8,32 @@ import { mevScanner } from "./mev-scanner";
 
 export const engineApiRouter = Router();
 
+// Helper function to auto-save and reload engine after config changes
+async function autoSaveAndReload() {
+  try {
+    console.log("🔄 Auto-saving configuration and reloading MEV engine...");
+    
+    // Export configuration to JSON
+    const config = await engineConfigService.exportAndWrite();
+    console.log(`✅ Config exported: ${config.totalChains} chains, ${config.totalDexs} DEXs`);
+    
+    // Stop current scanner
+    mevScanner.stop();
+    
+    // Wait for graceful shutdown
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Restart with new configuration
+    mevScanner.start();
+    console.log("✅ MEV engine reloaded successfully");
+    
+    return true;
+  } catch (error) {
+    console.error("❌ Error in auto-save and reload:", error);
+    return false;
+  }
+}
+
 // GET /api/engine/state - Returns complete engine configuration state
 engineApiRouter.get("/state", async (req, res) => {
   try {
@@ -1029,6 +1055,9 @@ engineApiRouter.post("/chains/toggle", async (req, res) => {
     const action = isActive ? "activated" : "deactivated";
     console.log(`✅ Chain ${chainId} ${action}`);
 
+    // Auto-save and reload engine
+    await autoSaveAndReload();
+
     res.json({
       success: true,
       chainId,
@@ -1117,6 +1146,9 @@ engineApiRouter.post("/dexes/add", async (req, res) => {
       added.push(dexName);
       console.log(`✅ Added DEX: ${dexName} to chain ${chainId}`);
     }
+
+    // Auto-save and reload engine
+    await autoSaveAndReload();
 
     res.json({
       success: true,
