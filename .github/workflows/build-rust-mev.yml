@@ -28,18 +28,12 @@ jobs:
             rust-mev-engine/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       
-      - name: Restore full Cargo.toml
+      - name: Build MEV Engine (Minimal)
         run: |
           cd rust-mev-engine
-          if [ -f Cargo.toml.full ]; then
-            mv Cargo.toml.full Cargo.toml
-          fi
-      
-      - name: Build MEV Engine
-        run: |
-          cd rust-mev-engine
-          cargo build --release --bin mev-engine
-          strip target/release/mev-engine
+          cargo build --release --bin mev-engine-minimal
+          strip target/release/mev-engine-minimal
+          mv target/release/mev-engine-minimal target/release/mev-engine
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4

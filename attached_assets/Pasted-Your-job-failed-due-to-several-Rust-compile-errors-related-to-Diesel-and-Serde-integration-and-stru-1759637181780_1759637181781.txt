@@ -1,0 +1,125 @@
+Your job failed due to several Rust compile errors related to Diesel and Serde integration, and struct/query type mismatches. Here’s how to fix each core issue:
+
+---
+
+### 1. Diesel Insert/Query with `serde_json::Value`
+**Error:**  
+`the trait bound serde_json::Value: diesel::Expression is not satisfied`  
+This means you’re trying to use `serde_json::Value` directly as a Diesel field for a column of type `Jsonb` or `Nullable<Jsonb>`, but the trait implementation for Diesel is missing.
+
+**Solution:**  
+Change your struct definition to use `Option<serde_json::Value>` for JSONB columns, and ensure you use the Diesel-provided `#[diesel(sql_type = Jsonb)]` attribute. Example:
+
+```rust
+use diesel::sql_types::Jsonb;
+use serde_json::Value;
+
+#[derive(Insertable)]
+#[diesel(table_name = your_table)]
+struct YourStruct {
+    #[diesel(sql_type = Jsonb)]
+    your_json_column: Option<Value>,
+}
+```
+And when inserting, wrap your JSON in `Some(...)`:
+
+```rust
+YourStruct { your_json_column: Some(json_value) }
+```
+
+If you’re using `serde_json::json!({...})`, convert it to `Option<Value>` with `.into()`:
+
+```rust
+your_json_column: Some(serde_json::json!({...})).into()
+```
+
+---
+
+### 2. Struct Field/Query Mismatch
+**Error:**  
+`the fields in your struct need to match the fields returned by your query in count, order and type`
+
+**Solution:**  
+Make sure the struct you use for Diesel queries exactly matches the SQL query output—field count, ordering, and types. For example:
+
+- If your query returns `(Text, Integer, Jsonb, BigInt)`, your struct should have fields in that order and matching types.
+- For queries, use `.select(YourStruct::as_select())` if you use `#[derive(Selectable)]`.
+
+Check your table schema vs. struct definition and update as needed.
+
+---
+
+### 3. Serde Serialization Errors
+**Error:**  
+`ChainMetrics: serde::Serialize is not satisfied`, or similar for other types.
+
+**Solution:**  
+Derive `Serialize` for any structs you want to serialize with Serde:
+
+```rust
+#[derive(Serialize)]
+struct ChainMetrics {
+    // fields
+}
+```
+Apply this to all types referenced in serialization errors.
+
+---
+
+### 4. Option Type Conversion
+**Error:**  
+`expected Option<Value>, found Value`  
+**Solution:**  
+Wrap your values in `Some(...)` or use `.into()` to convert:
+
+```rust
+let v: Option<Value> = Some(serde_json::json!({...}));
+```
+Or for macro-generated values:
+
+```rust
+let v = serde_json::json!({...}).into();
+```
+
+---
+
+### 5. Formatting with Debug Trait
+**Error:**  
+`required for &T to implement std::fmt::Debug`  
+**Solution:**  
+Add `Debug` to your generic bounds if you use `format!` or `println!` with generic parameters:
+
+```rust
+fn my_func<T: std::fmt::Debug>(val: T) {
+    println!("{:?}", val);
+}
+```
+
+---
+
+### 6. Numeric Type Ambiguity
+**Error:**  
+`can't call method max on ambiguous numeric type {float}`  
+**Solution:**  
+Specify the type:
+
+```rust
+let x: f64 = ...;
+let y: f64 = ...;
+let max_val = x.max(y);
+```
+
+---
+
+## Summary of Actions
+
+- Update Diesel structs to use `Option<serde_json::Value>` for JSONB columns.
+- Ensure struct field count, type, and order matches your SQL query.
+- Derive `Serialize` for all custom types used in serialization.
+- Convert `serde_json::Value` to `Option<Value>` as needed.
+- Add `Debug` to type bounds for formatted output.
+- Specify numeric types for ambiguous math.
+
+---
+
+If you need help with a specific file or struct, let me know the file path or struct name and I’ll provide exact code changes.
