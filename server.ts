@@ -7,6 +7,7 @@ import { opportunities, assetSafety, executions, engineConfig, wallets, walletBa
 import { desc, eq, and, sql, gte, lte } from "drizzle-orm";
 import { subDays } from "date-fns";
 import { AlertWebSocketServer } from "./server/websocket";
+import { mevScanner } from "./server/mev-scanner";
 
 const CHAIN_NAMES: Record<number, string> = {
   1: "Ethereum",
@@ -1811,5 +1812,9 @@ app.prepare().then(() => {
 
   httpServer.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
+    
+    // Start MEV Scanner for real-time opportunity detection
+    console.log('🔍 Starting MEV Scanner for real-time opportunities...');
+    mevScanner.start().catch(console.error);
   });
 });
