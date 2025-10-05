@@ -8,6 +8,7 @@ import { desc, eq, and, sql, gte, lte } from "drizzle-orm";
 import { subDays } from "date-fns";
 import { AlertWebSocketServer } from "./server/websocket";
 import { mevScanner } from "./server/mev-scanner";
+import { ChainDexFetcher } from "./server/chain-dex-fetcher";
 
 const CHAIN_NAMES: Record<number, string> = {
   1: "Ethereum",
@@ -1799,22 +1800,79 @@ app.prepare().then(() => {
     res.json(status);
   });
 
-  server.get("/api/mev-scanner/details", (req, res) => {
-    const details = {
-      pairs: [
-        { name: "WETH/USDC", chain: "Ethereum", chainId: 1, dexs: ["Uniswap V3", "Uniswap V2", "Sushiswap", "Curve"] },
-        { name: "WETH/USDT", chain: "Ethereum", chainId: 1, dexs: ["Uniswap V3", "Uniswap V2", "Sushiswap"] },
-        { name: "WMATIC/USDC", chain: "Polygon", chainId: 137, dexs: ["Quickswap", "Sushiswap", "Uniswap V3"] },
-        { name: "WETH/USDC", chain: "Arbitrum", chainId: 42161, dexs: ["Uniswap V3", "Camelot", "Sushiswap"] },
-        { name: "WETH/USDC", chain: "Optimism", chainId: 10, dexs: ["Uniswap V3", "Velodrome"] },
-      ],
-      scanInterval: "10 segundos",
-      threshold: "0.5% diferencia de precio",
-      totalChains: 4,
-      totalPairs: 5,
-      status: mevScanner.getStatus()
-    };
-    res.json(details);
+  server.get("/api/mev-scanner/details", async (req, res) => {
+    try {
+      const fetcher = new ChainDexFetcher();
+      const config = await fetcher.loadConfig();
+      
+      if (!config) {
+        return res.json({
+          pairs: [],
+          scanInterval: "10 segundos",
+          threshold: "0.5% diferencia de precio",
+          totalChains: 0,
+          totalPairs: 0,
+          status: mevScanner.getStatus(),
+          message: "Config not generated yet. Call /api/mev-scanner/generate-config"
+        });
+      }
+
+      const pairs = config.chains.flatMap(chain => 
+        chain.topPairs.map(pair => ({
+          name: pair.name,
+          chain: chain.name,
+          chainId: chain.chainId,
+          dexs: chain.dexs
+        }))
+      );
+
+      res.json({
+        pairs: pairs.slice(0, 20),
+        scanInterval: "10 segundos",
+        threshold: "0.5% diferencia de precio",
+        totalChains: config.totalChains,
+        totalPairs: pairs.length,
+        totalDexs: config.totalDexs,
+        status: mevScanner.getStatus(),
+        lastUpdated: new Date(config.lastUpdated).toISOString()
+      });
+    } catch (error) {
+      console.error("Error getting MEV scanner details:", error);
+      res.status(500).json({ error: "Failed to get scanner details" });
+    }
+  });
+
+  server.post("/api/mev-scanner/generate-config", async (req, res) => {
+    try {
+      const minChains = parseInt(req.body?.minChains || "100");
+      const fetcher = new ChainDexFetcher();
+      
+      console.log(`🔄 Generating MEV scan config for ${minChains}+ chains...`);
+      const config = await fetcher.generateScanConfig(minChains);
+      
+      res.json({
+        success: true,
+        config: {
+          totalChains: config.totalChains,
+          totalDexs: config.totalDexs,
+          lastUpdated: new Date(config.lastUpdated).toISOString()
+        }
+      });
+    } catch (error) {
+      console.error("Error generating config:", error);
+      res.status(500).json({ error: "Failed to generate config" });
+    }
+  });
+
+  server.get("/api/mev-scanner/config", async (req, res) => {
+    try {
+      const fetcher = new ChainDexFetcher();
+      const config = await fetcher.getOrGenerateConfig(100);
+      res.json(config);
+    } catch (error) {
+      console.error("Error getting config:", error);
+      res.status(500).json({ error: "Failed to get config" });
+    }
   });
 
   server.all("*", async (req, res) => {
