@@ -74,7 +74,7 @@ export class EngineConfigService {
             name: `${baseAsset.symbol}/${quoteAsset.symbol}`,
             token0: pair.baseAddr,
             token1: pair.quoteAddr,
-            pairAddress: "0x0000000000000000000000000000000000000000", // Placeholder
+            pairAddress: pair.pairAddr || "0x0000000000000000000000000000000000000000",
           });
         }
       }

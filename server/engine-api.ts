@@ -2,16 +2,18 @@ import { Router } from "express";
 import { db } from "./db";
 import { chains, chainRpcs, chainDexes, assets, pairs, policies, configVersions } from "@shared/schema";
 import { eq, and, sql, gte, inArray } from "drizzle-orm";
+import { engineConfigService } from "./engine-config-service";
+import { mevScanner } from "./mev-scanner";
 
 export const engineApiRouter = Router();
 
 // GET /api/engine/state - Returns complete engine configuration state
 engineApiRouter.get("/state", async (req, res) => {
   try {
-    const [chainsData, rpcsData, dexesData, assetsData, pairsData, policiesData] = await Promise.all([
+    const [chainsData, rpcsData, allDexesData, assetsData, pairsData, policiesData] = await Promise.all([
       db.select().from(chains),
-      db.select().from(chainRpcs).where(eq(chainRpcs.isActive, true)),
-      db.select().from(chainDexes).where(eq(chainDexes.isActive, true)),
+      db.select().from(chainRpcs),
+      db.select().from(chainDexes),
       db.select().from(assets).where(gte(assets.riskScore, 0)),
       db.select().from(pairs).where(eq(pairs.enabled, true)),
       db.select().from(policies),
@@ -23,13 +25,18 @@ engineApiRouter.get("/state", async (req, res) => {
         name: chain.name,
         chainId: chain.chainId,
         evm: chain.evm,
+        isActive: chain.isActive,
         metamask: chain.metamaskJson,
         rpcs: rpcsData.filter(r => r.chainId === chain.chainId).map(r => ({
           url: r.url,
+          isActive: r.isActive,
           latencyMs: r.lastLatencyMs,
           lastOkAt: r.lastOkAt,
         })),
-        dexes: dexesData.filter(d => d.chainId === chain.chainId).map(d => d.dex),
+        dexes: allDexesData.filter(d => d.chainId === chain.chainId).map(d => ({
+          name: d.dex,
+          isActive: d.isActive,
+        })),
       })),
       assets: assetsData.map(asset => ({
         chainId: asset.chainId,
@@ -871,5 +878,78 @@ engineApiRouter.post("/discover", async (req, res) => {
   } catch (error) {
     console.error("Error discovering chains:", error);
     res.status(500).json({ error: "Failed to discover chains" });
+  }
+});
+
+// POST /api/engine/export - Export DB configuration to mev-scan-config.json
+engineApiRouter.post("/export", async (req, res) => {
+  try {
+    console.log("📤 Exporting configuration from database to JSON...");
+    const config = await engineConfigService.exportAndWrite();
+    
+    res.json({
+      success: true,
+      config,
+      message: "Configuration exported to mev-scan-config.json"
+    });
+  } catch (error: any) {
+    console.error("Error exporting config:", error);
+    res.status(500).json({ error: error?.message || "Failed to export configuration" });
+  }
+});
+
+// POST /api/engine/reload - Reload RUST MEV engine with new configuration
+engineApiRouter.post("/reload", async (req, res) => {
+  try {
+    console.log("🔄 Reloading MEV engine...");
+    
+    // Stop the current scanner
+    mevScanner.stop();
+    
+    // Wait a bit for graceful shutdown
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Start with new configuration
+    mevScanner.start();
+    
+    res.json({
+      success: true,
+      message: "MEV engine reloaded successfully",
+      timestamp: Date.now()
+    });
+  } catch (error: any) {
+    console.error("Error reloading MEV engine:", error);
+    res.status(500).json({ error: error?.message || "Failed to reload MEV engine" });
+  }
+});
+
+// POST /api/engine/chains/toggle - Activate/Deactivate blockchain
+engineApiRouter.post("/chains/toggle", async (req, res) => {
+  try {
+    const { chainId, isActive } = req.body;
+    
+    if (chainId === undefined || isActive === undefined) {
+      return res.status(400).json({ error: "chainId and isActive are required" });
+    }
+
+    await db.update(chains)
+      .set({ 
+        isActive,
+        updatedAt: new Date()
+      })
+      .where(eq(chains.chainId, chainId));
+
+    const action = isActive ? "activated" : "deactivated";
+    console.log(`✅ Chain ${chainId} ${action}`);
+
+    res.json({
+      success: true,
+      chainId,
+      isActive,
+      message: `Chain ${action} successfully`
+    });
+  } catch (error: any) {
+    console.error("Error toggling chain:", error);
+    res.status(500).json({ error: error?.message || "Failed to toggle chain" });
   }
 });

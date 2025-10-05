@@ -160,8 +160,31 @@ The system employs a 3-tier architecture:
 -   **Sidebar Integration**: Added navigation links for both admin pages
 
 #### System Status
--   3 blockchains configured (Ethereum, BSC, Base)
+-   9 blockchains configured (Ethereum, BSC, Base, Polygon, Cronos, Berachain, OP Mainnet, Gnosis, Scroll)
 -   5 assets with risk scores (WETH:100, USDC:100, USDT:30, WBNB:0, USDC-BSC:0)
 -   3 trading pairs active
--   11/14 RPCs healthy (avg latency: 118-201ms)
+-   6 active DEXs (Uniswap V2, V3, Curve DEX, PancakeSwap V2, V3, Biswap)
 -   GoPlus Security API operational (30+ blockchains supported)
+
+### New Features (October 5, 2025 - Session 3)
+
+#### Database to Engine Persistence Flow
+-   **Engine Config Export** (`POST /cf/engine/export`): Exports configuration from PostgreSQL to mev-scan-config.json (chains, DEXs, pairs with real pool addresses)
+-   **Engine Reload** (`POST /cf/engine/reload`): Restarts RUST MEV engine to load new configuration
+-   **Chain Toggle** (`POST /cf/engine/chains/toggle`): Activate/deactivate blockchains from scanning
+-   **Enhanced State Endpoint** (`GET /cf/engine/state`): Returns complete DEX breakdown per blockchain with activation flags
+-   **Pair Addresses**: Added `pair_addr` column to pairs table for real pool addresses
+
+#### Frontend Updates
+-   **Enhanced Admin Blockchains UI** (`/admin/chains`):
+    - Shows DEX breakdown per blockchain (e.g., "Uniswap V2, Uniswap V3, Curve DEX")
+    - "Exportar Config" button to generate mev-scan-config.json from database
+    - "Recargar Motor" button to restart RUST engine with new configuration
+    - "Activar/Desactivar" button per blockchain to control scanning
+    - Visual indicators for active/inactive chains and DEXs
+
+#### Persistence Flow Verified
+-   ✅ Motor changes from "6 chains, 30 DEXs" (hardcoded) to "9 chains, 6 DEXs" (database)
+-   ✅ RUST engine successfully scans Ethereum pairs (WETH/USDC, WETH/USDT) with real pool addresses
+-   ✅ Dynamic configuration from PostgreSQL → JSON → RUST engine working end-to-end
+-   ✅ User can add blockchains via auto-discovery and motor automatically includes them after export+reload

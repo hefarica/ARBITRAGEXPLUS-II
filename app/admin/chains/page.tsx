@@ -38,6 +38,7 @@ interface Chain {
   dexCount?: number;
   healthyRpcs?: number;
   avgLatency?: number;
+  dexes?: string[];
 }
 
 interface RPC {
@@ -56,6 +57,8 @@ export default function ChainsAdminPage() {
   const [healthChecking, setHealthChecking] = useState(false);
   const [selectedChain, setSelectedChain] = useState<number | null>(null);
   const [rpcs, setRpcs] = useState<RPC[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [reloading, setReloading] = useState(false);
 
   const fetchChains = async () => {
     try {
@@ -67,11 +70,12 @@ export default function ChainsAdminPage() {
         chainId: chain.chainId,
         name: chain.name,
         isEvm: chain.evm,
-        isActive: true,
+        isActive: chain.isActive || false,
         rpcCount: chain.rpcs?.length || 0,
-        dexCount: chain.dexes?.length || 0,
-        healthyRpcs: chain.rpcs?.filter((r: any) => r.lastOkAt && r.lastOkAt > Date.now() - 300000).length || 0,
+        dexCount: chain.dexes?.filter((d: any) => d.isActive).length || 0,
+        healthyRpcs: chain.rpcs?.filter((r: any) => r.isActive && r.lastOkAt && r.lastOkAt > Date.now() - 300000).length || 0,
         avgLatency: calculateAvgLatency(chain.rpcs || []),
+        dexes: chain.dexes?.filter((d: any) => d.isActive).map((d: any) => d.name) || [],
       }));
       
       setChains(chainsWithCounts);
@@ -116,6 +120,78 @@ export default function ChainsAdminPage() {
       toast.error("Error ejecutando auto-discovery");
     } finally {
       setDiscovering(false);
+    }
+  };
+
+  const toggleChain = async (chainId: number, isActive: boolean) => {
+    try {
+      const response = await fetch("/cf/engine/chains/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chainId, isActive }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(`Blockchain ${isActive ? "activada" : "desactivada"}`);
+        await fetchChains();
+      } else {
+        toast.error("Error al cambiar estado");
+      }
+    } catch (error) {
+      console.error("Error toggling chain:", error);
+      toast.error("Error al cambiar estado de blockchain");
+    }
+  };
+
+  const exportConfig = async () => {
+    try {
+      setExporting(true);
+      toast.info("Exportando configuración a JSON...");
+      
+      const response = await fetch("/cf/engine/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(`Config exportada: ${data.config.totalChains} chains, ${data.config.totalDexs} DEXs`);
+      } else {
+        toast.error("Error al exportar configuración");
+      }
+    } catch (error) {
+      console.error("Error exporting config:", error);
+      toast.error("Error exportando configuración");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const reloadEngine = async () => {
+    try {
+      setReloading(true);
+      toast.info("Recargando motor MEV RUST...");
+      
+      const response = await fetch("/cf/engine/reload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success("Motor MEV recargado exitosamente");
+      } else {
+        toast.error("Error al recargar motor");
+      }
+    } catch (error) {
+      console.error("Error reloading engine:", error);
+      toast.error("Error recargando motor MEV");
+    } finally {
+      setReloading(false);
     }
   };
 
@@ -202,13 +278,29 @@ export default function ChainsAdminPage() {
             )}
             Health Check
           </Button>
-          <Button onClick={runAutoDiscovery} disabled={discovering}>
+          <Button onClick={runAutoDiscovery} disabled={discovering} variant="outline">
             {discovering ? (
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
             ) : (
               <Search className="h-4 w-4 mr-2" />
             )}
             Auto-Discovery
+          </Button>
+          <Button onClick={exportConfig} disabled={exporting} variant="outline">
+            {exporting ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Server className="h-4 w-4 mr-2" />
+            )}
+            Exportar Config
+          </Button>
+          <Button onClick={reloadEngine} disabled={reloading}>
+            {reloading ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Recargar Motor
           </Button>
         </div>
       </div>
@@ -260,7 +352,34 @@ export default function ChainsAdminPage() {
                   </div>
                 )}
 
+                {chain.dexes && chain.dexes.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-muted-foreground">
+                      DEXs configurados ({chain.dexes.length}):
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {chain.dexes.slice(0, 4).map((dex) => (
+                        <Badge key={dex} variant="secondary" className="text-xs">
+                          {dex}
+                        </Badge>
+                      ))}
+                      {chain.dexes.length > 4 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{chain.dexes.length - 4} más
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex gap-2 pt-2">
+                  <Button
+                    variant={chain.isActive ? "destructive" : "default"}
+                    size="sm"
+                    onClick={() => toggleChain(chain.chainId, !chain.isActive)}
+                  >
+                    {chain.isActive ? "Desactivar" : "Activar"}
+                  </Button>
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button

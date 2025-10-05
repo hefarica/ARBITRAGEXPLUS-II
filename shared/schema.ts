@@ -264,6 +264,7 @@ export const pairs = pgTable("pairs", {
   chainId: bigint("chain_id", { mode: "number" }).notNull().references(() => chains.chainId, { onDelete: "cascade" }),
   baseAddr: varchar("base_addr", { length: 42 }).notNull(),
   quoteAddr: varchar("quote_addr", { length: 42 }).notNull(),
+  pairAddr: varchar("pair_addr", { length: 42 }),
   enabled: boolean("enabled").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

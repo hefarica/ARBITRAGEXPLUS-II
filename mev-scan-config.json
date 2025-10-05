@@ -1,145 +1,89 @@
 {
   "chains": [
     {
-      "name": "Base",
-      "chainId": 8453,
+      "name": "Ethereum",
+      "chainId": 1,
       "dexs": [
-        "Aerodrome Slipstream",
-        "Aerodrome V1",
-        "PancakeSwap AMM",
         "Uniswap V2",
-        "Quickswap Dex"
+        "Uniswap V3",
+        "Curve DEX"
       ],
       "topPairs": [
         {
           "name": "WETH/USDC",
-          "token0": "0x4200000000000000000000000000000000000006",
-          "token1": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "token1": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "pairAddress": "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640"
+        },
+        {
+          "name": "WETH/USDT",
+          "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "token1": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+          "pairAddress": "0x4e68ccd3e89f51c3074ca5072bbac773960dfa36"
+        }
+      ]
+    },
+    {
+      "name": "BNB Smart Chain",
+      "chainId": 56,
+      "dexs": [
+        "PancakeSwap V2",
+        "PancakeSwap V3",
+        "Biswap"
+      ],
+      "topPairs": [
+        {
+          "name": "WBNB/USDC",
+          "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+          "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "pairAddress": "0xd0b53d9277642d899df5c87a3966a349a798f224"
         }
       ]
     },
     {
-      "name": "Ethereum",
-      "chainId": 1,
-      "dexs": [
-        "PancakeSwap AMM",
-        "Uniswap V2",
-        "Curve DEX",
-        "Ouchi Finance",
-        "IDEX V1"
-      ],
-      "topPairs": [
-        {
-          "name": "WETH/USDC",
-          "token0": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-          "token1": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-          "pairAddress": "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640"
-        },
-        {
-          "name": "WETH/USDT",
-          "token0": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-          "token1": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-          "pairAddress": "0x4e68ccd3e89f51c3074ca5072bbac773960dfa36"
-        },
-        {
-          "name": "WBTC/USDC",
-          "token0": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
-          "token1": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-          "pairAddress": "0x99ac8ca7087fa4a2a1fb6357269965a2014abc35"
-        }
-      ]
-    },
-    {
-      "name": "Arbitrum",
-      "chainId": 42161,
-      "dexs": [
-        "PancakeSwap AMM",
-        "Uniswap V2",
-        "Curve DEX",
-        "Uniswap V3",
-        "Uniswap V4"
-      ],
-      "topPairs": [
-        {
-          "name": "WETH/USDC",
-          "token0": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-          "token1": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
-          "pairAddress": "0xc31e54c7a869b9fcbecc14363cf510d1c41fa443"
-        },
-        {
-          "name": "WETH/USDT",
-          "token0": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-          "token1": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
-          "pairAddress": "0xcda53b1f66614552f834ceef361a8d12a0b8dad8"
-        }
-      ]
-    },
-    {
-      "name": "Avalanche",
-      "chainId": 43114,
-      "dexs": [
-        "Uniswap V2",
-        "Blackhole CLMM",
-        "Curve DEX",
-        "Uniswap V3",
-        "Uniswap V4"
-      ],
-      "topPairs": [
-        {
-          "name": "WAVAX/USDC",
-          "token0": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
-          "token1": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-          "pairAddress": "0xf4003f4efbe8691b60249e6afbd307abe7758adb"
-        }
-      ]
+      "name": "Base",
+      "chainId": 8453,
+      "dexs": [],
+      "topPairs": []
     },
     {
       "name": "Polygon",
       "chainId": 137,
-      "dexs": [
-        "Uniswap V2",
-        "Quickswap Dex",
-        "Curve DEX",
-        "Uniswap V3",
-        "Uniswap V4"
-      ],
-      "topPairs": [
-        {
-          "name": "WMATIC/USDC",
-          "token0": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
-          "token1": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-          "pairAddress": "0xa374094527e1673a86de625aa59517c5de346d32"
-        },
-        {
-          "name": "WETH/USDC",
-          "token0": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
-          "token1": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-          "pairAddress": "0x45dda9cb7c25131df268515131f647d726f50608"
-        }
-      ]
+      "dexs": [],
+      "topPairs": []
     },
     {
-      "name": "Optimism",
+      "name": "Cronos",
+      "chainId": 25,
+      "dexs": [],
+      "topPairs": []
+    },
+    {
+      "name": "Berachain",
+      "chainId": 80094,
+      "dexs": [],
+      "topPairs": []
+    },
+    {
+      "name": "OP Mainnet",
       "chainId": 10,
-      "dexs": [
-        "Uniswap V2",
-        "Curve DEX",
-        "Uniswap V3",
-        "Uniswap V4",
-        "Balancer V3"
-      ],
-      "topPairs": [
-        {
-          "name": "WETH/USDC",
-          "token0": "0x4200000000000000000000000000000000000006",
-          "token1": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
-          "pairAddress": "0x85149247691df622eaf1a8bd0cafd40bc45154a9"
-        }
-      ]
+      "dexs": [],
+      "topPairs": []
+    },
+    {
+      "name": "Gnosis",
+      "chainId": 100,
+      "dexs": [],
+      "topPairs": []
+    },
+    {
+      "name": "Scroll",
+      "chainId": 534352,
+      "dexs": [],
+      "topPairs": []
     }
   ],
-  "totalChains": 6,
-  "totalDexs": 30,
-  "lastUpdated": 1759644049247
+  "totalChains": 9,
+  "totalDexs": 6,
+  "lastUpdated": 1759688063495
 }
