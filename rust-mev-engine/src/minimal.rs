@@ -76,7 +76,7 @@ async fn fetch_dex_prices(pair_address: &str, chain_id: i32) -> Result<Vec<DexPa
     Ok(response.pairs.unwrap_or_default())
 }
 
-fn calculate_arbitrage(pairs: &[DexPair]) -> Option<Opportunity> {
+fn calculate_arbitrage(pairs: &[DexPair], token0: &str, token1: &str, chain_id: i32) -> Option<Opportunity> {
     if pairs.len() < 2 {
         return None;
     }
@@ -119,14 +119,12 @@ fn calculate_arbitrage(pairs: &[DexPair]) -> Option<Opportunity> {
         return None;
     }
 
-    let chain_id_num: i32 = buy_pair.chain_id.parse().unwrap_or(1);
-
     Some(Opportunity {
-        chain_id: chain_id_num,
+        chain_id,
         dex_in: buy_pair.dex_id.clone(),
         dex_out: sell_pair.dex_id.clone(),
-        base_token: "".to_string(),
-        quote_token: "".to_string(),
+        base_token: token0.to_string(),
+        quote_token: token1.to_string(),
         amount_in: format!("{:.2}", trade_size),
         est_profit_usd: net_profit,
         gas_usd: gas_cost,
@@ -134,11 +132,13 @@ fn calculate_arbitrage(pairs: &[DexPair]) -> Option<Opportunity> {
     })
 }
 
-fn log_opportunity(opp: &Opportunity, base_token: &str, quote_token: &str) {
+fn log_opportunity(opp: &Opportunity, pair_name: &str, _unused: &str) {
     println!("✅ OPPORTUNITY FOUND:");
     println!("   Chain: {}", opp.chain_id);
     println!("   Route: {} → {}", opp.dex_in, opp.dex_out);
-    println!("   Pair: {}/{}", base_token, quote_token);
+    println!("   Pair: {}", pair_name);
+    println!("   BaseToken: {}", opp.base_token);
+    println!("   QuoteToken: {}", opp.quote_token);
     println!("   Profit: ${:.2} USD", opp.est_profit_usd);
     println!("   ROI: {:.2}%", (opp.est_profit_usd / opp.est_profit_usd.max(1.0)) * 100.0);
     println!();
@@ -150,7 +150,7 @@ async fn main() -> Result<()> {
 
     println!("🚀 MEV Engine Minimal v3.6.0 - RUST");
     println!("📊 Scanning {} popular pairs across chains", POPULAR_PAIRS.len());
-    println!("🔄 Scan interval: 30 seconds");
+    println!("🔄 Scan interval: 10 seconds");
     println!("⚡ Real-time arbitrage detection active\n");
 
     loop {
@@ -160,8 +160,8 @@ async fn main() -> Result<()> {
         for (name, chain_id, token0, token1, pair_addr) in POPULAR_PAIRS {
             match fetch_dex_prices(pair_addr, *chain_id).await {
                 Ok(pairs) => {
-                    if let Some(opp) = calculate_arbitrage(&pairs) {
-                        log_opportunity(&opp, token0, token1);
+                    if let Some(opp) = calculate_arbitrage(&pairs, token0, token1, *chain_id) {
+                        log_opportunity(&opp, name, "");
                         found += 1;
                     }
                 }
@@ -175,6 +175,6 @@ async fn main() -> Result<()> {
 
         println!("🎯 Scan complete. Found {} opportunities\n", found);
         
-        tokio::time::sleep(Duration::from_secs(30)).await;
+        tokio::time::sleep(Duration::from_secs(10)).await; // 10 segundos como solicitó el usuario
     }
 }

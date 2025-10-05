@@ -7,6 +7,8 @@ interface OpportunityMatch {
   chain: string;
   route: string;
   pair: string;
+  baseToken?: string;
+  quoteToken?: string;
   profit: string;
   roi: string;
 }
@@ -30,7 +32,7 @@ export class MEVScanner {
   private async runContinuous() {
     while (this.isRunning) {
       await this.runScan();
-      await new Promise((resolve) => setTimeout(resolve, 30000)); // 30 seconds
+      await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 seconds - TIEMPO REAL
     }
   }
 
@@ -83,6 +85,10 @@ export class MEVScanner {
         currentOpp.route = line.split("Route:")[1]?.trim() || "";
       } else if (line.includes("Pair:")) {
         currentOpp.pair = line.split("Pair:")[1]?.trim() || "";
+      } else if (line.includes("BaseToken:")) {
+        currentOpp.baseToken = line.split("BaseToken:")[1]?.trim() || "";
+      } else if (line.includes("QuoteToken:")) {
+        currentOpp.quoteToken = line.split("QuoteToken:")[1]?.trim() || "";
       } else if (line.includes("Profit:")) {
         currentOpp.profit = line.split("Profit:")[1]?.trim() || "";
       } else if (line.includes("ROI:")) {
@@ -104,9 +110,6 @@ export class MEVScanner {
     for (const opp of opportunities) {
       try {
         const [dexIn, dexOut] = opp.route.split("→").map((s) => s.trim());
-        const [baseToken, quoteToken] = opp.pair
-          .split("/")
-          .map((s) => s.trim());
         const profitUsd = parseFloat(
           opp.profit.replace("$", "").replace(" USD", "")
         );
@@ -116,11 +119,11 @@ export class MEVScanner {
           chainId: parseInt(opp.chain),
           dexIn: dexIn || "unknown",
           dexOut: dexOut || "unknown",
-          baseToken: baseToken || "unknown",
-          quoteToken: quoteToken || "unknown",
-          amountIn: "1000.0", // Default trade size
+          baseToken: opp.baseToken || opp.pair.split("/")[0] || "unknown",
+          quoteToken: opp.quoteToken || opp.pair.split("/")[1] || "unknown",
+          amountIn: "1000.0",
           estProfitUsd: profitUsd,
-          gasUsd: 15.0, // Default gas cost
+          gasUsd: 15.0,
           ts: Date.now(),
           isTestnet: false,
         });
