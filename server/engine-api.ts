@@ -142,7 +142,9 @@ engineApiRouter.post("/addChain", async (req, res) => {
       }).onConflictDoNothing();
     }
 
-    res.json({ success: true, chain, message: "Chain added successfully" });
+    await autoSaveAndReload();
+
+    res.json({ success: true, chain, message: "Chain added successfully and config reloaded" });
   } catch (error) {
     console.error("Error adding chain:", error);
     res.status(500).json({ error: "Failed to add chain" });
@@ -193,7 +195,9 @@ engineApiRouter.post("/updateChain", async (req, res) => {
       }
     }
 
-    res.json({ success: true, message: "Chain updated successfully" });
+    await autoSaveAndReload();
+
+    res.json({ success: true, message: "Chain updated successfully and config reloaded" });
   } catch (error) {
     console.error("Error updating chain:", error);
     res.status(500).json({ error: "Failed to update chain" });
@@ -211,7 +215,9 @@ engineApiRouter.post("/removeChain", async (req, res) => {
 
     await db.delete(chains).where(eq(chains.chainId, Number(chainId)));
 
-    res.json({ success: true, message: "Chain removed successfully" });
+    await autoSaveAndReload();
+
+    res.json({ success: true, message: "Chain removed successfully and config reloaded" });
   } catch (error) {
     console.error("Error removing chain:", error);
     res.status(500).json({ error: "Failed to remove chain" });
@@ -277,7 +283,9 @@ engineApiRouter.post("/addDex", async (req, res) => {
       isActive: true,
     }).onConflictDoNothing();
 
-    res.json({ success: true, message: "DEX added successfully" });
+    await autoSaveAndReload();
+
+    res.json({ success: true, message: "DEX added successfully and config reloaded" });
   } catch (error) {
     console.error("Error adding DEX:", error);
     res.status(500).json({ error: "Failed to add DEX" });
@@ -299,7 +307,9 @@ engineApiRouter.post("/removeDex", async (req, res) => {
         eq(chainDexes.dex, dex)
       ));
 
-    res.json({ success: true, message: "DEX removed successfully" });
+    await autoSaveAndReload();
+
+    res.json({ success: true, message: "DEX removed successfully and config reloaded" });
   } catch (error) {
     console.error("Error removing DEX:", error);
     res.status(500).json({ error: "Failed to remove DEX" });
@@ -341,7 +351,9 @@ engineApiRouter.post("/assets/upsert", async (req, res) => {
       });
     }
 
-    res.json({ success: true, inserted: assetsList.length, message: "Assets upserted successfully" });
+    await autoSaveAndReload();
+
+    res.json({ success: true, inserted: assetsList.length, message: "Assets upserted successfully and config reloaded" });
   } catch (error) {
     console.error("Error upserting assets:", error);
     res.status(500).json({ error: "Failed to upsert assets" });
@@ -588,7 +600,9 @@ engineApiRouter.post("/pairs/generate", async (req, res) => {
       }
     }
 
-    res.json({ success: true, generated: generatedPairs.length, pairs: generatedPairs });
+    await autoSaveAndReload();
+
+    res.json({ success: true, generated: generatedPairs.length, pairs: generatedPairs, message: "Pairs generated and config reloaded" });
   } catch (error) {
     console.error("Error generating pairs:", error);
     res.status(500).json({ error: "Failed to generate pairs" });
@@ -711,7 +725,9 @@ engineApiRouter.post("/pairs/upsert", async (req, res) => {
       });
     }
 
-    res.json({ success: true, upserted: results.length, message: "Pairs upserted successfully" });
+    await autoSaveAndReload();
+
+    res.json({ success: true, upserted: results.length, message: "Pairs upserted successfully and config reloaded" });
   } catch (error) {
     console.error("Error upserting pairs:", error);
     res.status(500).json({ error: "Failed to upsert pairs" });
@@ -757,10 +773,42 @@ engineApiRouter.post("/policies/upsert", async (req, res) => {
       },
     });
 
-    res.json({ success: true, message: "Policy updated successfully" });
+    await autoSaveAndReload();
+
+    res.json({ success: true, message: "Policy updated successfully and config reloaded" });
   } catch (error) {
     console.error("Error upserting policy:", error);
     res.status(500).json({ error: "Failed to upsert policy" });
+  }
+});
+
+// POST /api/engine/config/export - Manual trigger for config export and engine reload
+engineApiRouter.post("/config/export", async (req, res) => {
+  try {
+    console.log("🔄 Manual config export triggered from frontend...");
+    
+    const success = await autoSaveAndReload();
+    
+    if (success) {
+      const config = await engineConfigService.exportToJson(false);
+      res.json({ 
+        success: true, 
+        message: "Configuration exported and MEV engine reloaded successfully",
+        stats: {
+          totalChains: config.totalChains,
+          totalDexs: config.totalDexs,
+          totalPairs: config.chains.reduce((sum, ch) => sum + ch.topPairs.length, 0),
+        }
+      });
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to export config or reload engine" 
+      });
+    }
+  } catch (error: any) {
+    console.error("Error in manual config export:", error);
+    res.status(500).json({ error: error?.message || "Failed to export configuration" });
   }
 });
 

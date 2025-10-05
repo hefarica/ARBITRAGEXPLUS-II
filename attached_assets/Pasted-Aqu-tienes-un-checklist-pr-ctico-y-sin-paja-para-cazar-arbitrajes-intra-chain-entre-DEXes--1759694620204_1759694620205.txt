@@ -1,0 +1,93 @@
+Aquí tienes un “checklist” práctico (y sin paja) para cazar arbitrajes **intra-chain** entre DEXes:
+
+# 1) Datos y normalización (evita falsos positivos)
+
+* **Direcciones canónicas**, nunca por símbolo. Mantén map por `chainId` (WETH/WBNB/WAVAX; USDC/USDC.e/bridged).
+* **Pool ID único = `dexId|pairAddress`**. No dedup por símbolo; en V3 cada *fee tier* (0.01/0.05/0.3/1%) es otro pool.
+* **Filtros blandos**: usa liquidez/volumen para priorizar, no para descartar. Ej.: `liquidityUSD >= 10k` y ordena por `liq * volume24h`.
+* **Tokens “raros”**: marca `transferTax`, rebasing, blacklists, pausables; ignóralos o simula *exactOut* para detectar impuestos.
+
+# 2) Qué pares y rutas mirar primero
+
+* **Triada base**: WETH/WNATIVE ↔ USDC/USDT/DAI y sus *triangulaciones* (p. ej. WETH→USDC, USDC→TOKEN, TOKEN→WETH).
+* **Rutas “dos saltos”**: a veces no hay desbalance directo, sí vía *bridge asset* (WETH↔USDC↔TOKEN).
+* **V2 vs V3**: compara V2 vs V3 (y entre *fee tiers*). V3 suele tener mejores precios en tiers bajos, pero menos profundidad.
+
+# 3) Cálculo de precio y slippage (conservador)
+
+* **V2 (x*y=k)**: precio con reservas en *on-chain state*. Simula `getAmountOut` y **aplica tu propio slippage** (ε).
+* **V3**: usa *ticks* + `sqrtPriceX96` ⇒ convierte a precio y **aplica impacto de precio** por tamaño.
+* **Siempre simula** la **ruta completa** con el tamaño real que vas a enviar: salida de DEX A = entrada de DEX B.
+* **Fee model**: suma *fee* de cada hop (V2: `0.30%` típico; V3: tier exacto).
+* **Tokens con impuestos**: simula *exactOut*; si no soporta, descarta.
+
+> **Margen neto = (salida_final – entrada_inicial) – gas – propina – costos de bundle – tolerancia de fallo**.
+> Requiere que `margen_neto > 0` con buffer (p. ej. +20–30%) para ganarle a la competencia.
+
+# 4) Gas, prioridad y ventana temporal
+
+* Estima **gas por spicy path** (aprobación + swap + swap; o flash-loan + rutas + repago).
+* **Priority fee dinámica**: usa mediana de los últimos N bloques + delta (compite con otros bots).
+* Si tu tx no entra en **N bloques** (p. ej. 2–3), invalídala (hay *adverse selection*).
+* **Block time y burst**: redes con bloques rápidos cierran ventanas antes; usa WSS y baja latencia.
+
+# 5) Fuentes y latencia
+
+* **RPCs WSS** dedicados (al menos 2–3) + 2 HTTPS; mides **p95** (no sólo promedio).
+* **Estrategia**: lee `pending` + `latest` por WSS; confirmas estado contra HTTPS de baja latencia; quórum simple si discrepan.
+
+# 6) Competencia y MEV
+
+* **Protege la tx**: usa **Flashbots / mev-share / bloXroute** (según chain) para evitar sandwich/copia.
+* **Bundles atómicos**: arbitraje + repago flash-loan en un bundle. Si falla cualquier paso, todo revierte.
+* **No publiques mempool** tus rutas rentables si puedes evitarlo.
+
+# 7) Resiliencia de ejecución
+
+* **Simulación previa** (fork local o `eth_call` en el mismo bloque/timestamp) con el **gasPrice** final.
+* **Reverts** comunes: allowance insuficiente, ruta sin liquidez al min, `price impact too high`, tokens con fee.
+* **Retry policy**: si el precio se te va, **no subas gas “a ciegas”**; re-evalúa precio y margen.
+
+# 8) Señales que valen la pena
+
+* **Eventos**: listados nuevos, migraciones de incentivos, cambios en *fee tier*, gran order en un CEX (si tienes señal).
+* **Oráculos y TWAP**: cuando un DEX usa TWAP o retraso, hay ventanas donde spot ≠ TWAP.
+* **Bridged vs native**: confusiones USDC/USDC.e generan desbalances frecuentes.
+
+# 9) Control de riesgos
+
+* **Cap por trade** (p. ej. 0.5–2% del TVL del pool más pequeño).
+* **Límites por par/día** y *drawdown stop*.
+* **Circuit-breaker** si tasa de reverts > X% o si el gas medio sube por encima de umbral.
+
+# 10) Observabilidad que ayuda a depurar
+
+* Log por oportunidad: `chain`, `route`, `in/out`, `slippage`, `gas_est`, `priority`, `net_pnl`, **pairAddress** y **dexId**.
+* Log de **por qué se descartó**: sin liquidez, reverts, margen < umbral, data stale, token con fee, etc.
+* Métricas: `opp/s`, `fills`, `fill_rate`, `pnl`, `reverts`, `avg inclusion blocks`, `rpc p95`.
+
+# 11) Cosas que suelen romper bots
+
+* Deduplicar por símbolo (ya lo viste) → **siempre pairAddress**.
+* Tratar V3 como un único pool → **cada fee tier es otro pool**.
+* No distinguir `USDC` vs `USDC.e`.
+* Ignorar *transfer tax* y “anti-MEV” tokens.
+* No chequear **path approval** (permit/approve).
+* Calcular margen sin **gas real** ni **priority fee** real.
+
+# 12) Pipeline sugerido (mínimo sólido)
+
+1. **Discovery** por direcciones canónicas → pools únicos `dexId|pairAddress` (incl. V3 tiers).
+2. **Snapshot** de reservas/precios (WSS) + latencias y health de RPC.
+3. **Scanner** que prueba tamaños discretos (logscale) y calcula margen neto.
+4. **Guarda** top-K rutas por par con timestamp/bloque.
+5. **Executor** que simula, arma **bundle** y envía; con **stop-loss por bloque**.
+6. **Feedback loop**: baja/eleva gas según *fill rate* y competencia.
+
+---
+
+Si quieres, te preparo:
+
+* un **módulo de descubrimiento** que consulta DexScreener por **dirección** (no símbolo) y emite `[{dexId,pairAddress,feeTier,liquidity}]`,
+* un **simulador** V2/V3 de *exactIn/exactOut* con slippage y gas,
+* y un **selector** de oportunidades que ya te devuelva `arrays` listos para tu ENGINE (rutas/DEXes por cadena) con umbral configurable.

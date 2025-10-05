@@ -89,6 +89,50 @@ The system heavily relies on a PostgreSQL database for dynamic configuration man
 -   **Grafana (Optional):** Metrics visualization.
 -   **Prometheus (Optional):** Metrics collection.
 
+## Dynamic Configuration System (October 2025)
+
+### Sistema Completamente Configurable desde Frontend
+**Achievement**: Sistema 100% dinámico - Frontend → DB → RUST Engine con auto-reload en tiempo real
+
+**Arquitectura de 3 Capas:**
+1. **Frontend Admin** (`/admin/chains`, `/admin/assets`, etc.) - UI para configuración
+2. **PostgreSQL Database** - Almacenamiento de chains, DEXs, assets, pairs, policies
+3. **RUST MEV Engine** - Lee `mev-scan-config.json` generado dinámicamente desde DB
+
+**Flujo de Actualización Automática:**
+```
+Frontend → API Endpoint → DB Update → autoSaveAndReload() → Export JSON → Restart RUST Engine
+```
+
+**Endpoints con Auto-Reload Integrado:**
+- `POST /api/engine/addChain` - Agrega blockchain + RPCs + DEXs → auto-reload
+- `POST /api/engine/updateChain` - Actualiza configuración chain → auto-reload
+- `POST /api/engine/removeChain` - Elimina blockchain → auto-reload
+- `POST /api/engine/chains/toggle` - Activa/desactiva chain → auto-reload
+- `POST /api/engine/addDex` - Agrega DEX a chain → auto-reload
+- `POST /api/engine/removeDex` - Remueve DEX → auto-reload
+- `POST /api/engine/assets/upsert` - Bulk upsert assets → **auto-reload ✨**
+- `POST /api/engine/pairs/generate` - Genera pares desde assets → **auto-reload ✨**
+- `POST /api/engine/pairs/upsert` - Upsert manual de pares → **auto-reload ✨**
+- `POST /api/engine/policies/upsert` - Actualiza políticas → **auto-reload ✨**
+- `POST /api/engine/config/export` - **Trigger manual de export/reload ✨**
+
+**Canonical Token System:**
+- Direcciones por chain (no símbolos): `CANONICAL_TOKENS` en `canonical-tokens.ts`
+- Soporte para variantes: USDC nativo, USDC.e, bridged USDC
+- Quote-specific filtering: WETH/USDC busca solo pools USDC, WETH/USDT solo USDT
+
+**Pool Discovery & Validation:**
+- `findPoolsByAddress()`: Búsqueda multi-pool por dirección de token
+- DexScreener + GeckoTerminal APIs para validación
+- Deduplicación: `${dexId}|${pairAddress}` mantiene fee tiers separados
+- Unique naming: Sufijo de pool address (6 chars) para distinguir pools idénticos
+
+**Current Configuration:**
+- **12 pools únicos** escaneados por motor RUST
+- **Binance**: 7 pools WBNB/USDC (3 PancakeSwap, 1 Biswap, 3 Uniswap fee tiers)
+- **Ethereum**: 5 pools (2 WETH/USDC, 3 WETH/USDT con diferentes fee tiers)
+
 ## Recent Changes (October 2025)
 
 ### Multi-Pool Discovery with Quote-Specific Filtering (Latest Update - October 5, 2025)

@@ -1,0 +1,509 @@
+¡Perfecto! Te dejo **todo** lo que pediste: módulos listos para integrar en tu ENGINE RUST, más **tips matemáticos** y tests. El objetivo es que tu motor:
+
+1. **Descubra** pools por **dirección** (no por símbolo),
+2. **Calcule rápido** precios/impacto en V2 y V3,
+3. **Enumere TODAS** las posibilidades de arbitraje por par (incluyendo negativas),
+4. **Loguee** cada intento con datos que te permitan auditar si falló la matemática o el pipeline,
+5. Sea **idempotente** y **concurrente**.
+
+---
+
+# 0) Estructuras base (Rust)
+
+```rust
+// Cargo.toml (añade)
+// rayon = "1"
+// serde = { version = "1", features = ["derive"] }
+// serde_json = "1"
+// anyhow = "1"
+// rust_decimal = "1"
+// num-bigint = "0.4"
+
+use anyhow::*;
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::time::Instant;
+
+pub type ChainId = u64;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct PoolId {
+    pub dex_id: String,        // "uniswap-v2" | "uniswap-v3" | ...
+    pub pair_address: String,  // checksum/lowercased
+    pub fee_bps: Option<u32>,  // 30 = 0.30% (V2), 5/30/100/1000 (V3 tiers)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PoolMeta {
+    pub chain_id: ChainId,
+    pub token0: String, // address
+    pub token1: String, // address
+    pub reserves0: Option<f64>, // V2 screening (onchain/last snapshot)
+    pub reserves1: Option<f64>,
+    pub sqrt_price_x96: Option<u128>, // V3
+    pub liquidity: Option<u128>,      // V3
+    pub tick: Option<i32>,            // V3
+    pub fee_bps: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Pool {
+    pub id: PoolId,
+    pub meta: PoolMeta,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CanonTokens {
+    pub wnative: String,
+    pub stables: Vec<String>, // USDC (nativo), USDC.e, USDbC, USDT, DAI...
+}
+```
+
+---
+
+# 1) Canon por cadena (no símbolos)
+
+```rust
+pub fn canon_map() -> HashMap<ChainId, CanonTokens> {
+    use std::iter::FromIterator;
+    HashMap::from_iter([
+        (1u64, CanonTokens {
+            wnative: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".into(), // WETH
+            stables: vec!["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".into()], // USDC
+        }),
+        (10u64, CanonTokens {
+            wnative: "0x4200000000000000000000000000000000000006".into(), // WETH
+            stables: vec![
+                "0x7F5c764cBc14f9669B88837ca1490cCa17c31607".into(), // USDC.e
+                "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85".into(), // USDC nativo
+            ],
+        }),
+        (42161u64, CanonTokens {
+            wnative: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1".into(),
+            stables: vec![
+                "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8".into(), // USDC.e
+                "0xaf88d065e77c8cC2239327C5EDb3A432268e5831".into(), // USDC
+            ],
+        }),
+        (8453u64, CanonTokens {
+            wnative: "0x4200000000000000000000000000000000000006".into(),
+            stables: vec!["0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913".into()], // USDbC
+        }),
+        // ... BSC, Polygon, Avalanche, etc.
+    ])
+}
+```
+
+---
+
+# 2) Descubrimiento (DexScreener por **dirección**)
+
+**Clave:** deduplicar por `dexId|pairAddress` y **NUNCA** por símbolo. Mantener **todos** los fee tiers en V3.
+
+```rust
+#[derive(Deserialize)]
+struct DexScreenerPair {
+    chainId: String,     // "ethereum","base",...
+    dexId: String,       // "uniswap-v3","pancakeswap-v2",...
+    pairAddress: String,
+    baseToken: DexToken,
+    quoteToken: DexToken,
+    // opcionales: liquidity, txns, volume...
+}
+
+#[derive(Deserialize)]
+struct DexToken { address: String, symbol: String }
+
+#[derive(Deserialize)]
+struct DexResponse { pairs: Vec<DexScreenerPair> }
+
+fn fetch_pairs_for_token(chain_slug: &str, token_addr: &str) -> Result<Vec<DexScreenerPair>> {
+    // Usa reqwest blocking/async en tu proyecto. Aquí esquemático:
+    let url = format!(
+        "https://api.dexscreener.com/latest/dex/tokens/{}/{}",
+        chain_slug, token_addr
+    );
+    let body = ureq::get(&url).call()?.into_string()?;
+    let resp: DexResponse = serde_json::from_str(&body)?;
+    Ok(resp.pairs)
+}
+
+/// Intersección de pools que contienen ambos tokens (wnative + alguna USDC de la chain)
+pub fn discover_pools(chain_id: ChainId, chain_slug: &str, canon: &CanonTokens) -> Result<Vec<Pool>> {
+    let mut by_addr: HashMap<String, DexScreenerPair> = HashMap::new();
+    // 1) pedir por WNATIVE
+    for p in fetch_pairs_for_token(chain_slug, &canon.wnative)? {
+        by_addr.insert(p.pairAddress.to_lowercase(), p);
+    }
+    // 2) para cada stable, intersectar
+    let mut out: Vec<Pool> = vec![];
+    let mut seen: HashSet<(String, String)> = HashSet::new(); // (dexId, pair)
+    for usdc in &canon.stables {
+        for p in fetch_pairs_for_token(chain_slug, usdc)? {
+            let key = p.pairAddress.to_lowercase();
+            if let Some(a) = by_addr.get(&key) {
+                // tiene ambos tokens (wnative y usdcX)
+                let unique = (p.dexId.clone(), key.clone());
+                if seen.insert(unique) {
+                    out.push(Pool {
+                        id: PoolId {
+                            dex_id: p.dexId.clone(),
+                            pair_address: key.clone(),
+                            fee_bps: None, // si luego identificas V3, setea 5/30/100/1000
+                        },
+                        meta: PoolMeta {
+                            chain_id,
+                            token0: p.baseToken.address.to_lowercase(),
+                            token1: p.quoteToken.address.to_lowercase(),
+                            reserves0: None,
+                            reserves1: None,
+                            sqrt_price_x96: None,
+                            liquidity: None,
+                            tick: None,
+                            fee_bps: 30, // por defecto screening V2 = 0.30%
+                        },
+                    });
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+```
+
+> **Mejoras**:
+> • Para V3, saca el **fee tier**: si usas subgraph/ABI del pool, rellena `fee_bps`.
+> • Antes de exportar, **ordena** por `liquidityUsd` o `volume24h` **pero no descartes** (solo prioriza).
+
+---
+
+# 3) Matemática de precios
+
+## 3.1. AMM V2 (x·y = k, con fee)
+
+Para **exactIn** (entras con `dx` de token X; salida Y):
+
+```rust
+/// fee_bps: 30 → 0.30%
+pub fn v2_amount_out_exact_in(dx: f64, rx: f64, ry: f64, fee_bps: u32) -> f64 {
+    let fee = 1.0 - (fee_bps as f64 / 10_000.0);
+    let dx_fee = dx * fee;
+    // out = (dx_fee * ry) / (rx + dx_fee)
+    (dx_fee * ry) / (rx + dx_fee)
+}
+
+/// Inversa: exactOut (quieres `dy`, necesitas `dx`)
+pub fn v2_amount_in_for_exact_out(dy: f64, rx: f64, ry: f64, fee_bps: u32) -> f64 {
+    // dx = (rx * dy) / ((ry - dy) * fee)
+    let fee = 1.0 - (fee_bps as f64 / 10_000.0);
+    (rx * dy) / ((ry - dy) * fee)
+}
+```
+
+**Precio marginal** (para ranking rápido):
+`p = dy/dx` con `dx→0` ⇒ `p ≈ (ry/rx) * fee`.
+Útil para detectar desbalances antes de simular tamaños grandes.
+
+## 3.2. Uniswap V3 (liquidez concentrada)
+
+Para screening rápido:
+
+* Convierte `sqrtPriceX96` a precio:
+  `price = (sqrtP^2) / 2^192`
+* Impacto de precio para tamaño `dx` con liquidez `L` en el rango actual:
+  `Δ√P = dx * (1 - fee) / L`,
+  `new_√P = √P + Δ√P`,
+  `out ≈ L * (new_√P - √P) / (√P * new_√P)` (dependiendo de direcciones; es una aproximación).
+
+**Recomendación práctica**: usa este **aprox** para ranking y luego confirma exacto con:
+
+* **Quoter** (`uniswap/v3-periphery`) vía `eth_call`, o
+* Tu propia implementación precisa (más compleja al cruzar rangos).
+
+---
+
+# 4) Enumeración de oportunidades
+
+## 4.1. Dos DEX (A→B, B→A) con exactIn
+
+```rust
+#[derive(Debug, Clone)]
+pub struct Quote {
+    pub input: f64,
+    pub output: f64,
+}
+
+pub fn quote_v2(dx: f64, in_is_token0: bool, rx: f64, ry: f64, fee_bps: u32) -> Quote {
+    let out = if in_is_token0 {
+        v2_amount_out_exact_in(dx, rx, ry, fee_bps)
+    } else {
+        v2_amount_out_exact_in(dx, ry, rx, fee_bps)
+    };
+    Quote { input: dx, output: out }
+}
+
+/// Ejecuta A->B en dex1 y B->A en dex2. Devuelve salida final
+pub fn two_dex_roundtrip_v2(
+    dx: f64,
+    dex1: (&PoolMeta, bool), // (pool, input_is_token0)
+    dex2: (&PoolMeta, bool),
+) -> f64 {
+    let q1 = quote_v2(dx, dex1.1, dex1.0.reserves0.unwrap(), dex1.0.reserves1.unwrap(), dex1.0.fee_bps);
+    let q2 = quote_v2(q1.output, dex2.1, dex2.0.reserves0.unwrap(), dex2.0.reserves1.unwrap(), dex2.0.fee_bps);
+    q2.output
+}
+```
+
+## 4.2. Triangular (A→B→C→A)
+
+Igual idea; compón tres `quote_*`.
+
+## 4.3. Grilla de tamaños (para “todas las posibilidades”)
+
+```rust
+pub fn size_grid(min: f64, max: f64, steps: usize) -> Vec<f64> {
+    // log-scale
+    let mut out = Vec::with_capacity(steps);
+    let r = (max/min).powf(1.0/(steps as f64 - 1.0));
+    let mut x = min;
+    for _ in 0..steps {
+        out.push(x);
+        x *= r;
+    }
+    out
+}
+```
+
+---
+
+# 5) Ganancia neta
+
+```rust
+#[derive(Debug, Clone, Serialize)]
+pub struct GasCost {
+    pub gas_units: u64,
+    pub gas_price_wei: u128,
+}
+pub fn gas_cost_in_token(gas: &GasCost, token_price_eth: f64) -> f64 {
+    // simplificado: gas (ETH) * precioToken(ETH->token)
+    let eth_cost = (gas.gas_units as f64) * (gas.gas_price_wei as f64) / 1e18;
+    eth_cost * token_price_eth
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Profit {
+    pub gross: f64,
+    pub gas_cost: f64,
+    pub net: f64,
+}
+
+pub fn profit_net(
+    input_amount: f64,
+    output_amount: f64,
+    gas_cost_in_input: f64,
+    safety_bps: u32, // margen de seguridad p.ej. 300 = 3%
+) -> Profit {
+    let gross = output_amount - input_amount;
+    let safety = input_amount * (safety_bps as f64 / 10_000.0);
+    let net = gross - gas_cost_in_input - safety;
+    Profit { gross, gas_cost: gas_cost_in_input + safety, net }
+}
+```
+
+---
+
+# 6) Scanner concurrente que **registra todas las pruebas** (incluyendo negativas)
+
+```rust
+#[derive(Debug, Clone, Serialize)]
+pub struct AttemptLog {
+    pub chain_id: ChainId,
+    pub dex_in: String,
+    pub dex_out: String,
+    pub pair_in: String,  // pairAddress
+    pub pair_out: String, // pairAddress
+    pub size: f64,
+    pub out: f64,
+    pub profit: Profit,
+    pub ok: bool,
+    pub block: Option<u64>,
+    pub ts_ms: u128,
+}
+
+pub fn scan_pairs_v2_roundtrip_all(
+    chain_id: ChainId,
+    pools: &[Pool],
+    sizes: &[f64],
+    gas: &GasCost,
+    token_price_eth: f64,
+    safety_bps: u32,
+) -> Vec<AttemptLog> {
+    // Empareja pools del mismo par (token0/token1) pero DEX distintos
+    let mut candidates: Vec<(&Pool, &Pool, bool, bool)> = vec![];
+    for (i, a) in pools.iter().enumerate() {
+        for b in pools.iter().skip(i+1) {
+            let same_pair = (a.meta.token0 == b.meta.token0 && a.meta.token1 == b.meta.token1)
+                         || (a.meta.token0 == b.meta.token1 && a.meta.token1 == b.meta.token0);
+            if !same_pair || a.id.dex_id == b.id.dex_id { continue; }
+            // Direcciones posibles
+            let a_in_is_token0 = true;      // tú calcula según asset base (ej. WETH)
+            let b_in_is_token0 = false;
+            candidates.push((a, b, a_in_is_token0, b_in_is_token0));
+            candidates.push((b, a, a_in_is_token0, b_in_is_token0)); // orden inverso
+        }
+    }
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
+
+    candidates.par_iter().flat_map(|(p1, p2, a0, b0)| {
+        sizes.iter().map(move |&dx| {
+            let out = two_dex_roundtrip_v2(dx, (&p1.meta, *a0), (&p2.meta, *b0));
+            let gas_in_input = gas_cost_in_token(gas, token_price_eth);
+            let prof = profit_net(dx, out, gas_in_input, safety_bps);
+            AttemptLog {
+                chain_id,
+                dex_in: p1.id.dex_id.clone(),
+                dex_out: p2.id.dex_id.clone(),
+                pair_in: p1.id.pair_address.clone(),
+                pair_out: p2.id.pair_address.clone(),
+                size: dx,
+                out,
+                profit: prof.clone(),
+                ok: prof.net > 0.0,
+                block: None,
+                ts_ms: now,
+            }
+        })
+    }).collect()
+}
+```
+
+* Este `scan_pairs_v2_roundtrip_all` **devuelve TODOS los intentos**, incluso negativos.
+* Puedes **escribirlos en JSONL** para auditar:
+
+```rust
+pub fn write_jsonl(path: &str, logs: &[AttemptLog]) -> Result<()> {
+    use std::io::Write;
+    let mut f = std::fs::File::create(path)?;
+    for l in logs {
+        let line = serde_json::to_string(l)? + "\n";
+        f.write_all(line.as_bytes())?;
+    }
+    Ok(())
+}
+```
+
+---
+
+# 7) Tests (no cambies los tuyos; agrega estos)
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v2_math_sane() {
+        // pool 100 WETH / 300000 USDC, fee 0.30%
+        let rx = 100.0;
+        let ry = 300_000.0;
+        let out = v2_amount_out_exact_in(1.0, rx, ry, 30);
+        // precio ~ 3000 con fee, impacto pequeño ⇒ ~2991-2997
+        assert!(out > 2900.0 && out < 3000.0, "got {}", out);
+
+        let need_in = v2_amount_in_for_exact_out(1000.0, rx, ry, 30);
+        assert!(need_in > 0.3 && need_in < 0.4, "got {}", need_in);
+    }
+
+    #[test]
+    fn roundtrip_negative_when_fees() {
+        let p = PoolMeta {
+            chain_id: 1,
+            token0: "weth".into(),
+            token1: "usdc".into(),
+            reserves0: Some(100.0),
+            reserves1: Some(300000.0),
+            sqrt_price_x96: None, liquidity: None, tick: None,
+            fee_bps: 30
+        };
+        let out = two_dex_roundtrip_v2(1.0, (&p, true), (&p, false));
+        // El mismo pool ida/vuelta debe perder por fees
+        assert!(out < 1.0, "got {}", out);
+    }
+
+    #[test]
+    fn size_grid_logscale() {
+        let g = size_grid(0.1, 10.0, 5);
+        assert_eq!(g.len(), 5);
+        assert!(g[0] < g[1] && g[1] < g[2]);
+    }
+}
+```
+
+---
+
+# 8) Heurísticas de **pruning** (para velocidad)
+
+* **Ranking previo**: calcula **precio marginal** de cada pool (V2: `(ry/rx)*fee`) y el “spread” entre DEXes; si `spread < ε` descarta pares para tamaños chicos.
+* **Top-K por par**: mantén **K pools por par** (p. ej. 6–8) ordenados por liquidez/volumen para no explotar combinaciones.
+* **Grilla adaptativa**: si `net < 0` para tamaños pequeños y medianos, no pruebes los grandes.
+* **Cache por bloque**: reusa reservas/√P y sólo refresca al cambiar de bloque o si hay `pending` en mempool para tu par.
+
+---
+
+# 9) V3 exacto (cuando quieras precisión)
+
+Para quitar la aproximación, usa **Quoter**:
+
+* Contrato `UniswapV3QuoterV2` método `quoteExactInputSingle` / `quoteExactOutputSingle`.
+* Llama por `eth_call` **en el mismo bloque** que usarás para ejecutar.
+* Para screening multiruta, primero filtra con la aproximación; luego confirma **sólo las candidatas** con Quoter.
+
+---
+
+# 10) Mostrar “por qué no se ejecutó”
+
+Incluye en cada `AttemptLog` un campo `reason` opcional:
+
+* `"spread_insuficiente"`, `"gas_alto"`, `"slippage"`, `"revert_sim"` (si hiciste `eth_call` y falló), `"token_tax"`, `"no_aprobacion"`, etc.
+
+Esto vuelve los logs **explicativos**, no sólo numéricos.
+
+---
+
+# 11) Conexión UI → Engine
+
+Tu panel ya envía arrays. Para integrar todo lo anterior:
+
+* Guarda en tu DB por cadena:
+
+  ```json
+  {
+    "chain": "Base",
+    "rpcPool": [ ... ],
+    "dexes": [ "uniswap-v3", "aerodrome", "..." ],
+    "pools": [
+      {"dexId":"uniswap-v3","pairAddress":"0xabc...","feeBps":5},
+      {"dexId":"aerodrome","pairAddress":"0xdef..."}
+    ]
+  }
+  ```
+* El **scanner** consume `pools` y **no deduplica por símbolo** nunca.
+
+---
+
+# 12) Pipeline recomendado
+
+1. **Discovery** (DexScreener por direcciones) → pools únicos.
+2. **Snapshot** on-chain (reserves V2; √P/L/tick V3).
+3. **Scanner** (concurrency + pruning + grid).
+4. **Logs** JSONL de **todos los intentos** (positivos y negativos).
+5. **Simulación exacta** sólo para las mejores K (opcional).
+6. **Executor** (bundle MEV o envío normal con protección).
+
+---
+
+¿Quieres que te empaquete esto en un **módulo de crate** (`mev-core`) con `scanner_v2`, `v3_quoter`, `discovery_dexscreener`, `logging_jsonl` y ejemplos binarios (`mev-scan`, `mev-sim`)?
+Dime también tus **rutas reales** del backend para dejar el panel llamándolas exactamente (y decidir si “Eliminar” es hard delete o desactivar).
