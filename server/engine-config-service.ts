@@ -1,233 +1,438 @@
 import { db } from "./db";
-import { chains, chainRpcs, chainDexes, assets, pairs } from "@shared/schema";
+import { chains, chainRpcs, chainDexes, assets, pairs, policies, refPools } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 import { poolValidator } from "./pool-validator";
-import { CANONICAL_TOKENS, getCanonicalTokens, getWNative, getStablecoins } from "./canonical-tokens";
+import { getCanonicalTokens, getWNative } from "./canonical-tokens";
 
-interface ConfigPair {
-  name: string;
-  token0: string;
-  token1: string;
+interface RpcPool {
+  wss: string[];
+  https: string[];
+}
+
+interface ConfigPool {
+  dexId: string;
   pairAddress: string;
+  feeBps: number;
+}
+
+interface ConfigAsset {
+  address: string;
+  symbol: string;
+  decimals: number;
+  tags?: string[];
+}
+
+interface ConfigDex {
+  dexId: string;
+  enabled: boolean;
+  quoter?: string;
+}
+
+interface SizeGrid {
+  min: number;
+  max: number;
+  steps: number;
+}
+
+interface ConfigPolicies {
+  roiMinBps: number;
+  gasSafetyBps: number;
+  slippageBps: number;
+  sizeGrid: SizeGrid;
+  capPctTvl: number;
+  bundleMaxBlocks: number;
+  gasUnitsHintRoundtripV2?: number;
+}
+
+interface ConfigRisk {
+  blocklists: string[];
+  taxLike: string[];
+  allowBridgedSymbols: boolean;
+}
+
+interface ConfigRefPool {
+  token: string;
+  pairAddress: string;
+  feeBps: number;
+  dexId: string;
 }
 
 interface ConfigChain {
-  name: string;
   chainId: number;
-  dexs: string[];
-  topPairs: ConfigPair[];
+  alias: string;
+  wnative: string;
+  rpcPool: RpcPool;
+  dexes: ConfigDex[];
+  assets: ConfigAsset[];
+  pools: ConfigPool[];
+  policies: ConfigPolicies;
+  risk: ConfigRisk;
+  refPools: ConfigRefPool[];
 }
 
 interface EngineConfig {
+  version: string;
   chains: ConfigChain[];
-  totalChains: number;
-  totalDexs: number;
-  lastUpdated: number;
 }
 
 export class EngineConfigService {
-  async exportToJson(validatePools: boolean = true): Promise<EngineConfig> {
+  async exportToJson(): Promise<EngineConfig> {
+    const version = new Date().toISOString();
+    console.log(`📦 Exporting configuration with version: ${version}`);
+    
     const activeChains = await db.query.chains.findMany({
       where: eq(chains.isActive, true),
     });
 
     const configChains: ConfigChain[] = [];
-    let totalDexs = 0;
-    const validationErrors: string[] = [];
 
     for (const chain of activeChains) {
-      const activeDexes = await db.query.chainDexes.findMany({
-        where: and(
-          eq(chainDexes.chainId, chain.chainId),
-          eq(chainDexes.isActive, true)
-        ),
-      });
-
-      const dexs = activeDexes.map((d) => d.dex);
-      totalDexs += dexs.length;
-
-      const chainPairs = await db.query.pairs.findMany({
-        where: and(
-          eq(pairs.chainId, chain.chainId),
-          eq(pairs.enabled, true)
-        ),
-      });
-
-      const topPairs: ConfigPair[] = [];
-
-      for (const pair of chainPairs) {
-        const baseAsset = await db.query.assets.findFirst({
-          where: and(
-            eq(assets.chainId, chain.chainId),
-            eq(assets.address, pair.baseAddr)
-          ),
-        });
-
-        const quoteAsset = await db.query.assets.findFirst({
-          where: and(
-            eq(assets.chainId, chain.chainId),
-            eq(assets.address, pair.quoteAddr)
-          ),
-        });
-
-        if (baseAsset && quoteAsset) {
-          const canonicalTokens = getCanonicalTokens(Number(chain.chainId));
-          
-          if (!canonicalTokens) {
-            console.warn(`⚠️ No canonical tokens defined for chain ${chain.chainId}, using legacy method`);
-            const availablePools = await poolValidator.findCorrectPoolAddress(
-              Number(chain.chainId),
-              pair.baseAddr,
-              pair.quoteAddr,
-              500
-            );
-
-            for (const pool of availablePools.slice(0, 3)) {
-              topPairs.push({
-                name: `${baseAsset.symbol}/${quoteAsset.symbol} @ ${pool.dexId}`,
-                token0: pair.baseAddr,
-                token1: pair.quoteAddr,
-                pairAddress: pool.poolAddress!,
-              });
-            }
-            continue;
-          }
-
-          const pairQuoteLower = pair.quoteAddr.toLowerCase();
-          
-          let pairQuoteVariants: string[] = [];
-          
-          if (canonicalTokens.USDC.some(addr => addr.toLowerCase() === pairQuoteLower)) {
-            pairQuoteVariants = canonicalTokens.USDC;
-          } else if (canonicalTokens.USDT.some(addr => addr.toLowerCase() === pairQuoteLower)) {
-            pairQuoteVariants = canonicalTokens.USDT;
-          } else {
-            pairQuoteVariants = [pair.quoteAddr];
-          }
-          
-          console.log(`🔍 Finding pools for ${baseAsset.symbol}/${quoteAsset.symbol} across ${dexs.length} DEXs on ${chain.name}...`);
-          console.log(`   Using canonical addresses: base=${pair.baseAddr}, quote variants=${pairQuoteVariants.join(',')}`);
-          
-          const availablePools = await poolValidator.findPoolsByAddress(
-            Number(chain.chainId),
-            pair.baseAddr,
-            pairQuoteVariants.length > 0 ? pairQuoteVariants : [pair.quoteAddr]
-          );
-
-          console.table(availablePools.map(p => ({
-            dex: p.dexId,
-            pair: p.poolAddress?.substring(0, 10) + '...',
-            liq: p.liquidity ? `$${(p.liquidity / 1000000).toFixed(2)}M` : 'N/A',
-            vol24h: p.volume24h ? `$${(p.volume24h / 1000000).toFixed(2)}M` : 'N/A'
-          })));
-
-          const seenDexPool = new Set<string>();
-
-          for (const dexName of dexs) {
-            const dexNameLower = dexName.toLowerCase().replace(/\s+/g, '');
-            
-            const matchingPools = availablePools.filter(pool => {
-              const poolDexLower = (pool.dexId || '').toLowerCase().replace(/\s+/g, '');
-              return poolDexLower.includes(dexNameLower) || dexNameLower.includes(poolDexLower);
-            });
-
-            if (matchingPools.length > 0) {
-              for (const pool of matchingPools) {
-                const key = `${pool.dexId}|${pool.poolAddress}`;
-                
-                if (seenDexPool.has(key)) {
-                  continue;
-                }
-
-                if (validatePools && pool.quoteTokenAddress) {
-                  const poolQuoteAddrLower = pool.quoteTokenAddress.toLowerCase();
-                  const poolQuoteIsCanonical = pairQuoteVariants.some(addr => 
-                    addr.toLowerCase() === poolQuoteAddrLower
-                  );
-
-                  if (!poolQuoteIsCanonical) {
-                    console.warn(`⚠️ Pool quote token ${pool.quoteTokenAddress} (${pool.quoteToken}) not in canonical list for ${chain.name}, accepting anyway`);
-                  }
-
-                  const validation = await poolValidator.validatePoolAddress(
-                    Number(chain.chainId),
-                    pool.poolAddress!,
-                    pair.baseAddr,
-                    pool.quoteTokenAddress
-                  );
-
-                  if (!validation.isValid) {
-                    const error = `🚨 CRITICAL: Invalid pool for ${baseAsset.symbol}/${quoteAsset.symbol} on ${pool.dexId} (${chain.name}): ${pool.poolAddress} - ${validation.error}`;
-                    validationErrors.push(error);
-                    console.error(error);
-                    continue;
-                  }
-                }
-
-                const poolSuffix = pool.poolAddress!.slice(-6);
-                topPairs.push({
-                  name: `${baseAsset.symbol}/${quoteAsset.symbol} @ ${pool.dexId} (${poolSuffix})`,
-                  token0: pair.baseAddr,
-                  token1: pair.quoteAddr,
-                  pairAddress: pool.poolAddress!,
-                });
-                
-                seenDexPool.add(key);
-                console.log(`✅ ${baseAsset.symbol}/${quoteAsset.symbol} @ ${pool.dexId}: ${pool.poolAddress} (Liquidity: $${pool.liquidity?.toLocaleString()})`);
-              }
-            } else {
-              console.warn(`⚠️ No pool found for ${baseAsset.symbol}/${quoteAsset.symbol} on ${dexName} (searched in ${availablePools.length} total pools)`);
-            }
-          }
-
-          console.log(`📊 Summary: ${seenDexPool.size} unique pools added for ${baseAsset.symbol}/${quoteAsset.symbol}`);
-
-          if (seenDexPool.size === 0 && pair.pairAddr && pair.pairAddr !== "0x0000000000000000000000000000000000000000") {
-            console.log(`📝 Using fallback pool address for ${baseAsset.symbol}/${quoteAsset.symbol}`);
-            topPairs.push({
-              name: `${baseAsset.symbol}/${quoteAsset.symbol}`,
-              token0: pair.baseAddr,
-              token1: pair.quoteAddr,
-              pairAddress: pair.pairAddr,
-            });
-          }
-        }
+      const chainConfig = await this.buildChainConfig(chain);
+      if (chainConfig) {
+        configChains.push(chainConfig);
       }
-
-      configChains.push({
-        name: chain.name,
-        chainId: Number(chain.chainId),
-        dexs,
-        topPairs,
-      });
-    }
-
-    if (validationErrors.length > 0) {
-      throw new Error(`Pool validation failed:\n${validationErrors.join('\n')}`);
     }
 
     const config: EngineConfig = {
+      version,
       chains: configChains,
-      totalChains: configChains.length,
-      totalDexs,
-      lastUpdated: Date.now(),
     };
 
     return config;
   }
 
+  private async buildChainConfig(chain: any): Promise<ConfigChain | null> {
+    const wnative = getWNative(Number(chain.chainId));
+    if (!wnative) {
+      console.warn(`⚠️ No WNATIVE defined for chain ${chain.chainId}, skipping...`);
+      return null;
+    }
+
+    const [rpcs, dexes, chainAssets, chainPairs, chainPolicies, chainRefPools] = await Promise.all([
+      db.query.chainRpcs.findMany({
+        where: and(
+          eq(chainRpcs.chainId, chain.chainId),
+          eq(chainRpcs.isActive, true)
+        ),
+      }),
+      db.query.chainDexes.findMany({
+        where: and(
+          eq(chainDexes.chainId, chain.chainId),
+          eq(chainDexes.isActive, true)
+        ),
+      }),
+      db.query.assets.findMany({
+        where: eq(assets.chainId, chain.chainId),
+      }),
+      db.query.pairs.findMany({
+        where: and(
+          eq(pairs.chainId, chain.chainId),
+          eq(pairs.enabled, true)
+        ),
+      }),
+      this.getChainPolicies(Number(chain.chainId)),
+      db.query.refPools.findMany({
+        where: eq(refPools.chainId, chain.chainId),
+      }),
+    ]);
+
+    const rpcPool = this.buildRpcPool(rpcs);
+    const configDexes = dexes.map(d => ({
+      dexId: d.dex,
+      enabled: true,
+    }));
+
+    const configAssets = chainAssets.map(a => ({
+      address: a.address.toLowerCase(),
+      symbol: a.symbol,
+      decimals: a.decimals,
+      tags: this.inferAssetTags(a, wnative),
+    }));
+
+    const configPools = await this.buildConfigPools(
+      Number(chain.chainId),
+      chainPairs,
+      dexes.map(d => d.dex)
+    );
+
+    const configRefPools = chainRefPools.map(rp => ({
+      token: rp.token.toLowerCase(),
+      pairAddress: rp.pairAddress.toLowerCase(),
+      feeBps: rp.feeBps,
+      dexId: rp.dexId,
+    }));
+
+    const configRisk = await this.getChainRisk(Number(chain.chainId));
+
+    const chainConfig: ConfigChain = {
+      chainId: Number(chain.chainId),
+      alias: chain.name.toLowerCase().replace(/\s+/g, '-'),
+      wnative: wnative.toLowerCase(),
+      rpcPool,
+      dexes: configDexes,
+      assets: configAssets,
+      pools: configPools,
+      policies: chainPolicies,
+      risk: configRisk,
+      refPools: configRefPools,
+    };
+
+    return chainConfig;
+  }
+
+  private buildRpcPool(rpcs: any[]): RpcPool {
+    const wss: string[] = [];
+    const https: string[] = [];
+
+    for (const rpc of rpcs) {
+      const url = rpc.url;
+      if (url.startsWith("wss://") || url.startsWith("ws://")) {
+        wss.push(url);
+      } else if (url.startsWith("https://") || url.startsWith("http://")) {
+        https.push(url);
+      }
+    }
+
+    return { wss, https };
+  }
+
+  private inferAssetTags(asset: any, wnative: string): string[] {
+    const tags: string[] = [];
+    
+    if (asset.address.toLowerCase() === wnative.toLowerCase()) {
+      tags.push("wnative");
+    }
+
+    const symbolUpper = asset.symbol.toUpperCase();
+    if (["USDC", "USDT", "DAI", "USDE", "BUSD", "USDbC"].includes(symbolUpper)) {
+      tags.push("stable");
+    }
+
+    if (asset.riskScore >= 80) {
+      tags.push("safe");
+    }
+
+    return tags;
+  }
+
+  private async buildConfigPools(
+    chainId: number,
+    chainPairs: any[],
+    dexes: string[]
+  ): Promise<ConfigPool[]> {
+    const configPools: ConfigPool[] = [];
+    const canonicalTokens = getCanonicalTokens(chainId);
+
+    for (const pair of chainPairs) {
+      const baseAsset = await db.query.assets.findFirst({
+        where: and(
+          eq(assets.chainId, chainId),
+          eq(assets.address, pair.baseAddr)
+        ),
+      });
+
+      const quoteAsset = await db.query.assets.findFirst({
+        where: and(
+          eq(assets.chainId, chainId),
+          eq(assets.address, pair.quoteAddr)
+        ),
+      });
+
+      if (!baseAsset || !quoteAsset) continue;
+
+      const pairQuoteLower = pair.quoteAddr.toLowerCase();
+      let pairQuoteVariants: string[] = [];
+
+      if (canonicalTokens) {
+        if (canonicalTokens.USDC.some(addr => addr.toLowerCase() === pairQuoteLower)) {
+          pairQuoteVariants = canonicalTokens.USDC;
+        } else if (canonicalTokens.USDT.some(addr => addr.toLowerCase() === pairQuoteLower)) {
+          pairQuoteVariants = canonicalTokens.USDT;
+        } else {
+          pairQuoteVariants = [pair.quoteAddr];
+        }
+      } else {
+        pairQuoteVariants = [pair.quoteAddr];
+      }
+
+      const availablePools = await poolValidator.findPoolsByAddress(
+        chainId,
+        pair.baseAddr,
+        pairQuoteVariants
+      );
+
+      const seenDexPool = new Set<string>();
+
+      for (const dexName of dexes) {
+        const dexNameLower = dexName.toLowerCase().replace(/\s+/g, '');
+        
+        const matchingPools = availablePools.filter(pool => {
+          const poolDexLower = (pool.dexId || '').toLowerCase().replace(/\s+/g, '');
+          return poolDexLower.includes(dexNameLower) || dexNameLower.includes(poolDexLower);
+        });
+
+        for (const pool of matchingPools) {
+          const key = `${pool.dexId}|${pool.poolAddress}`;
+          
+          if (seenDexPool.has(key) || !pool.poolAddress) {
+            continue;
+          }
+
+          const feeBps = this.extractFeeBps(pool);
+          
+          configPools.push({
+            dexId: pool.dexId || "unknown",
+            pairAddress: pool.poolAddress.toLowerCase(),
+            feeBps,
+          });
+          
+          seenDexPool.add(key);
+        }
+      }
+    }
+
+    return configPools;
+  }
+
+  private extractFeeBps(pool: any): number {
+    if (pool.feeTier !== undefined && pool.feeTier !== null) {
+      return pool.feeTier;
+    }
+
+    const dexLower = (pool.dexId || "").toLowerCase();
+    
+    if (dexLower.includes("pancakeswap")) return 25;
+    if (dexLower.includes("uniswap-v3")) return 30;
+    if (dexLower.includes("curve")) return 4;
+    if (dexLower.includes("balancer")) return 30;
+    
+    return 30;
+  }
+
+  private async getChainPolicies(chainId: number): Promise<ConfigPolicies> {
+    const policyData = await db.query.policies.findFirst({
+      where: eq(policies.key, `chain_${chainId}_policies`),
+    });
+
+    if (policyData && policyData.valueJson) {
+      const parsed = policyData.valueJson as any;
+      return {
+        roiMinBps: parsed.roiMinBps || 300,
+        gasSafetyBps: parsed.gasSafetyBps || 200,
+        slippageBps: parsed.slippageBps || 30,
+        sizeGrid: parsed.sizeGrid || { min: 0.05, max: 15, steps: 9 },
+        capPctTvl: parsed.capPctTvl || 0.02,
+        bundleMaxBlocks: parsed.bundleMaxBlocks || 2,
+        gasUnitsHintRoundtripV2: parsed.gasUnitsHintRoundtripV2,
+      };
+    }
+
+    return {
+      roiMinBps: 300,
+      gasSafetyBps: 200,
+      slippageBps: 30,
+      sizeGrid: { min: 0.05, max: 15, steps: 9 },
+      capPctTvl: 0.02,
+      bundleMaxBlocks: 2,
+      gasUnitsHintRoundtripV2: 215000,
+    };
+  }
+
+  private async getChainRisk(chainId: number): Promise<ConfigRisk> {
+    const riskData = await db.query.policies.findFirst({
+      where: eq(policies.key, `chain_${chainId}_risk`),
+    });
+
+    if (riskData && riskData.valueJson) {
+      const parsed = riskData.valueJson as any;
+      return {
+        blocklists: parsed.blocklists || [],
+        taxLike: parsed.taxLike || [],
+        allowBridgedSymbols: parsed.allowBridgedSymbols !== false,
+      };
+    }
+
+    return {
+      blocklists: [],
+      taxLike: [],
+      allowBridgedSymbols: true,
+    };
+  }
+
   async writeConfigFile(config: EngineConfig): Promise<void> {
     const configPath = path.join(process.cwd(), "mev-scan-config.json");
     await fs.writeFile(configPath, JSON.stringify(config, null, 2));
-    console.log(`✅ Config exported to ${configPath}`);
+    console.log(`✅ Config exported to ${configPath} (version: ${config.version})`);
   }
 
   async exportAndWrite(): Promise<EngineConfig> {
     const config = await this.exportToJson();
     await this.writeConfigFile(config);
     return config;
+  }
+
+  async validateConfig(config: EngineConfig): Promise<{ valid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
+    if (!config.version) {
+      errors.push("Missing version field");
+    }
+
+    for (const chain of config.chains) {
+      if (!chain.wnative || chain.wnative.length !== 42) {
+        errors.push(`Chain ${chain.chainId}: invalid wnative address`);
+      }
+
+      if (!chain.rpcPool.https || chain.rpcPool.https.length < 2) {
+        errors.push(`Chain ${chain.chainId}: need at least 2 HTTPS RPCs (quorum)`);
+      }
+
+      if (!chain.rpcPool.wss || chain.rpcPool.wss.length < 2) {
+        errors.push(`Chain ${chain.chainId}: need at least 2 WSS RPCs (quorum)`);
+      }
+
+      const policies = chain.policies;
+      if (policies.sizeGrid.min >= policies.sizeGrid.max) {
+        errors.push(`Chain ${chain.chainId}: sizeGrid min must be < max`);
+      }
+
+      if (policies.sizeGrid.steps < 3) {
+        errors.push(`Chain ${chain.chainId}: sizeGrid steps must be >= 3`);
+      }
+
+      const poolKeys = new Set<string>();
+      for (const pool of chain.pools) {
+        const key = `${pool.dexId}|${pool.pairAddress}`;
+        if (poolKeys.has(key)) {
+          errors.push(`Chain ${chain.chainId}: duplicate pool ${key}`);
+        }
+        poolKeys.add(key);
+
+        if (pool.feeBps < 0 || pool.feeBps > 10000) {
+          errors.push(`Chain ${chain.chainId}: invalid feeBps ${pool.feeBps} for pool ${pool.pairAddress}`);
+        }
+      }
+
+      if (!chain.risk.allowBridgedSymbols) {
+        const usdcVariants = new Set<string>();
+        for (const asset of chain.assets) {
+          if (asset.symbol.toUpperCase().includes("USDC")) {
+            usdcVariants.add(asset.address);
+          }
+        }
+
+        if (usdcVariants.size > 1) {
+          errors.push(`Chain ${chain.chainId}: allowBridgedSymbols=false but found multiple USDC variants`);
+        }
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
   }
 }
 

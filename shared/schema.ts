@@ -312,3 +312,44 @@ export type InsertPolicy = typeof policies.$inferInsert;
 
 export type ConfigVersion = typeof configVersions.$inferSelect;
 export type InsertConfigVersion = typeof configVersions.$inferInsert;
+
+// Reference Pools for Gas Valuation (WNATIVE↔TOKEN)
+export const refPools = pgTable("ref_pools", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  chainId: bigint("chain_id", { mode: "number" }).notNull().references(() => chains.chainId, { onDelete: "cascade" }),
+  token: varchar("token", { length: 42 }).notNull(), // Token address (not WNATIVE)
+  pairAddress: varchar("pair_address", { length: 42 }).notNull(),
+  feeBps: integer("fee_bps").notNull().default(30),
+  dexId: varchar("dex_id", { length: 100 }).notNull(),
+  score: doublePrecision("score"), // Liquidity score for ranking
+  source: varchar("source", { length: 50 }).default("auto"), // auto, manual, recompute
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueChainToken: unique().on(table.chainId, table.token),
+}));
+
+export type RefPool = typeof refPools.$inferSelect;
+export type InsertRefPool = typeof refPools.$inferInsert;
+
+// Config Snapshots for Hot-Reload Versioning
+export const configSnapshots = pgTable("config_snapshots", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  version: varchar("version", { length: 50 }).notNull().unique(), // ISO timestamp
+  payloadJson: jsonb("payload_json").notNull(),
+  createdBy: varchar("created_by", { length: 100 }).default("system"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const configActive = pgTable("config_active", {
+  id: integer("id").primaryKey().default(1), // Only one active config
+  version: varchar("version", { length: 50 }).notNull(),
+  payloadJson: jsonb("payload_json").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type ConfigSnapshot = typeof configSnapshots.$inferSelect;
+export type InsertConfigSnapshot = typeof configSnapshots.$inferInsert;
+
+export type ConfigActive = typeof configActive.$inferSelect;
+export type InsertConfigActive = typeof configActive.$inferInsert;
