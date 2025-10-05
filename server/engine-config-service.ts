@@ -82,6 +82,7 @@ export class EngineConfigService {
           );
 
           const addedDexes = new Set<string>();
+          const addedPoolAddresses = new Set<string>();
 
           for (const dexName of dexs) {
             const dexNameLower = dexName.toLowerCase().replace(/\s+/g, '');
@@ -92,6 +93,11 @@ export class EngineConfigService {
             });
 
             if (matchingPool && matchingPool.poolAddress) {
+              if (addedPoolAddresses.has(matchingPool.poolAddress)) {
+                console.log(`⏭️  Skipping duplicate pool for ${baseAsset.symbol}/${quoteAsset.symbol} on ${dexName}: ${matchingPool.poolAddress}`);
+                continue;
+              }
+
               if (validatePools) {
                 const validation = await poolValidator.validatePoolAddress(
                   Number(chain.chainId),
@@ -109,14 +115,15 @@ export class EngineConfigService {
               }
 
               topPairs.push({
-                name: `${baseAsset.symbol}/${quoteAsset.symbol}`,
+                name: `${baseAsset.symbol}/${quoteAsset.symbol} @ ${dexName}`,
                 token0: pair.baseAddr,
                 token1: pair.quoteAddr,
                 pairAddress: matchingPool.poolAddress,
               });
               
               addedDexes.add(dexName);
-              console.log(`✅ ${baseAsset.symbol}/${quoteAsset.symbol} on ${dexName}: ${matchingPool.poolAddress} (Liquidity: $${matchingPool.liquidity?.toLocaleString()})`);
+              addedPoolAddresses.add(matchingPool.poolAddress);
+              console.log(`✅ ${baseAsset.symbol}/${quoteAsset.symbol} @ ${dexName}: ${matchingPool.poolAddress} (Liquidity: $${matchingPool.liquidity?.toLocaleString()})`);
             } else {
               console.warn(`⚠️ No pool found for ${baseAsset.symbol}/${quoteAsset.symbol} on ${dexName}`);
             }
