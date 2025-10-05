@@ -5,7 +5,15 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { TrendingUp, TrendingDown, Activity } from "lucide-react"
+import { TrendingUp, TrendingDown, Activity, Info } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 type Opportunity = {
   id: string;
@@ -36,6 +44,18 @@ export default function Page(){
     queryKey: ["mev-scanner-status"],
     queryFn: () => apiGet<{ isActive: boolean; lastScanTime: number; scanCount: number }>("/api/mev-scanner/status"),
     refetchInterval: 2000,
+  })
+
+  const { data: scannerDetails } = useQuery({
+    queryKey: ["mev-scanner-details"],
+    queryFn: () => apiGet<{
+      pairs: Array<{ name: string; chain: string; chainId: number; dexs: string[] }>;
+      scanInterval: string;
+      threshold: string;
+      totalChains: number;
+      totalPairs: number;
+    }>("/api/mev-scanner/details"),
+    refetchInterval: 5000,
   })
 
   // Track new opportunities
@@ -195,13 +215,74 @@ export default function Page(){
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             {scannerStatus && (
               <>
-                <div className="flex items-center gap-2">
-                  <span>Motor MEV:</span>
-                  <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full ${scannerStatus.isActive ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${scannerStatus.isActive ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                    <span className="font-medium">{scannerStatus.isActive ? 'ACTIVO' : 'INACTIVO'}</span>
-                  </div>
-                </div>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
+                      <span>Motor MEV:</span>
+                      <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full ${scannerStatus.isActive ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${scannerStatus.isActive ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                        <span className="font-medium">{scannerStatus.isActive ? 'ACTIVO' : 'INACTIVO'}</span>
+                      </div>
+                      <Info className="w-3.5 h-3.5 opacity-50" />
+                    </div>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Detalles del Motor MEV</DialogTitle>
+                      <DialogDescription>
+                        Configuración y cobertura del sistema de escaneo en tiempo real
+                      </DialogDescription>
+                    </DialogHeader>
+                    {scannerDetails && (
+                      <div className="space-y-4 mt-4">
+                        <div className="grid grid-cols-3 gap-4">
+                          <Card className="p-3">
+                            <div className="text-sm text-muted-foreground">Blockchains</div>
+                            <div className="text-2xl font-bold">{scannerDetails.totalChains}</div>
+                          </Card>
+                          <Card className="p-3">
+                            <div className="text-sm text-muted-foreground">Pares</div>
+                            <div className="text-2xl font-bold">{scannerDetails.totalPairs}</div>
+                          </Card>
+                          <Card className="p-3">
+                            <div className="text-sm text-muted-foreground">Intervalo</div>
+                            <div className="text-lg font-bold">{scannerDetails.scanInterval}</div>
+                          </Card>
+                        </div>
+                        
+                        <div>
+                          <h3 className="font-semibold mb-2">Parámetros de Detección</h3>
+                          <p className="text-sm text-muted-foreground">Threshold mínimo: {scannerDetails.threshold}</p>
+                        </div>
+
+                        <div>
+                          <h3 className="font-semibold mb-3">Pares y DEXs Monitoreados</h3>
+                          <div className="space-y-2">
+                            {scannerDetails.pairs.map((pair, idx) => (
+                              <Card key={idx} className="p-3">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div>
+                                    <span className="font-semibold">{pair.name}</span>
+                                    <span className="text-xs text-muted-foreground ml-2">
+                                      {pair.chain} (Chain {pair.chainId})
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {pair.dexs.map((dex, dexIdx) => (
+                                    <Badge key={dexIdx} variant="outline" className="text-xs">
+                                      {dex}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </Card>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
                 {scannerStatus.lastScanTime > 0 && (
                   <div className="hidden sm:block">
                     Último escaneo: {new Date(scannerStatus.lastScanTime).toLocaleTimeString('es-ES')}

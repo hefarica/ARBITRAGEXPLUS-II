@@ -158,15 +158,37 @@ async fn main() -> Result<()> {
         let mut found = 0;
 
         for (name, chain_id, token0, token1, pair_addr) in POPULAR_PAIRS {
+            let chain_name = match *chain_id {
+                1 => "Ethereum",
+                137 => "Polygon",
+                42161 => "Arbitrum",
+                10 => "Optimism",
+                _ => "Unknown",
+            };
+            
+            print!("   📡 Escaneando {} en {} (Chain {})... ", name, chain_name, chain_id);
+            
             match fetch_dex_prices(pair_addr, *chain_id).await {
                 Ok(pairs) => {
-                    if let Some(opp) = calculate_arbitrage(&pairs, token0, token1, *chain_id) {
-                        log_opportunity(&opp, name, "");
-                        found += 1;
+                    if pairs.is_empty() {
+                        println!("❌ Sin datos");
+                    } else {
+                        let dex_names: Vec<String> = pairs.iter()
+                            .map(|p| p.dex_id.clone())
+                            .collect::<std::collections::HashSet<_>>()
+                            .into_iter()
+                            .collect();
+                        
+                        println!("✅ {} DEXs: [{}]", dex_names.len(), dex_names.join(", "));
+                        
+                        if let Some(opp) = calculate_arbitrage(&pairs, token0, token1, *chain_id) {
+                            log_opportunity(&opp, name, "");
+                            found += 1;
+                        }
                     }
                 }
                 Err(e) => {
-                    eprintln!("⚠️  Error fetching {}: {}", name, e);
+                    println!("⚠️  Error: {}", e);
                 }
             }
 

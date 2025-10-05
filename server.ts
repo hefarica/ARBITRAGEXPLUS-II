@@ -1799,6 +1799,24 @@ app.prepare().then(() => {
     res.json(status);
   });
 
+  server.get("/api/mev-scanner/details", (req, res) => {
+    const details = {
+      pairs: [
+        { name: "WETH/USDC", chain: "Ethereum", chainId: 1, dexs: ["Uniswap V3", "Uniswap V2", "Sushiswap", "Curve"] },
+        { name: "WETH/USDT", chain: "Ethereum", chainId: 1, dexs: ["Uniswap V3", "Uniswap V2", "Sushiswap"] },
+        { name: "WMATIC/USDC", chain: "Polygon", chainId: 137, dexs: ["Quickswap", "Sushiswap", "Uniswap V3"] },
+        { name: "WETH/USDC", chain: "Arbitrum", chainId: 42161, dexs: ["Uniswap V3", "Camelot", "Sushiswap"] },
+        { name: "WETH/USDC", chain: "Optimism", chainId: 10, dexs: ["Uniswap V3", "Velodrome"] },
+      ],
+      scanInterval: "10 segundos",
+      threshold: "0.5% diferencia de precio",
+      totalChains: 4,
+      totalPairs: 5,
+      status: mevScanner.getStatus()
+    };
+    res.json(details);
+  });
+
   server.all("*", async (req, res) => {
     try {
       await handle(req, res);
