@@ -1337,6 +1337,17 @@ engineApiRouter.post("/config/rollback", async (req, res) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     mevScanner.start();
     
+    const wsServer = getWebSocketServer();
+    if (wsServer) {
+      const config = snapshot.payloadJson as any;
+      const summary = {
+        chains: config.chains?.length || 0,
+        totalDexs: config.totalDexs || 0,
+        totalPools: config.chains?.reduce((sum: number, c: any) => sum + (c.pools?.length || 0), 0) || 0,
+      };
+      wsServer.broadcastConfigApplied(snapshot.version, summary);
+    }
+    
     console.log(`✅ Rolled back to version ${version}`);
     
     res.json({
