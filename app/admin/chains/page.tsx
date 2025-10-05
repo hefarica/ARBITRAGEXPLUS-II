@@ -315,7 +315,12 @@ export default function ChainsAdminPage() {
   };
 
   useEffect(() => {
-    fetchChains();
+    const initializeChains = async () => {
+      await runHealthCheck();
+      await fetchChains();
+    };
+    
+    initializeChains();
     
     const interval = setInterval(() => {
       fetchChains();
