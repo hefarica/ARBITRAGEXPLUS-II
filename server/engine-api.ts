@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { db } from "./db";
-import { chains, chainRpcs, chainDexes, assets, pairs, policies, configVersions } from "@shared/schema";
+import { chains, chainRpcs, chainDexes, assets, pairs, policies, configVersions, configSnapshots, configActive, refPools } from "@shared/schema";
 import { eq, and, sql, gte, inArray } from "drizzle-orm";
 import { engineConfigService } from "./engine-config-service";
 import { poolValidator } from "./pool-validator";
 import { mevScanner } from "./mev-scanner";
+import { refPoolsService } from "./ref-pools-service";
 
 export const engineApiRouter = Router();
 
@@ -13,24 +14,45 @@ async function autoSaveAndReload() {
   try {
     console.log("🔄 Auto-saving configuration and reloading MEV engine...");
     
-    // Export configuration to JSON
-    const config = await engineConfigService.exportAndWrite();
-    console.log(`✅ Config exported: ${config.totalChains} chains, ${config.totalDexs} DEXs`);
+    const config = await engineConfigService.exportToJson();
+    const validation = await engineConfigService.validateConfig(config);
     
-    // Stop current scanner
+    if (!validation.valid) {
+      console.error("❌ Config validation failed:", validation.errors);
+      throw new Error(`Config validation failed: ${validation.errors.join(", ")}`);
+    }
+    
+    await db.insert(configSnapshots).values({
+      version: config.version,
+      payloadJson: config as any,
+      createdBy: "system",
+    }).onConflictDoNothing();
+    
+    await db.insert(configActive).values({
+      id: 1,
+      version: config.version,
+      payloadJson: config as any,
+    }).onConflictDoUpdate({
+      target: [configActive.id],
+      set: {
+        version: config.version,
+        payloadJson: config as any,
+        updatedAt: sql`now()`,
+      },
+    });
+    
+    await engineConfigService.writeConfigFile(config);
+    console.log(`✅ Config snapshot saved: version ${config.version}`);
+    
     mevScanner.stop();
-    
-    // Wait for graceful shutdown
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Restart with new configuration
     mevScanner.start();
     console.log("✅ MEV engine reloaded successfully");
     
-    return true;
-  } catch (error) {
+    return { success: true, version: config.version };
+  } catch (error: any) {
     console.error("❌ Error in auto-save and reload:", error);
-    return false;
+    throw error;
   }
 }
 
@@ -1208,5 +1230,223 @@ engineApiRouter.post("/dexes/add", async (req, res) => {
   } catch (error: any) {
     console.error("Error adding DEXs:", error);
     res.status(500).json({ error: error?.message || "Failed to add DEXs" });
+  }
+});
+
+// POST /api/engine/config/validate - Validate configuration
+engineApiRouter.post("/config/validate", async (req, res) => {
+  try {
+    const config = await engineConfigService.exportToJson();
+    const validation = await engineConfigService.validateConfig(config);
+    
+    res.json({
+      success: validation.valid,
+      valid: validation.valid,
+      errors: validation.errors,
+      version: config.version,
+      totalChains: config.chains.length,
+      totalPools: config.chains.reduce((sum, c) => sum + c.pools.length, 0),
+    });
+  } catch (error: any) {
+    console.error("Error validating config:", error);
+    res.status(500).json({ error: error?.message || "Failed to validate config" });
+  }
+});
+
+// POST /api/engine/config/apply - Apply configuration with snapshot
+engineApiRouter.post("/config/apply", async (req, res) => {
+  try {
+    const result = await autoSaveAndReload();
+    res.json(result);
+  } catch (error: any) {
+    console.error("Error applying config:", error);
+    res.status(500).json({ error: error?.message || "Failed to apply config" });
+  }
+});
+
+// POST /api/engine/config/rollback - Rollback to a previous snapshot
+engineApiRouter.post("/config/rollback", async (req, res) => {
+  try {
+    const { version } = req.body;
+    
+    if (!version) {
+      return res.status(400).json({ error: "version is required" });
+    }
+    
+    const snapshot = await db.query.configSnapshots.findFirst({
+      where: eq(configSnapshots.version, version),
+    });
+    
+    if (!snapshot) {
+      return res.status(404).json({ error: "Snapshot not found" });
+    }
+    
+    await db.insert(configActive).values({
+      id: 1,
+      version: snapshot.version,
+      payloadJson: snapshot.payloadJson,
+    }).onConflictDoUpdate({
+      target: [configActive.id],
+      set: {
+        version: snapshot.version,
+        payloadJson: snapshot.payloadJson,
+        updatedAt: sql`now()`,
+      },
+    });
+    
+    await engineConfigService.writeConfigFile(snapshot.payloadJson as any);
+    
+    mevScanner.stop();
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    mevScanner.start();
+    
+    console.log(`✅ Rolled back to version ${version}`);
+    
+    res.json({
+      success: true,
+      version: snapshot.version,
+      message: `Rolled back to version ${version}`
+    });
+  } catch (error: any) {
+    console.error("Error rolling back config:", error);
+    res.status(500).json({ error: error?.message || "Failed to rollback config" });
+  }
+});
+
+// GET /api/engine/config/snapshots - Get all configuration snapshots
+engineApiRouter.get("/config/snapshots", async (req, res) => {
+  try {
+    const snapshots = await db.query.configSnapshots.findMany({
+      orderBy: (snapshots, { desc }) => [desc(snapshots.createdAt)],
+      limit: 50,
+    });
+    
+    res.json({
+      success: true,
+      snapshots: snapshots.map(s => ({
+        version: s.version,
+        createdBy: s.createdBy,
+        createdAt: s.createdAt,
+        chainCount: (s.payloadJson as any)?.chains?.length || 0,
+      })),
+    });
+  } catch (error: any) {
+    console.error("Error fetching snapshots:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch snapshots" });
+  }
+});
+
+// GET /api/engine/config/active - Get active configuration
+engineApiRouter.get("/config/active", async (req, res) => {
+  try {
+    const active = await db.query.configActive.findFirst({
+      where: eq(configActive.id, 1),
+    });
+    
+    if (!active) {
+      return res.status(404).json({ error: "No active config found" });
+    }
+    
+    res.json({
+      success: true,
+      version: active.version,
+      updatedAt: active.updatedAt,
+      config: active.payloadJson,
+    });
+  } catch (error: any) {
+    console.error("Error fetching active config:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch active config" });
+  }
+});
+
+// POST /api/engine/ref-pools/recompute - Recompute reference pools for a chain
+engineApiRouter.post("/ref-pools/recompute", async (req, res) => {
+  try {
+    const { chainId } = req.body;
+    
+    if (!chainId) {
+      return res.status(400).json({ error: "chainId is required" });
+    }
+    
+    const count = await refPoolsService.recomputeRefPools(Number(chainId));
+    
+    await autoSaveAndReload();
+    
+    res.json({
+      success: true,
+      chainId: Number(chainId),
+      count,
+      message: `Recomputed ${count} reference pools`
+    });
+  } catch (error: any) {
+    console.error("Error recomputing ref pools:", error);
+    res.status(500).json({ error: error?.message || "Failed to recompute ref pools" });
+  }
+});
+
+// GET /api/engine/ref-pools/:chainId - Get reference pools for a chain
+engineApiRouter.get("/ref-pools/:chainId", async (req, res) => {
+  try {
+    const { chainId } = req.params;
+    const pools = await refPoolsService.getRefPools(Number(chainId));
+    
+    res.json({
+      success: true,
+      chainId: Number(chainId),
+      pools: pools.map(p => ({
+        token: p.token,
+        pairAddress: p.pairAddress,
+        feeBps: p.feeBps,
+        dexId: p.dexId,
+        score: p.score,
+        source: p.source,
+      })),
+    });
+  } catch (error: any) {
+    console.error("Error fetching ref pools:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch ref pools" });
+  }
+});
+
+// POST /api/engine/ref-pools/upsert - Manually upsert a reference pool
+engineApiRouter.post("/ref-pools/upsert", async (req, res) => {
+  try {
+    const { chainId, token, pairAddress, feeBps, dexId, score } = req.body;
+    
+    if (!chainId || !token || !pairAddress || !feeBps || !dexId) {
+      return res.status(400).json({ 
+        error: "chainId, token, pairAddress, feeBps, and dexId are required" 
+      });
+    }
+    
+    await refPoolsService.upsertRefPool(
+      Number(chainId),
+      token,
+      pairAddress,
+      Number(feeBps),
+      dexId,
+      score ? Number(score) : undefined
+    );
+    
+    await autoSaveAndReload();
+    
+    res.json({
+      success: true,
+      message: "Reference pool upserted successfully"
+    });
+  } catch (error: any) {
+    console.error("Error upserting ref pool:", error);
+    res.status(500).json({ error: error?.message || "Failed to upsert ref pool" });
+  }
+});
+
+// POST /api/engine/config/export - Trigger manual config export/reload
+engineApiRouter.post("/config/export", async (req, res) => {
+  try {
+    const result = await autoSaveAndReload();
+    res.json(result);
+  } catch (error: any) {
+    console.error("Error exporting config:", error);
+    res.status(500).json({ error: error?.message || "Failed to export config" });
   }
 });
