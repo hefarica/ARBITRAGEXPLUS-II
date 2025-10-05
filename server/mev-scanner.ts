@@ -16,6 +16,8 @@ interface OpportunityMatch {
 export class MEVScanner {
   private isRunning = false;
   private process: any = null;
+  private lastScanTime: number = 0;
+  private scanCount: number = 0;
 
   async start() {
     if (this.isRunning) {
@@ -37,6 +39,9 @@ export class MEVScanner {
   }
 
   private async runScan(): Promise<void> {
+    this.lastScanTime = Date.now();
+    this.scanCount++;
+    
     return new Promise((resolve) => {
       const proc = spawn("./binaries/mev-engine", [], {
         cwd: process.cwd(),
@@ -145,6 +150,14 @@ export class MEVScanner {
       this.process.kill();
     }
     console.log("🛑 MEV Scanner stopped");
+  }
+
+  getStatus() {
+    return {
+      isActive: this.isRunning,
+      lastScanTime: this.lastScanTime,
+      scanCount: this.scanCount,
+    };
   }
 }
 

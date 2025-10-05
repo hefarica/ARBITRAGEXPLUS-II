@@ -1794,6 +1794,11 @@ app.prepare().then(() => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  server.get("/api/mev-scanner/status", (req, res) => {
+    const status = mevScanner.getStatus();
+    res.json(status);
+  });
+
   server.all("*", async (req, res) => {
     try {
       await handle(req, res);

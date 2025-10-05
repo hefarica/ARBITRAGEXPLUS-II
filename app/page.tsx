@@ -32,6 +32,12 @@ export default function Page(){
     refetchInterval: 2000,
   })
 
+  const { data: scannerStatus } = useQuery({
+    queryKey: ["mev-scanner-status"],
+    queryFn: () => apiGet<{ isActive: boolean; lastScanTime: number; scanCount: number }>("/api/mev-scanner/status"),
+    refetchInterval: 2000,
+  })
+
   // Track new opportunities
   useEffect(() => {
     if (data && data.length > 0) {
@@ -184,13 +190,31 @@ export default function Page(){
       
       {/* Table with animations and responsive design */}
       <Card className="p-3 md:p-4">
-        <div className="text-sm mb-3 font-medium flex items-center justify-between">
+        <div className="text-sm mb-3 font-medium flex items-center justify-between flex-wrap gap-2">
           <span>Oportunidades (tiempo real)</span>
-          {newOpportunities.size > 0 && (
-            <span className="new-badge">
-              {newOpportunities.size} NUEVO{newOpportunities.size > 1 ? 'S' : ''}
-            </span>
-          )}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            {scannerStatus && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span>Motor MEV:</span>
+                  <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full ${scannerStatus.isActive ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${scannerStatus.isActive ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                    <span className="font-medium">{scannerStatus.isActive ? 'ACTIVO' : 'INACTIVO'}</span>
+                  </div>
+                </div>
+                {scannerStatus.lastScanTime > 0 && (
+                  <div className="hidden sm:block">
+                    Último escaneo: {new Date(scannerStatus.lastScanTime).toLocaleTimeString('es-ES')}
+                  </div>
+                )}
+              </>
+            )}
+            {newOpportunities.size > 0 && (
+              <span className="new-badge">
+                {newOpportunities.size} NUEVO{newOpportunities.size > 1 ? 'S' : ''}
+              </span>
+            )}
+          </div>
         </div>
         
         {/* Mobile-optimized table with horizontal scroll */}
