@@ -60,19 +60,25 @@ export class MEVScanner {
         errorOutput += data.toString();
       });
 
-      proc.on("close", async (code) => {
-        if (code === 0 || code === 124) {
+      proc.on("close", async (code, signal) => {
+        if (code === 0 || code === 124 || signal === "SIGTERM" || signal === "SIGKILL") {
           // 124 = timeout, expected
+          // SIGTERM/SIGKILL = killed by timeout, also expected
           await this.parseAndSaveOpportunities(output);
-        } else {
-          console.error("❌ MEV Engine error:", errorOutput);
+        } else if (code !== null) {
+          // Only log if there's an actual error code and error output
+          if (errorOutput.trim()) {
+            console.error(`❌ MEV Engine error (code ${code}):`, errorOutput);
+          } else {
+            console.error(`⚠️  MEV Engine exited with code ${code} (no error output)`);
+          }
         }
         resolve();
       });
 
       // Kill after 35 seconds (5s buffer)
       setTimeout(() => {
-        proc.kill();
+        proc.kill("SIGTERM");
       }, 35000);
     });
   }

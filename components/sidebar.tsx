@@ -192,6 +192,22 @@ export function Sidebar() {
           </SidebarLink>
           
           <SidebarLink
+            href="/admin/chains"
+            icon={<Network className="h-5 w-5" />}
+            isCollapsed={isCollapsed}
+          >
+            Admin Blockchains
+          </SidebarLink>
+          
+          <SidebarLink
+            href="/admin/assets"
+            icon={<Shield className="h-5 w-5" />}
+            isCollapsed={isCollapsed}
+          >
+            Admin Assets
+          </SidebarLink>
+          
+          <SidebarLink
             href="/simulator"
             icon={<Brain className="h-5 w-5" />}
             isCollapsed={isCollapsed}
