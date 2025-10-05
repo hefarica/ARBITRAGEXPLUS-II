@@ -7,6 +7,7 @@ import { opportunities, assetSafety, executions, engineConfig, wallets, walletBa
 import { desc, eq, and, sql, gte, lte } from "drizzle-orm";
 import { subDays } from "date-fns";
 import { AlertWebSocketServer } from "./server/websocket";
+import { setWebSocketServer } from "./server/websocket-instance";
 import { mevScanner } from "./server/mev-scanner";
 import { ChainDexFetcher } from "./server/chain-dex-fetcher";
 import { engineApiRouter } from "./server/engine-api";
@@ -1892,6 +1893,7 @@ app.prepare().then(() => {
   
   // Initialize WebSocket server
   const wsServer = new AlertWebSocketServer(httpServer);
+  setWebSocketServer(wsServer);
   console.log('[WS] WebSocket server initialized');
 
   httpServer.listen(port, () => {

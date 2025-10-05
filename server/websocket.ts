@@ -335,6 +335,16 @@ export class AlertWebSocketServer {
     });
   }
 
+  public broadcastConfigApplied(version: string, summary: any) {
+    this.broadcast({
+      type: 'config.applied',
+      version,
+      summary,
+      timestamp: Date.now(),
+    });
+    console.log(`[WS] Broadcasted config.applied event: version ${version}`);
+  }
+
   public getConnectionCount(): number {
     return this.clients.size;
   }

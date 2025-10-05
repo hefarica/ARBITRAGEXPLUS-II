@@ -1,0 +1,65 @@
+Quiero que actúes como un backend MEV Engine manager que recibe configuraciones completas del frontend en formato de arrays JSON y las procesa de forma segura y robusta. 
+
+Tu tarea será:
+
+1. Validar y transformar la configuración enviada desde el frontend (chains, dexes, assets, pools, policies), asegurando:
+   - Direcciones en lowercase.
+   - Pools sin duplicados (por `dexId|pairAddress`).
+   - No mezcla de `USDC` y `USDC.e` si está prohibido (`allowBridgedSymbols: false`).
+   - `rpcPool` con quorum mínimo (≥2 HTTPS y ≥2 WSS únicos).
+   - Pools no deben incluir direcciones bloqueadas (`blocklists`).
+   - `sizeGrid` válido (`min < max`, `steps ≥ 3`).
+   - `feeBps` válidos según tipo de DEX.
+
+2. Persistir la configuración en la base de datos (versionada) y aplicar un hot-reload al motor RUST.
+   - Usar un esquema de snapshot: `config_snapshots` y `config_active`.
+   - Emitir evento `config.applied` con la nueva versión por WebSocket.
+
+3. El Engine debe:
+   - Escanear múltiples rutas de 2 y 3 legs por par lógico.
+   - Calcular el `netPnl` en el token de entrada incluyendo gas y margen de seguridad (`gasSafetyBps`).
+   - Registrar cada intento en JSONL, incluyendo negativos (`ok=false`) y su `reason`.
+
+4. El sistema debe soportar ejecución real:
+   - Estimar gas usando `eth_call` (no hardcode).
+   - Usar pools WNATIVE↔TOKEN del config (`ref_pools[]`) para convertir el gas ETH a token.
+   - Simular la transacción exacta antes de ejecutarla.
+   - Enviar bundles privados (Flashbots/mev-share/bloXroute).
+   - Respetar `bundleMaxBlocks` y hacer retry inteligente si no entra.
+
+5. Todos los endpoints CRUD deben usar un patrón unificado:
+   - Guardar cambios en DB.
+   - Reconstruir `Config` completo desde la DB (`buildConfigArraysFromDB()`).
+   - Validar usando el mismo esquema del Engine.
+   - Aplicar vía `/config/apply` y guardar snapshot.
+   - Emitir `config.applied` por WS.
+
+6. El sistema debe tener un endpoint manual para trigger de export/reload:
+   - `POST /api/engine/config/export`
+   - Parámetro opcional: `{ dryRun: true }` para solo validar sin aplicar.
+
+7. El scanner Rust debe funcionar sin hardcodes:
+   - Leer todo desde `Config`.
+   - Usar trait `DataProvider` con métodos como `v2_reserves`, `slot0`, `eth_to_token_price`, etc.
+   - Rechazar ejecución si no hay `SharedConfig` activa o `Provider`.
+
+8. Validación triple:
+   - Frontend: sintaxis (direcciones válidas, sin duplicados).
+   - Backend: negocio (mix de assets, quorum, blocklists, etc).
+   - Engine: validación canónica (final).
+
+9. Auditoría y trazabilidad:
+   - Logs estructurados (`ok`, `reason`).
+   - Métricas: `opp/s`, `reverts%`, `avg_inclusion_blocks`, `latencia_p95`, `netPnl`, etc.
+   - Logs de descarte: `spread_insuficiente`, `gas_alto`, `slippage`, `revert_sim`, etc.
+
+Entrégame:
+- Código del endpoint `/api/engine/assets/upsert` con `autoSaveAndReload()`.
+- Código del `autoSaveAndReload()` centralizado.
+- Schema JSON (`config-schema.json`) con políticas estrictas.
+- Implementación `DataProvider` en Rust (`provider.rs`) con ethers o alloy.
+- Script e2e que testea `upsert → reload → aplicar → WS emitido`.
+
+No uses mocks, no uses datos hardcodeados. Todo debe venir desde arrays reales configurables por el frontend.
+
+Este prompt debe poder usarse como punto de partida para construir un sistema completo de escaneo y ejecución MEV multi-chain.

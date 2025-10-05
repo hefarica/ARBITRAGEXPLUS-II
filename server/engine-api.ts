@@ -6,6 +6,7 @@ import { engineConfigService } from "./engine-config-service";
 import { poolValidator } from "./pool-validator";
 import { mevScanner } from "./mev-scanner";
 import { refPoolsService } from "./ref-pools-service";
+import { getWebSocketServer } from "./websocket-instance";
 
 export const engineApiRouter = Router();
 
@@ -48,6 +49,16 @@ async function autoSaveAndReload() {
     await new Promise(resolve => setTimeout(resolve, 1000));
     mevScanner.start();
     console.log("✅ MEV engine reloaded successfully");
+    
+    const wsServer = getWebSocketServer();
+    if (wsServer) {
+      const summary = {
+        chains: config.chains.length,
+        totalDexs: config.totalDexs,
+        totalPools: config.chains.reduce((sum, c) => sum + c.pools.length, 0),
+      };
+      wsServer.broadcastConfigApplied(config.version, summary);
+    }
     
     return { success: true, version: config.version };
   } catch (error: any) {
