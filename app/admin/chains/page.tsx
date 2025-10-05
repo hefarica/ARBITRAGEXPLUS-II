@@ -149,6 +149,7 @@ export default function ChainsAdminPage() {
       if (data.success) {
         toast.success(`Blockchain ${isActive ? "activada" : "desactivada"}`);
         await fetchChains();
+        await autoSaveAndReload();
       } else {
         toast.error("Error al cambiar estado");
       }
@@ -158,54 +159,46 @@ export default function ChainsAdminPage() {
     }
   };
 
-  const exportConfig = async () => {
+  const autoSaveAndReload = async () => {
     try {
       setExporting(true);
-      toast.info("Exportando configuración a JSON...");
+      setReloading(true);
       
-      const response = await fetch("/cf/engine/export", {
+      const exportResponse = await fetch("/cf/engine/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
       
-      const data = await response.json();
+      const exportData = await exportResponse.json();
       
-      if (data.success) {
-        toast.success(`Config exportada: ${data.config.totalChains} chains, ${data.config.totalDexs} DEXs`);
-      } else {
+      if (!exportData.success) {
         toast.error("Error al exportar configuración");
+        return;
+      }
+
+      const reloadResponse = await fetch("/cf/engine/reload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      const reloadData = await reloadResponse.json();
+      
+      if (reloadData.success) {
+        toast.success(`✅ Config guardada y motor actualizado (${exportData.config.totalChains} chains, ${exportData.config.totalDexs} DEXs)`);
+      } else {
+        toast.error("Config exportada pero error al recargar motor");
       }
     } catch (error) {
-      console.error("Error exporting config:", error);
-      toast.error("Error exportando configuración");
+      console.error("Error in auto-save:", error);
+      toast.error("Error guardando configuración");
     } finally {
       setExporting(false);
+      setReloading(false);
     }
   };
 
-  const reloadEngine = async () => {
-    try {
-      setReloading(true);
-      toast.info("Recargando motor MEV RUST...");
-      
-      const response = await fetch("/cf/engine/reload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        toast.success("Motor MEV recargado exitosamente");
-      } else {
-        toast.error("Error al recargar motor");
-      }
-    } catch (error) {
-      console.error("Error reloading engine:", error);
-      toast.error("Error recargando motor MEV");
-    } finally {
-      setReloading(false);
-    }
+  const saveConfig = async () => {
+    await autoSaveAndReload();
   };
 
   const runHealthCheck = async (chainId?: number) => {
@@ -302,6 +295,7 @@ export default function ChainsAdminPage() {
         setSelectedDexes([]);
         setDexSuggestions([]);
         await fetchChains();
+        await autoSaveAndReload();
       } else {
         toast.error("Error al agregar DEXs");
       }
@@ -361,21 +355,13 @@ export default function ChainsAdminPage() {
             )}
             Auto-Discovery
           </Button>
-          <Button onClick={exportConfig} disabled={exporting} variant="outline">
-            {exporting ? (
+          <Button onClick={saveConfig} disabled={exporting || reloading}>
+            {exporting || reloading ? (
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
             ) : (
               <Server className="h-4 w-4 mr-2" />
             )}
-            Exportar Config
-          </Button>
-          <Button onClick={reloadEngine} disabled={reloading}>
-            {reloading ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            Recargar Motor
+            Guardar Config
           </Button>
         </div>
       </div>
