@@ -816,29 +816,55 @@ engineApiRouter.post("/policies/upsert", async (req, res) => {
 });
 
 // POST /api/engine/config/export - Manual trigger for config export and engine reload
+// Supports dryRun: true to validate without applying
 engineApiRouter.post("/config/export", async (req, res) => {
   try {
-    console.log("🔄 Manual config export triggered from frontend...");
+    const { dryRun = false } = req.body;
     
-    const success = await autoSaveAndReload();
+    console.log(`🔄 Manual config export triggered from frontend... (dryRun: ${dryRun})`);
     
-    if (success) {
-      const config = await engineConfigService.exportToJson(false);
-      res.json({ 
-        success: true, 
-        message: "Configuration exported and MEV engine reloaded successfully",
+    const config = await engineConfigService.exportToJson();
+    const validation = await engineConfigService.validateConfig(config);
+    
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: "Configuration validation failed",
+        errors: validation.errors,
+        dryRun
+      });
+    }
+    
+    if (dryRun) {
+      return res.json({
+        success: true,
+        dryRun: true,
+        message: "Configuration validated successfully (not applied)",
+        validation: {
+          valid: true,
+          warnings: validation.warnings || []
+        },
         stats: {
           totalChains: config.totalChains,
           totalDexs: config.totalDexs,
-          totalPairs: config.chains.reduce((sum, ch) => sum + ch.topPairs.length, 0),
+          totalPools: config.chains.reduce((sum, ch) => sum + ch.pools.length, 0),
         }
       });
-    } else {
-      res.status(500).json({ 
-        success: false, 
-        error: "Failed to export config or reload engine" 
-      });
     }
+    
+    const result = await autoSaveAndReload();
+    
+    res.json({ 
+      success: true, 
+      dryRun: false,
+      message: "Configuration exported and MEV engine reloaded successfully",
+      version: result.version,
+      stats: {
+        totalChains: config.totalChains,
+        totalDexs: config.totalDexs,
+        totalPools: config.chains.reduce((sum, ch) => sum + ch.pools.length, 0),
+      }
+    });
   } catch (error: any) {
     console.error("Error in manual config export:", error);
     res.status(500).json({ error: error?.message || "Failed to export configuration" });
@@ -1451,13 +1477,3 @@ engineApiRouter.post("/ref-pools/upsert", async (req, res) => {
   }
 });
 
-// POST /api/engine/config/export - Trigger manual config export/reload
-engineApiRouter.post("/config/export", async (req, res) => {
-  try {
-    const result = await autoSaveAndReload();
-    res.json(result);
-  } catch (error: any) {
-    console.error("Error exporting config:", error);
-    res.status(500).json({ error: error?.message || "Failed to export config" });
-  }
-});
