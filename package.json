@@ -13,7 +13,8 @@
     "test": "jest --coverage",
     "db:push": "drizzle-kit push",
     "db:push:force": "drizzle-kit push --force",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "mev": "tsx mev-engine-local.ts"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.5.2",
