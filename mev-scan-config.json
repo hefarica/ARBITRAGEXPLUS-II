@@ -1,0 +1,655 @@
+{
+  "chains": [
+    {
+      "name": "Base",
+      "chainId": 8453,
+      "dexs": [
+        "Aerodrome Slipstream",
+        "Aerodrome V1",
+        "PancakeSwap AMM",
+        "Uniswap V2",
+        "Quickswap Dex"
+      ],
+      "topPairs": [
+        {
+          "name": "WETH/USDC",
+          "token0": "0x4200000000000000000000000000000000000006",
+          "token1": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        }
+      ]
+    },
+    {
+      "name": "Ethereum",
+      "chainId": 1,
+      "dexs": [
+        "PancakeSwap AMM",
+        "Uniswap V2",
+        "Curve DEX",
+        "Ouchi Finance",
+        "IDEX V1"
+      ],
+      "topPairs": [
+        {
+          "name": "WETH/USDC",
+          "token0": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "token1": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        },
+        {
+          "name": "WETH/USDT",
+          "token0": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "token1": "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+        },
+        {
+          "name": "WBTC/USDC",
+          "token0": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+          "token1": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        }
+      ]
+    },
+    {
+      "name": "Arbitrum",
+      "chainId": 42161,
+      "dexs": [
+        "PancakeSwap AMM",
+        "Uniswap V2",
+        "Curve DEX",
+        "Uniswap V3",
+        "Uniswap V4"
+      ],
+      "topPairs": [
+        {
+          "name": "WETH/USDC",
+          "token0": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "token1": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8"
+        },
+        {
+          "name": "WETH/USDT",
+          "token0": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "token1": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9"
+        }
+      ]
+    },
+    {
+      "name": "Avalanche",
+      "chainId": 43114,
+      "dexs": [
+        "Uniswap V2",
+        "Blackhole CLMM",
+        "Curve DEX",
+        "Uniswap V3",
+        "Uniswap V4"
+      ],
+      "topPairs": [
+        {
+          "name": "WAVAX/USDC",
+          "token0": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+          "token1": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+        }
+      ]
+    },
+    {
+      "name": "Polygon",
+      "chainId": 137,
+      "dexs": [
+        "Uniswap V2",
+        "Quickswap Dex",
+        "Curve DEX",
+        "Uniswap V3",
+        "Uniswap V4"
+      ],
+      "topPairs": [
+        {
+          "name": "WMATIC/USDC",
+          "token0": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+          "token1": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+        },
+        {
+          "name": "WETH/USDC",
+          "token0": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
+          "token1": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+        }
+      ]
+    },
+    {
+      "name": "Linea",
+      "chainId": 59144,
+      "dexs": [
+        "PancakeSwap AMM",
+        "Etherex CL",
+        "Uniswap V3",
+        "PancakeSwap AMM V3",
+        "Etherex Legacy"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Optimism",
+      "chainId": 10,
+      "dexs": [
+        "Uniswap V2",
+        "Curve DEX",
+        "Uniswap V3",
+        "Uniswap V4",
+        "Balancer V3"
+      ],
+      "topPairs": [
+        {
+          "name": "WETH/USDC",
+          "token0": "0x4200000000000000000000000000000000000006",
+          "token1": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607"
+        }
+      ]
+    },
+    {
+      "name": "Polygon zkEVM",
+      "chainId": 1101,
+      "dexs": [
+        "PancakeSwap AMM",
+        "Uniswap V3",
+        "Balancer V2",
+        "PancakeSwap AMM V3",
+        "SushiSwap V3"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Cronos",
+      "chainId": 25,
+      "dexs": [
+        "VVS Standard",
+        "Ferro",
+        "VVS Flawless",
+        "MM Finance Cronos",
+        "iZiSwap"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Celo",
+      "chainId": 42220,
+      "dexs": [
+        "Uniswap V2",
+        "Curve DEX",
+        "Uniswap V3",
+        "SushiSwap",
+        "Velodrome V3"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "zkSync Era",
+      "chainId": 324,
+      "dexs": [
+        "PancakeSwap AMM",
+        "Uniswap V3",
+        "PancakeSwap AMM V3",
+        "SyncSwap",
+        "iZiSwap"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Mantle",
+      "chainId": 5000,
+      "dexs": [
+        "Agni Finance",
+        "Curve DEX",
+        "Uniswap V3",
+        "Merchant Moe Liquidity Book",
+        "iZiSwap"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "EOS",
+      "chainId": 59,
+      "dexs": [
+        "PayCash",
+        "Vaulta RAM",
+        "WhaleEx",
+        "DFS Network",
+        "1DEX"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Zora",
+      "chainId": 7777777,
+      "dexs": [
+        "Uniswap V2",
+        "Uniswap V4"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Berachain",
+      "chainId": 80084,
+      "dexs": [
+        "Kodiak V3",
+        "BEX",
+        "BurrBear",
+        "Bulla Exchange",
+        "Kodiak V2"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Sonic",
+      "chainId": 146,
+      "dexs": [
+        "Curve DEX",
+        "Uniswap V3",
+        "Beets DEX V3",
+        "Shadow Exchange CLMM",
+        "Beets DEX"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Blast",
+      "chainId": 81457,
+      "dexs": [
+        "Uniswap V3",
+        "Uniswap V4",
+        "Ring Few",
+        "Thruster V3",
+        "Fenix Concentrated Liquidity"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Moonbeam",
+      "chainId": 1284,
+      "dexs": [
+        "Curve DEX",
+        "Uniswap V3",
+        "StellaSwap V4",
+        "SushiSwap V3",
+        "SushiSwap"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Taiko",
+      "chainId": 167000,
+      "dexs": [
+        "Curve DEX",
+        "Uniswap V3",
+        "Loopring",
+        "iZiSwap"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "XDC",
+      "chainId": 50,
+      "dexs": [
+        "Curve DEX",
+        "Uniswap V3",
+        "XSwap V3"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Fraxtal",
+      "chainId": 252,
+      "dexs": [
+        "Curve DEX",
+        "Balancer V2",
+        "Velodrome V2",
+        "Velodrome V3",
+        "Frax Swap"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Fantom",
+      "chainId": 250,
+      "dexs": [
+        "Curve DEX",
+        "Beets DEX",
+        "SushiSwap V3",
+        "SushiSwap",
+        "Frax Swap"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Scroll",
+      "chainId": 534352,
+      "dexs": [
+        "Uniswap V3",
+        "SyncSwap",
+        "SushiSwap V3",
+        "Honeypop DEX",
+        "SushiSwap"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Kava",
+      "chainId": 2222,
+      "dexs": [
+        "Curve DEX",
+        "SushiSwap V3",
+        "Equilibre",
+        "SushiSwap",
+        "MIM Swap"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "X Layer",
+      "chainId": 196,
+      "dexs": [
+        "Curve DEX",
+        "PotatoSwap",
+        "Quickswap V3",
+        "iZiSwap",
+        "Quickswap V4"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "BOB",
+      "chainId": 60808,
+      "dexs": [
+        "Uniswap V3",
+        "Sovryn Dex",
+        "Velodrome V2",
+        "iZiSwap",
+        "Blueshift"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Aurora",
+      "chainId": 1313161554,
+      "dexs": [
+        "Curve DEX",
+        "iZiSwap",
+        "Trisolaris",
+        "DODO AMM",
+        "Saddle Finance"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Harmony",
+      "chainId": 1666600000,
+      "dexs": [
+        "Curve DEX",
+        "SushiSwap"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Manta",
+      "chainId": 169,
+      "dexs": [
+        "Uniswap V3",
+        "Quickswap V3",
+        "iZiSwap",
+        "DODO AMM",
+        "GullNetwork AMM"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Telos",
+      "chainId": 40,
+      "dexs": [
+        "Uniswap V3",
+        "SushiSwap",
+        "ApeSwap AMM",
+        "VaporDex V1"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Boba",
+      "chainId": 288,
+      "dexs": [
+        "Uniswap V3",
+        "SushiSwap"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Mode",
+      "chainId": 34443,
+      "dexs": [
+        "Balancer V2",
+        "Velodrome V2",
+        "Velodrome V3",
+        "iZiSwap",
+        "Swaap Maker V2"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Ronin",
+      "chainId": 2020,
+      "dexs": [
+        "Katana DEX",
+        "Katana DEX V3"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Merlin",
+      "chainId": 4200,
+      "dexs": [
+        "MerlinSwap",
+        "DyorSwap"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Klaytn",
+      "chainId": 8217,
+      "dexs": [
+        "DragonSwap V3 Kaia",
+        "KlaySwap V1",
+        "Consensus Liquidity DEX",
+        "Capybara Dexs"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "Metis",
+      "chainId": 1088,
+      "dexs": [
+        "SushiSwap V3",
+        "SushiSwap",
+        "NetSwap",
+        "Hercules V3",
+        "WAGMI"
+      ],
+      "topPairs": [
+        {
+          "name": "Generic/USDC",
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token1": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    }
+  ],
+  "totalChains": 36,
+  "totalDexs": 160,
+  "lastUpdated": 1759643542915
+}
