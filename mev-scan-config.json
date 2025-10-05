@@ -1,27 +1,28 @@
 {
   "chains": [
     {
-      "name": "Ethereum",
-      "chainId": 1,
-      "dexs": [
-        "Uniswap V2",
-        "Uniswap V3",
-        "Curve DEX"
-      ],
-      "topPairs": [
-        {
-          "name": "WETH/USDC",
-          "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-          "token1": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-          "pairAddress": "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640"
-        },
-        {
-          "name": "WETH/USDT",
-          "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-          "token1": "0xdac17f958d2ee523a2206206994597c13d831ec7",
-          "pairAddress": "0x4e68ccd3e89f51c3074ca5072bbac773960dfa36"
-        }
-      ]
+      "name": "OP Mainnet",
+      "chainId": 10,
+      "dexs": [],
+      "topPairs": []
+    },
+    {
+      "name": "Gnosis",
+      "chainId": 100,
+      "dexs": [],
+      "topPairs": []
+    },
+    {
+      "name": "Scroll",
+      "chainId": 534352,
+      "dexs": [],
+      "topPairs": []
+    },
+    {
+      "name": "Base",
+      "chainId": 8453,
+      "dexs": [],
+      "topPairs": []
     },
     {
       "name": "BNB Smart Chain",
@@ -41,14 +42,8 @@
       ]
     },
     {
-      "name": "Base",
-      "chainId": 8453,
-      "dexs": [],
-      "topPairs": []
-    },
-    {
-      "name": "Polygon",
-      "chainId": 137,
+      "name": "Berachain",
+      "chainId": 80094,
       "dexs": [],
       "topPairs": []
     },
@@ -57,33 +52,9 @@
       "chainId": 25,
       "dexs": [],
       "topPairs": []
-    },
-    {
-      "name": "Berachain",
-      "chainId": 80094,
-      "dexs": [],
-      "topPairs": []
-    },
-    {
-      "name": "OP Mainnet",
-      "chainId": 10,
-      "dexs": [],
-      "topPairs": []
-    },
-    {
-      "name": "Gnosis",
-      "chainId": 100,
-      "dexs": [],
-      "topPairs": []
-    },
-    {
-      "name": "Scroll",
-      "chainId": 534352,
-      "dexs": [],
-      "topPairs": []
     }
   ],
-  "totalChains": 9,
-  "totalDexs": 6,
-  "lastUpdated": 1759688466365
+  "totalChains": 7,
+  "totalDexs": 3,
+  "lastUpdated": 1759688767863
 }

@@ -3,6 +3,7 @@ import { db } from "./db";
 import { chains, chainRpcs, chainDexes, assets, pairs, policies, configVersions } from "@shared/schema";
 import { eq, and, sql, gte, inArray } from "drizzle-orm";
 import { engineConfigService } from "./engine-config-service";
+import { poolValidator } from "./pool-validator";
 import { mevScanner } from "./mev-scanner";
 
 export const engineApiRouter = Router();
@@ -568,37 +569,123 @@ engineApiRouter.post("/pairs/generate", async (req, res) => {
   }
 });
 
-// POST /api/engine/pairs/upsert - Manual pair management
+// POST /api/engine/pairs/validate - Validate pool address before saving
+engineApiRouter.post("/pairs/validate", async (req, res) => {
+  try {
+    const { chainId, poolAddress, baseTokenAddress, quoteTokenAddress } = req.body;
+
+    if (!chainId || !poolAddress) {
+      return res.status(400).json({ error: "chainId and poolAddress are required" });
+    }
+
+    const validation = await poolValidator.validatePoolAddress(
+      Number(chainId),
+      poolAddress,
+      baseTokenAddress,
+      quoteTokenAddress
+    );
+
+    res.json(validation);
+  } catch (error) {
+    console.error("Error validating pool:", error);
+    res.status(500).json({ error: "Failed to validate pool address" });
+  }
+});
+
+// POST /api/engine/pairs/find - Find correct pool addresses for a token pair
+engineApiRouter.post("/pairs/find", async (req, res) => {
+  try {
+    const { chainId, baseTokenAddress, quoteTokenAddress, minLiquidity } = req.body;
+
+    if (!chainId || !baseTokenAddress || !quoteTokenAddress) {
+      return res.status(400).json({ error: "chainId, baseTokenAddress, and quoteTokenAddress are required" });
+    }
+
+    const pools = await poolValidator.findCorrectPoolAddress(
+      Number(chainId),
+      baseTokenAddress,
+      quoteTokenAddress,
+      minLiquidity || 1000
+    );
+
+    res.json({ success: true, pools, count: pools.length });
+  } catch (error) {
+    console.error("Error finding pools:", error);
+    res.status(500).json({ error: "Failed to find pool addresses" });
+  }
+});
+
+// POST /api/engine/pairs/upsert - Manual pair management WITH VALIDATION
 engineApiRouter.post("/pairs/upsert", async (req, res) => {
   try {
-    const { pairs: pairsList } = req.body;
+    const { pairs: pairsList, skipValidation = false } = req.body;
 
     if (!Array.isArray(pairsList)) {
       return res.status(400).json({ error: "pairs must be an array" });
     }
 
+    const results = [];
+    const errors = [];
+
     for (const pair of pairsList) {
-      const { chainId, base, quote, enabled = true } = pair;
+      const { chainId, base, quote, pairAddr, enabled = true } = pair;
       
       if (!chainId || !base || !quote) {
+        errors.push({ pair, error: "Missing required fields: chainId, base, quote" });
         continue;
+      }
+
+      if (pairAddr && !skipValidation) {
+        const validation = await poolValidator.validatePoolAddress(
+          Number(chainId),
+          pairAddr,
+          base,
+          quote
+        );
+
+        if (!validation.isValid) {
+          errors.push({ 
+            pair, 
+            error: `❌ INVALID POOL ADDRESS: ${validation.error}`,
+            warnings: validation.warnings 
+          });
+          console.error(`🚨 VALIDATION FAILED for ${base}/${quote} on chain ${chainId}:`, validation.error);
+          continue;
+        }
+
+        if (validation.warnings && validation.warnings.length > 0) {
+          console.warn(`⚠️ WARNINGS for ${base}/${quote}:`, validation.warnings);
+        }
       }
 
       await db.insert(pairs).values({
         chainId: Number(chainId),
         baseAddr: base.toLowerCase(),
         quoteAddr: quote.toLowerCase(),
+        pairAddr: pairAddr ? pairAddr.toLowerCase() : null,
         enabled,
       }).onConflictDoUpdate({
         target: [pairs.chainId, pairs.baseAddr, pairs.quoteAddr],
         set: {
+          pairAddr: pairAddr ? pairAddr.toLowerCase() : sql`pair_addr`,
           enabled,
           updatedAt: sql`now()`,
         },
       });
+
+      results.push({ pair, status: 'upserted' });
     }
 
-    res.json({ success: true, upserted: pairsList.length, message: "Pairs upserted successfully" });
+    if (errors.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Failed to upsert ${errors.length} pairs due to validation errors`,
+        upserted: results.length,
+        errors 
+      });
+    }
+
+    res.json({ success: true, upserted: results.length, message: "Pairs upserted successfully" });
   } catch (error) {
     console.error("Error upserting pairs:", error);
     res.status(500).json({ error: "Failed to upsert pairs" });
