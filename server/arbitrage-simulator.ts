@@ -1,6 +1,4 @@
-import { db } from './db';
-import { chains, dexs, assets, pairs } from './db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { engineConfigService } from './engine-config-service';
 
 interface Pool {
   chainId: number;
@@ -39,12 +37,13 @@ export class ArbitrageSimulator {
   async findOpportunities(chainId?: number): Promise<ArbitrageRoute[]> {
     const opportunities: ArbitrageRoute[] = [];
     
+    const config = await engineConfigService.exportToJson();
     const targetChains = chainId 
-      ? await db.select().from(chains).where(eq(chains.chainId, chainId))
-      : await db.select().from(chains);
+      ? config.chains.filter(c => c.chainId === chainId)
+      : config.chains;
 
     for (const chain of targetChains) {
-      const chainPools = await this.getChainPools(chain.chainId);
+      const chainPools = this.getChainPools(chain);
       
       const twoLegOpps = await this.find2LegOpportunities(chain.chainId, chainPools);
       opportunities.push(...twoLegOpps);
@@ -62,32 +61,18 @@ export class ArbitrageSimulator {
       .sort((a, b) => b.net_pnl_bps - a.net_pnl_bps);
   }
 
-  private async getChainPools(chainId: number): Promise<Pool[]> {
-    const pairsData = await db
-      .select({
-        chainId: pairs.chainId,
-        dexId: pairs.dexId,
-        pairAddress: pairs.pairAddress,
-        token0: pairs.token0Address,
-        token1: pairs.token1Address,
-        feeBps: pairs.feeBps,
-        reserve0: pairs.reserve0,
-        reserve1: pairs.reserve1,
-        liquidity: pairs.liquidity,
-      })
-      .from(pairs)
-      .where(eq(pairs.chainId, chainId));
+  private getChainPools(chain: any): Pool[] {
+    if (!chain.pools || chain.pools.length === 0) {
+      return [];
+    }
 
-    return pairsData.map(p => ({
-      chainId: p.chainId,
-      dexId: p.dexId,
+    return chain.pools.map((p: any) => ({
+      chainId: chain.chainId,
+      dexId: p.dexId || 'unknown',
       pairAddress: p.pairAddress,
-      token0: p.token0,
-      token1: p.token1,
+      token0: p.base || '',
+      token1: p.quote || '',
       feeBps: p.feeBps || 30,
-      reserve0: p.reserve0 || undefined,
-      reserve1: p.reserve1 || undefined,
-      liquidity: p.liquidity || undefined,
     }));
   }
 

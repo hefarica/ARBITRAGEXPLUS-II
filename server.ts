@@ -9,6 +9,7 @@ import { subDays } from "date-fns";
 import { AlertWebSocketServer } from "./server/websocket";
 import { setWebSocketServer } from "./server/websocket-instance";
 import { mevScanner } from "./server/mev-scanner";
+import { arbitrageScanner } from "./server/arbitrage-scanner";
 import { ChainDexFetcher } from "./server/chain-dex-fetcher";
 import { engineApiRouter } from "./server/engine-api";
 
@@ -1899,8 +1900,10 @@ app.prepare().then(() => {
   httpServer.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
     
-    // Start MEV Scanner for real-time opportunity detection
     console.log('🔍 Starting MEV Scanner for real-time opportunities...');
     mevScanner.start().catch(console.error);
+    
+    console.log('💰 Starting Arbitrage Scanner (auto-scan every 5 seconds)...');
+    arbitrageScanner.start();
   });
 });
