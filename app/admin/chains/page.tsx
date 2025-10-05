@@ -322,6 +322,15 @@ export default function ChainsAdminPage() {
     );
   };
 
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  const getSecondsSinceUpdate = () => {
+    if (!lastUpdate) return 0;
+    return Math.floor((currentTime.getTime() - lastUpdate.getTime()) / 1000);
+  };
+
   useEffect(() => {
     const clockInterval = setInterval(() => {
       setCurrentTime(new Date());
@@ -357,20 +366,11 @@ export default function ChainsAdminPage() {
     }
   }, [selectedChain]);
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  };
-
-  const getSecondsSinceUpdate = () => {
-    if (!lastUpdate) return 0;
-    return Math.floor((currentTime.getTime() - lastUpdate.getTime()) / 1000);
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Gestión de Blockchains</h1>
+          <h1 className="text-3xl font-bold">Gestion de Blockchains</h1>
           <p className="text-muted-foreground mt-1">
             Administra las blockchains, RPCs y DEXs del sistema MEV
           </p>
@@ -413,6 +413,7 @@ export default function ChainsAdminPage() {
             )}
             Guardar Config
           </Button>
+        </div>
         </div>
       </div>
 
