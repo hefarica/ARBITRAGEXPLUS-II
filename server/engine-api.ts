@@ -1059,13 +1059,16 @@ engineApiRouter.get("/dexes/suggest/:chainId", async (req, res) => {
 
     const response = await fetch('https://api.llama.fi/protocols');
     const protocols = await response.json();
+    
+    const allDexes = protocols.filter((p: any) => p.category === 'Dexs');
+    const dexesForChain = allDexes.filter((p: any) => 
+      p.chains && p.chains.includes(chainName)
+    );
+    
+    console.log(`✅ Found ${dexesForChain.length} DEXs for ${chainName}`);
 
-    const dexProtocols = protocols
-      .filter((p: any) => 
-        p.category === 'Dexes' &&
-        p.chains && p.chains.includes(chainName) &&
-        p.tvl > 100000
-      )
+    const dexProtocols = dexesForChain
+      .filter((p: any) => p.tvl > 100000)
       .sort((a: any, b: any) => b.tvl - a.tvl)
       .slice(0, 20)
       .map((p: any) => ({

@@ -486,7 +486,10 @@ export default function ChainsAdminPage() {
                                     <input
                                       type="checkbox"
                                       checked={selectedDexes.includes(dex.name)}
-                                      onChange={() => toggleDexSelection(dex.name)}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        toggleDexSelection(dex.name);
+                                      }}
                                       className="h-4 w-4"
                                     />
                                   </div>
@@ -595,7 +598,10 @@ export default function ChainsAdminPage() {
                                     <input
                                       type="checkbox"
                                       checked={selectedDexes.includes(dex.name)}
-                                      onChange={() => toggleDexSelection(dex.name)}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        toggleDexSelection(dex.name);
+                                      }}
                                       className="h-4 w-4"
                                     />
                                   </div>
