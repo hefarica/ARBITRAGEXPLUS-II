@@ -211,9 +211,9 @@ export default function AssetOrchestratorPage() {
 
   const filteredAssets = assets.filter(
     (asset) =>
-      asset.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asset.address.toLowerCase().includes(searchTerm.toLowerCase())
+      asset?.symbol?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      asset?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      asset?.address?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const stats = {

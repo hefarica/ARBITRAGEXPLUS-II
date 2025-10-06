@@ -1,0 +1,4 @@
+{"ts":1759753201445,"trace_id":"1:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","op":"validate","asset":{"symbol":"WETH","address":"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","chainId":1}}
+{"ts":1759753201522,"trace_id":"1:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","op":"reject","result":{"valid":false,"reason":"NOT_CONFIGURED"},"reason":"this.config.chains?.find is not a function"}
+{"ts":1759753242487,"trace_id":"1:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","op":"validate","asset":{"symbol":"WETH","address":"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","chainId":1}}
+{"ts":1759753242511,"trace_id":"1:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","op":"reject","result":{"valid":false,"reason":"NOT_CONFIGURED"},"reason":"this.config.chains?.find is not a function"}
