@@ -5,6 +5,18 @@ ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and
 
 ## Recent Changes (Oct 6, 2025)
 
+### RPC Health Monitor Automático - Sistema Anti-Sleep (Oct 6, 2025)
+
+**Sistema de Health Check Automático:**
+- ✅ **RPC Health Monitor automático**: Verifica salud de RPCs cada 3 minutos sin intervención manual
+- ✅ **Solo chains activas**: El monitor solo verifica RPCs de blockchains que están activas, ahorrando recursos
+- ✅ **Actualización automática de BD**: Actualiza `lastLatencyMs`, `lastOkAt` y `isActive` en cada verificación
+- ✅ **Prevención de sleep**: Los RPCs ya no se "duermen" o quedan en 0/5 - se mantienen activos automáticamente
+- ✅ **Logs detallados**: Muestra latencia de cada RPC y conteo de healthy/unhealthy en consola
+- ✅ **Inicialización inmediata**: Se ejecuta al iniciar el servidor y luego cada 3 minutos
+- ✅ **Singleton pattern**: Servicio único `rpcHealthMonitor` en `server/rpc-health-monitor.ts`
+- ✅ **Health check manual optimizado**: Eliminado del inicio de página para evitar race conditions
+
 ### DEX Management System Enhancement & Auto-Activation
 
 **Admin Chains UI & UX Improvements (Oct 6, 2025):**

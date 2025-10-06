@@ -12,6 +12,7 @@ import { mevScanner } from "./server/mev-scanner";
 import { arbitrageScanner } from "./server/arbitrage-scanner";
 import { ChainDexFetcher } from "./server/chain-dex-fetcher";
 import { engineApiRouter } from "./server/engine-api";
+import { rpcHealthMonitor } from "./server/rpc-health-monitor";
 
 const CHAIN_NAMES: Record<number, string> = {
   1: "Ethereum",
@@ -1910,5 +1911,8 @@ app.prepare().then(() => {
     
     console.log('💰 Starting Arbitrage Scanner (auto-scan every 5 seconds)...');
     arbitrageScanner.start();
+    
+    console.log('🏥 Starting RPC Health Monitor (auto-check every 3 minutes)...');
+    rpcHealthMonitor.start();
   });
 });

@@ -342,7 +342,6 @@ export default function ChainsAdminPage() {
 
   useEffect(() => {
     const initializeChains = async () => {
-      await runHealthCheck();
       await fetchChains(true);
     };
     
