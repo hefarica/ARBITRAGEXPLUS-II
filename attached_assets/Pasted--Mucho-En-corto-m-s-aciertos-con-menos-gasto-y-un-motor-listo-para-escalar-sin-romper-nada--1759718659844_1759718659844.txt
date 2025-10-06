@@ -1,0 +1,79 @@
+¡Mucho! En corto: **más aciertos con menos gasto** y un motor listo para escalar sin romper nada.
+
+# Lo que ganas (beneficios concretos)
+
+1. **Más oportunidades reales (2 y 3 legs)**
+
+* Atacas **tres fuentes de ineficiencia** que sí ocurren: *bridged stables*, *TWAP rezagado* y *swaps grandes por evento*.
+* Resultado: más micro-spreads capturables en L2 baratas (Base, Arbitrum, Optimism, Polygon, Avalanche).
+
+2. **Menos RPC y CPU por “escaneo dirigido”**
+
+* Pasas de barrer todo el universo a **reaccionar por señales** (eventos, listas bridged, pools TWAP marcados).
+* En práctica, esto suele recortar **5–15×** peticiones en periodos sin actividad y concentra cálculo donde hay probabilidad de spread.
+
+3. **Latencia menor → mejor prioridad**
+
+* El Event Scanner (WS) te avisa *en el bloque*; el simulador decide rápido tamaños, y el ruteo 3-legs (Bellman-Ford) extrae el ciclo sin barrer combinaciones al azar.
+* Más rapidez = más turnos ganados antes de que el precio se equilibre.
+
+4. **Control fino de rentabilidad**
+
+* Variables de entorno (`THRESH_MIN_USD`, `GAS_USD`, `FEE_BPS_PER_LEG`) te dejan **filtrar ruido** y solo intentar cuando el neto esperado supera gas+fees.
+
+5. **Observabilidad y trazabilidad**
+
+* **Logger JSON** con `reason` (`BRIDGED_STABLE_PAIR`, `TWAP_POOL_CANDIDATE`, `EVENT_SWAP`, `OPPORTUNITY`) → fácil graficar, auditar y entrenar heurísticas.
+
+6. **Modularidad y bajo riesgo**
+
+* Todo entra como **binario aparte** (`mev-scanner`) y módulos nuevos; **no rompe** tu ejecutable actual.
+* “Feature flags” (`--features evm`) para activar WS solo cuando lo necesitas.
+
+7. **Camino directo a ejecución atómica**
+
+* Ya tienes: sizing por grilla, grafo 3-legs y eventos. Solo falta **enchufar tus cotizadores reales** y el **router de ejecución** (contrato/SDK) para cerrar la operación en una sola tx.
+
+---
+
+# Impacto operativo (ejemplos numéricos simples)
+
+Tus propias metas eran micro-ganancias **$1–$10** netos, muchas veces por hora:
+
+* Caso A: 8 ops/hora × **$2** neto = **$16/h** → en 16 h activas = **$256/día**.
+* Caso B: 20 ops/hora × **$1.5** neto = **$30/h** → en 20 h = **$600/día**.
+* Caso C: 60 ops/hora × **$1** neto = **$60/h** → en 12 h = **$720/día**.
+
+> Son escenarios ilustrativos (no promesas); el sistema nuevo aumenta la **tasa de acierto** y baja el **coste por intento**, que es justo lo que te mueve hacia estos órdenes de magnitud.
+
+---
+
+# Métricas que ahora puedes medir (y optimizar)
+
+* **Hit-rate por señal**: % de `BRIDGED_STABLE_PAIR`/`TWAP_POOL_CANDIDATE` que terminan en `OPPORTUNITY`.
+* **Costo por oportunidad**: (RPC + gas simulado)/oportunidad evaluada.
+* **TTD (time-to-decision)**: tiempo desde evento hasta `OPPORTUNITY`.
+* **PNL/h y PNL/op**: neto tras gas y fees.
+* **Degradación por latencia**: delta de PnL si ejecutas 0.5s, 1s, 2s después del evento.
+
+---
+
+# Qué te desbloquea ya mismo (acciones en 30–60 min)
+
+1. **Rellenar pools reales** en `mev-scanner-config.json` (5 chains que ya marcaste).
+2. **Poner endpoints WSS** confiables (Base/Arbitrum/Optimism).
+3. **Conectar cotizadores reales** en `simulate::two_leg/three_leg` (reemplazar closures por tus bindings).
+4. **Subir el umbral** `THRESH_MIN_USD` hasta que los logs muestren ≥80% de aciertos en simulado.
+5. **(Opcional)** cablear un POST al backend/UI desde `logging::jsonlog` para ver oportunidades en vivo en tu dashboard.
+
+---
+
+# En resumen
+
+* **Más señales buenas**, **menos ruido**, **mejor latencia** y **control de riesgo** desde variables.
+* Arquitectura **modular** y **auditable** para iterar rápido sin tocar el motor principal.
+* Base lista para enchufar **quotes reales** y pasar a **ejecución atómica** (el último salto).
+
+Si quieres, te dejo el **patch 0004** para:
+(a) enviar las oportunidades vía HTTP al backend/UI, y
+(b) aceptar tanto `bridgedGroups/prioritizeDex` como `bridged_groups/prioritize_dex` **sin warnings**.

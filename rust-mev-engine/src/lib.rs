@@ -7,3 +7,7 @@ pub mod scanners;
 pub mod graph;
 #[cfg(feature = "scanners")]
 pub mod sizing;
+#[cfg(feature = "scanners")]
+pub mod logging;
+#[cfg(feature = "scanners")]
+pub mod simulate;

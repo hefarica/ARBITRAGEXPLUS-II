@@ -1,0 +1,447 @@
+¡Vamos con **ambos** (a + b) en un **solo patch 0004** y un **prompt** listo para tu agente. Esto agrega:
+
+* (a) **POST HTTP** de oportunidades al backend/UI (con cola ligera y reintentos asincrónicos).
+* (b) **Compatibilidad de config** con `camelCase` y `snake_case` mediante `#[serde(alias = "...")]` (sin warnings).
+
+---
+
+## PROMPT PARA MI AGENTE (copiar y pegar tal cual)
+
+**Objetivo:**
+Aplicar `0004-http-and-aliases.patch` a `ARBITRAGEXPLUS-II` para:
+
+1. enviar oportunidades por HTTP (`MEV_POST_URL`, `MEV_POST_API_KEY`)
+2. soportar `bridgedGroups/prioritizeDex` y `bridged_groups/prioritize_dex` (y alias útiles) sin warnings.
+3. actualizar scripts para detectar si hay POST HTTP habilitado y compilar con las *features* correctas.
+
+**Pasos:**
+
+1. Preparar rama
+
+```bash
+cd ARBITRAGEXPLUS-II
+git checkout -b feat/http-post-and-aliases
+```
+
+2. Crear **0004-http-and-aliases.patch** con el contenido EXACTO de abajo y aplicarlo
+
+```bash
+cat > 0004-http-and-aliases.patch << 'PATCH'
+*** Begin Patch
+*** Update File: rust-mev-engine/Cargo.toml
+@@
+ [features]
+ scanners = ["dep:tokio", "dep:serde", "dep:serde_json", "dep:eyre", "dep:petgraph"]
+ evm = ["scanners", "dep:ethers"]
++http = ["dep:reqwest", "dep:once_cell", "dep:tokio", "dep:serde_json", "dep:eyre"]
+ 
+ [dependencies]
+ tokio = { version = "1", features = ["rt-multi-thread","macros"], optional = true }
+ serde = { version = "1", features = ["derive"], optional = true }
+ serde_json = { version = "1", optional = true }
+ eyre = { version = "0.6", optional = true }
+ petgraph = { version = "0.6", optional = true }
+ ethers = { version = "2", default-features = false, features = ["ws","rustls"], optional = true }
+ chrono = { version = "0.4", optional = true }
+ once_cell = { version = "1", optional = true }
+ fs2 = { version = "0.4", optional = true }
++reqwest = { version = "0.11", default-features = false, features = ["json","rustls-tls"], optional = true }
+ 
+*** End Patch
+PATCH
+git apply --whitespace=fix 0004-http-and-aliases.patch
+```
+
+3. Crear **types.rs** (tipos con alias serde para compatibilidad camel/snake)
+
+```bash
+cat > rust-mev-engine/src/types.rs << 'RS'
+use serde::Deserialize;
+use std::collections::BTreeMap;
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct AssetCfg {
+    pub address: String,
+    #[serde(default)]
+    pub symbol: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ChainCfg {
+    pub chain_id: u64,
+    #[serde(default)]
+    pub name: String,
+    // Acepta "ws" o "wss"
+    #[serde(default, alias = "ws", alias = "wss")]
+    pub ws_url: Option<String>,
+    // Acepta "pools", "pool_addresses" o "pairs"
+    #[serde(default, alias = "pool_addresses", alias = "pairs")]
+    pub pools: Vec<String>,
+    #[serde(default)]
+    pub assets: Vec<AssetCfg>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ScanConfig {
+    pub chains: Vec<ChainCfg>,
+    // Acepta bridgedGroups y bridged_groups
+    #[serde(default, alias = "bridged_groups")]
+    pub bridgedGroups: BTreeMap<String, Vec<String>>,
+    // Acepta prioritizeDex y prioritize_dex
+    #[serde(default, alias = "prioritize_dex")]
+    pub prioritizeDex: Vec<String>,
+
+    // Opcional: también puedes definirlo en config en lugar de ENV
+    #[serde(default, alias = "post_url")]
+    pub postUrl: Option<String>,
+    #[serde(default, alias = "post_api_key")]
+    pub postApiKey: Option<String>,
+}
+RS
+```
+
+4. Actualizar **mev_scanner.rs** para usar `types::ScanConfig` y exportar POST URL/API KEY desde config a ENV si vienen en el JSON
+
+```bash
+applypatch() {
+cat > .mev_scanner.rs.patch << 'PATCH'
+*** Begin Patch
+*** Update File: rust-mev-engine/src/bin/mev_scanner.rs
+@@
+-use eyre::Result;
+-use std::{env, fs::File, io::BufReader, time::Duration};
+-use serde::Deserialize;
+-
+-mod scanners;
+-mod graph;
+-mod sizing;
+-mod logging;
+-mod simulate;
+-
+-#[derive(Debug, Deserialize, Clone)]
+-struct AssetCfg { address: String, #[serde(default)] symbol: Option<String> }
+-#[derive(Debug, Deserialize, Clone)]
+-struct ChainCfg {
+-    chain_id: u64,
+-    name: String,
+-    #[serde(default)] ws: Option<String>,
+-    #[serde(default)] pools: Vec<String>,
+-    #[serde(default)] assets: Vec<AssetCfg>,
+-}
+-#[derive(Debug, Deserialize)]
+-struct ScanConfig {
+-    chains: Vec<ChainCfg>,
+-    #[serde(default)] bridgedGroups: std::collections::BTreeMap<String, Vec<String>>,
+-    #[serde(default)] prioritizeDex: Vec<String>,
+-}
++use eyre::Result;
++use std::{env, fs::File, io::BufReader, time::Duration};
++use crate::types::ScanConfig;
++
++mod scanners;
++mod graph;
++mod sizing;
++mod logging;
++mod simulate;
++mod types;
+@@
+     let path = std::env::var("MEV_SCANNER_CONFIG").unwrap_or_else(|_| "mev-scanner-config.json".to_string());
+     let cfg: ScanConfig = serde_json::from_reader(BufReader::new(File::open(&path)?))?;
++    // Si vienen en config, exporta a ENV (para el logger HTTP)
++    if let Some(url) = cfg.postUrl.as_ref() { env::set_var("MEV_POST_URL", url); }
++    if let Some(key) = cfg.postApiKey.as_ref() { env::set_var("MEV_POST_API_KEY", key); }
+@@
+-    #[cfg(feature = "evm")]
++    #[cfg(feature = "evm")]
+     {
+         use scanners::event_scanner::EventScanner;
+-        for ch in cfg.chains.iter().filter(|c| c.ws.is_some()) {
+-            let ws = ch.ws.clone().unwrap();
++        for ch in cfg.chains.iter().filter(|c| c.ws_url.is_some()) {
++            let ws = ch.ws_url.clone().unwrap();
+             // lanzar en tasks independientes para cada chain con WS
+             tokio::spawn(async move {
+                 if let Ok(scanner) = EventScanner::connect(&ws).await {
+                     // Si no hay pools definidos, el scanner solo valida conexión
+                     let pools = ch.pools.iter().filter_map(|p| p.parse().ok()).collect::<Vec<ethers::types::Address>>();
+                     let _ = scanner.watch_pools(pools).await;
+                 }
+             });
+         }
+*** End Patch
+PATCH
+git apply --whitespace=fix .mev_scanner.rs.patch
+}
+applypatch
+```
+
+5. Hacer que los **scanners** usen los tipos unificados (con alias)
+
+```bash
+# bridged_scanner.rs
+cat > .bridged_scanner.patch << 'PATCH'
+*** Begin Patch
+*** Update File: rust-mev-engine/src/scanners/bridged_scanner.rs
+@@
+-use std::collections::BTreeMap;
+-use serde::Deserialize;
+-
+-#[derive(Debug, Deserialize)]
+-pub struct AssetCfg { pub address: String, #[serde(default)] pub symbol: Option<String> }
+-#[derive(Debug, Deserialize)]
+-pub struct ChainCfg { pub chain_id: u64, pub assets: Vec<AssetCfg> }
+-#[derive(Debug, Deserialize)]
+-pub struct ScanConfig {
+-    pub chains: Vec<ChainCfg>,
+-    #[serde(default)] pub bridgedGroups: BTreeMap<String, Vec<String>>,
+-}
++use std::collections::BTreeMap;
++use crate::types::ScanConfig;
+ 
+ /// Devuelve todas las parejas de *misma familia* (p.ej., USDC vs USDC.e) por chain.
+-pub fn bridged_pairs(cfg: &crate::ScanConfig) -> Vec<(u64, String, String)> {
++pub fn bridged_pairs(cfg: &ScanConfig) -> Vec<(u64, String, String)> {
+     let mut out = vec![];
+     // Construir set de símbolos permitidos por familia (USDC, USDbC, USDC.e, etc.)
+     let mut allow: BTreeMap<String, Vec<String>> = BTreeMap::new();
+     for (fam, variants) in cfg.bridgedGroups.iter() {
+         allow.insert(fam.to_uppercase(), variants.iter().map(|v| v.to_uppercase()).collect());
+     }
+     for ch in &cfg.chains {
+         // Agrupar assets por FAMILIA (si el símbolo está en alguna familia bridged)
+-        let mut by_fam: BTreeMap<String, Vec<&AssetCfg>> = BTreeMap::new();
++        let mut by_fam: BTreeMap<String, Vec<&crate::types::AssetCfg>> = BTreeMap::new();
+         for a in &ch.assets {
+             if let Some(sym) = &a.symbol {
+                 let s = sym.to_uppercase();
+                 for (fam, variants) in allow.iter() {
+                     if variants.iter().any(|x| &s == x) {
+                         by_fam.entry(fam.clone()).or_default().push(a);
+                     }
+                 }
+             }
+         }
+         for (_fam, veca) in by_fam {
+             for i in 0..veca.len() {
+                 for j in (i+1)..veca.len() {
+                     out.push((ch.chain_id, veca[i].address.clone(), veca[j].address.clone()));
+                 }
+             }
+         }
+     }
+     out
+ }
+*** End Patch
+PATCH
+git apply --whitespace=fix .bridged_scanner.patch
+
+# twap_scanner.rs
+cat > .twap_scanner.patch << 'PATCH'
+*** Begin Patch
+*** Update File: rust-mev-engine/src/scanners/twap_scanner.rs
+@@
+-use serde::Deserialize;
+-
+-#[derive(Debug, Deserialize, Clone)]
+-pub struct ChainCfg {
+-    pub chain_id: u64,
+-    #[serde(default)] pub pools: Vec<String>,
+-}
+-#[derive(Debug, Deserialize)]
+-pub struct ScanConfig {
+-    pub chains: Vec<ChainCfg>,
+-    #[serde(default)] pub prioritizeDex: Vec<String>,
+-}
++use crate::types::ScanConfig;
+ 
+ /// Marca como candidatos los pools de las DEX priorizadas (TWAP/estable).
+ /// Aquí solo propagamos direcciones que ya vengan en la config; el cruce real lo haces en tu engine.
+-pub fn pick_twap_pools(cfg: &crate::ScanConfig) -> Vec<(u64, String)> {
+-    let _dex_whitelist = cfg.prioritizeDex.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>();
++pub fn pick_twap_pools(cfg: &ScanConfig) -> Vec<(u64, String)> {
++    let _dex_whitelist: Vec<String> = cfg.prioritizeDex.iter().map(|s| s.to_lowercase()).collect();
+     let mut out = vec![];
+     for ch in &cfg.chains {
+         for p in &ch.pools {
+             out.push((ch.chain_id, p.clone()));
+         }
+     }
+     out
+ }
+*** End Patch
+PATCH
+git apply --whitespace=fix .twap_scanner.patch
+```
+
+6. Agregar **HTTP POST**: módulo `logging/http_post.rs` y hook en `jsonlog.rs`
+
+```bash
+# nuevo archivo
+cat > rust-mev-engine/src/logging/http_post.rs << 'RS'
+#![cfg(feature = "http")]
+use eyre::Result;
+use once_cell::sync::Lazy;
+use reqwest::Client;
+use std::time::Duration;
+
+static CLIENT: Lazy<Client> = Lazy::new(|| {
+    Client::builder()
+        .timeout(Duration::from_secs(3))
+        .build()
+        .expect("http client")
+});
+
+pub async fn post_json(url: &str, api_key: Option<&str>, payload: &serde_json::Value) -> Result<()> {
+    let mut req = CLIENT.post(url).json(payload);
+    if let Some(k) = api_key {
+        req = req.header("Authorization", format!("Bearer {}", k));
+    }
+    let resp = req.send().await?;
+    if !resp.status().is_success() {
+        eyre::bail!("http status {}", resp.status());
+    }
+    Ok(())
+}
+RS
+
+# actualizar logging/mod.rs para registrar el módulo http (protegido por feature)
+applypatch2() {
+cat > .logging_mod.patch << 'PATCH'
+*** Begin Patch
+*** Update File: rust-mev-engine/src/logging/mod.rs
+@@
+-pub mod jsonlog;
++pub mod jsonlog;
++#[cfg(feature = "http")]
++pub mod http_post;
+*** End Patch
+PATCH
+git apply --whitespace=fix .logging_mod.patch
+}
+applypatch2
+
+# hook en jsonlog.rs: si hay MEV_POST_URL, enviar en background
+applypatch3() {
+cat > .jsonlog.patch << 'PATCH'
+*** Begin Patch
+*** Update File: rust-mev-engine/src/logging/jsonlog.rs
+@@
+ use eyre::Result;
+ use fs2::FileExt;
+ use std::{fs::{OpenOptions, create_dir_all}, io::Write, path::Path};
+ 
+ /// Imprime y persiste una línea JSON en logs/mev-scanner.jsonl (append seguro).
+ pub fn log_line(v: serde_json::Value) -> Result<()> {
+     let s = v.to_string();
+     println!("{}", s);
+     let log_dir = Path::new("logs");
+     if !log_dir.exists() { create_dir_all(log_dir)?; }
+     let p = log_dir.join("mev-scanner.jsonl");
+     let f = OpenOptions::new().create(true).append(true).open(p)?;
+     f.lock_exclusive()?; // bloqueo simple para procesos concurrentes
+     writeln!(&f, "{}", s)?;
+     f.unlock()?;
++    // Enviar a backend si está configurado
++    post_if_configured(&v);
+     Ok(())
+ }
++
++#[cfg(feature = "http")]
++fn post_if_configured(v: &serde_json::Value) {
++    if let Ok(url) = std::env::var("MEV_POST_URL") {
++        let key = std::env::var("MEV_POST_API_KEY").ok();
++        // disparar en background; errores se ignoran (quedan en log local)
++        tokio::spawn({
++            let payload = v.clone();
++            async move {
++                let _ = crate::logging::http_post::post_json(&url, key.as_deref(), &payload).await;
++            }
++        });
++    }
++}
++
++#[cfg(not(feature = "http"))]
++fn post_if_configured(_v: &serde_json::Value) {}
+*** End Patch
+PATCH
+git apply --whitespace=fix .jsonlog.patch
+}
+applypatch3
+```
+
+7. Actualizar **scripts** para que, si hay `MEV_POST_URL`, se compile con `--features http` automáticamente
+
+```bash
+# run-mev-scanner.sh
+applypatch4() {
+cat > .run_scanner.patch << 'PATCH'
+*** Begin Patch
+*** Update File: scripts/run-mev-scanner.sh
+@@
+-cargo run --bin mev-scanner --features scanners
++FEATURES="scanners"
++if [[ -n "${MEV_POST_URL:-}" ]]; then FEATURES="scanners,http"; fi
++cargo run --bin mev-scanner --features "$FEATURES"
+@@
+-# cargo run --bin mev-scanner --features evm
++# cargo run --bin mev-scanner --features evm
+*** End Patch
+PATCH
+git apply --whitespace=fix .run_scanner.patch
+}
+applypatch4
+
+# run-mev-scanner-sim.sh
+applypatch5() {
+cat > .run_scanner_sim.patch << 'PATCH'
+*** Begin Patch
+*** Update File: scripts/run-mev-scanner-sim.sh
+@@
+-cargo run --bin mev-scanner --features scanners
++FEATURES="scanners"
++if [[ -n "${MEV_POST_URL:-}" ]]; then FEATURES="scanners,http"; fi
++cargo run --bin mev-scanner --features "$FEATURES"
+*** End Patch
+PATCH
+git apply --whitespace=fix .run_scanner_sim.patch
+}
+applypatch5
+```
+
+8. **Build** y prueba básica
+
+```bash
+cd rust-mev-engine
+cargo build --bin mev-scanner --features scanners,http
+cd ..
+
+# Prueba 1 (solo logs locales)
+./scripts/run-mev-scanner-sim.sh | head -n 5
+
+# Prueba 2 (con POST al backend)
+export MEV_POST_URL="https://TU-BACKEND/api/opportunities"
+export MEV_POST_API_KEY="TU_API_KEY"
+./scripts/run-mev-scanner-sim.sh | head -n 5
+```
+
+**Éxito esperado:**
+
+* Siempre: líneas JSON con `reason` en stdout y `logs/mev-scanner.jsonl`.
+* Con `MEV_POST_URL` configurado: mismas líneas también enviadas por HTTP (status 2xx del backend).
+
+9. Commit y push
+
+```bash
+git add .
+git commit -m "feat(scanner): HTTP POST of opportunities + serde aliases for camel/snake configs"
+git push --set-upstream origin feat/http-post-and-aliases
+```
+
+**Criterios de aceptación**
+
+* Compila con `--features scanners,http`.
+* `mev-scanner` sigue funcionando sin `MEV_POST_URL`.
+* Con `MEV_POST_URL`, se observan requests HTTP entrantes en el backend.
+* `mev-scanner-config.json` admite `bridgedGroups/prioritizeDex` **y** `bridged_groups/prioritize_dex` (sin warnings).
+
+**Fin del prompt. Ejecuta exactamente como está.**

@@ -1,0 +1,370 @@
+¡Crack! Con eso ya vivo, te dejo el **siguiente paso (Nivel-2)**: cablear **simulación 2-legs/3-legs + logger JSON** sin tocar tu motor principal. Va en un **solo patch** (`0003-sim-and-logger.patch`) + un script para correrlo con umbrales y gas/fees por chain.
+
+> **Aplicación rápida**
+>
+> ```bash
+> # en la raíz del repo
+> git checkout -b feat/sim-and-logger
+> git apply --whitespace=fix 0003-sim-and-logger.patch
+> cd rust-mev-engine && cargo build --bin mev-scanner --features scanners && cd ..
+> chmod +x scripts/run-mev-scanner-sim.sh
+> ./scripts/run-mev-scanner-sim.sh | tee logs/mev-scanner.sim.sample.jsonl
+> ```
+
+---
+
+## 0003-sim-and-logger.patch  (añade simulación 2/3 legs + logger JSON + script)
+
+> Crea módulos **logging/** y **simulate/**, inyecta “hooks” de simulación en `mev_scanner.rs` (activables con `MEV_SIMULATE=1`) y añade un script con variables de entorno (gas/fees/umbral).
+
+```diff
+diff --git a/rust-mev-engine/Cargo.toml b/rust-mev-engine/Cargo.toml
+index 2222222..3333333 100644
+--- a/rust-mev-engine/Cargo.toml
++++ b/rust-mev-engine/Cargo.toml
+@@ -1,6 +1,7 @@
+ [package]
+ name = "rust-mev-engine"
+ version = "0.1.0"
+ edition = "2021"
+ 
+ [features]
+ scanners = ["dep:tokio", "dep:serde", "dep:serde_json", "dep:eyre", "dep:petgraph"]
+ evm = ["scanners", "dep:ethers"]
+ 
+ [dependencies]
+ tokio = { version = "1", features = ["rt-multi-thread","macros"], optional = true }
+ serde = { version = "1", features = ["derive"], optional = true }
+ serde_json = { version = "1", optional = true }
+ eyre = { version = "0.6", optional = true }
+ petgraph = { version = "0.6", optional = true }
+ ethers = { version = "2", default-features = false, features = ["ws","rustls"], optional = true }
++chrono = { version = "0.4", optional = true }
++once_cell = { version = "1", optional = true }
++fs2 = { version = "0.4", optional = true }
+ 
+diff --git a/rust-mev-engine/src/bin/mev_scanner.rs b/rust-mev-engine/src/bin/mev_scanner.rs
+index c1c1c1c..c1c1c1d 100644
+--- a/rust-mev-engine/src/bin/mev_scanner.rs
++++ b/rust-mev-engine/src/bin/mev_scanner.rs
+@@ -1,12 +1,16 @@
+ //! Binario de escaneo dirigido: EVENT_SWAP, BRIDGED_STABLE, TWAP
+ //! No interfiere con tu binario principal. Ejecutar con:
+ //! cargo run -p rust-mev-engine --bin mev-scanner --features scanners
+ //! (para eventos EVM vía WS): --features evm
+ 
+ use eyre::Result;
+-use std::{fs::File, io::BufReader, time::Duration};
++use std::{env, fs::File, io::BufReader, time::Duration};
+ use serde::Deserialize;
+ 
++mod scanners;
++mod graph;
++mod sizing;
++mod logging;
++mod simulate;
++
+ #[derive(Debug, Deserialize, Clone)]
+ struct AssetCfg { address: String, #[serde(default)] symbol: Option<String> }
+ #[derive(Debug, Deserialize, Clone)]
+@@ -24,12 +28,14 @@ struct ScanConfig {
+     #[serde(default)] bridgedGroups: std::collections::BTreeMap<String, Vec<String>>,
+     #[serde(default)] prioritizeDex: Vec<String>,
+ }
+ 
+-mod scanners;
+-mod graph;
+-mod sizing;
++fn env_bool(k: &str, default_: bool) -> bool {
++    env::var(k).ok().map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(default_)
++}
++fn env_f64(k: &str, default_: f64) -> f64 {
++    env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(default_)
++}
+ 
+ #[tokio::main]
+ async fn main() -> Result<()> {
+     // 1) Cargar configuración local (no toca tu config actual)
+     let path = std::env::var("MEV_SCANNER_CONFIG").unwrap_or_else(|_| "mev-scanner-config.json".to_string());
+     let cfg: ScanConfig = serde_json::from_reader(BufReader::new(File::open(&path)?))?;
+@@ -38,6 +44,10 @@ async fn main() -> Result<()> {
+     let bridged = scanners::bridged_scanner::bridged_pairs(&cfg);
+     for (chain_id, a, b) in bridged {
+-        println!("{}", serde_json::json!({
++        logging::jsonlog::log_line(serde_json::json!({
+             "ts": chrono::Utc::now().to_rfc3339(),
+             "reason": "BRIDGED_STABLE_PAIR",
+             "chain_id": chain_id,
+             "a": a, "b": b
+-        }).to_string());
++        }))?;
+     }
+ 
+     // 3) TWAP pools priorizados
+     let twap = scanners::twap_scanner::pick_twap_pools(&cfg);
+     for (chain_id, pool_addr) in twap {
+-        println!("{}", serde_json::json!({
++        logging::jsonlog::log_line(serde_json::json!({
+             "ts": chrono::Utc::now().to_rfc3339(),
+             "reason": "TWAP_POOL_CANDIDATE",
+             "chain_id": chain_id,
+             "pool": pool_addr
+-        }).to_string());
++        }))?;
+     }
+ 
++    // 3.1) SIMULACIÓN OPCIONAL (2-legs / 3-legs) con grilla + gas/fees
++    if env_bool("MEV_SIMULATE", false) {
++        let gas_usd = env_f64("GAS_USD", 0.01);         // costo gas estimado por tx
++        let fee_bps_leg = env_f64("FEE_BPS_PER_LEG", 30.0); // 0.30% por leg (demo)
++        let thr_min_usd = env_f64("THRESH_MIN_USD", 1.0);   // objetivo mínimo neto
++
++        // EJEMPLO: simular un 2-legs genérico con cotos ficticios (sustituir por quotes reales)
++        let (best_x, pnl) = simulate::two_leg::simulate_2leg(
++            10.0,  // amount_in USD
++            fee_bps_leg,
++            gas_usd,
++            // q1: pool barato ⇒ +5 bps
++            |x| x * (1.0005),
++            // q2: pool caro ⇒ -3 bps (al vender)
++            |y| y * (0.9970)
++        );
++        logging::jsonlog::log_line(serde_json::json!({
++            "ts": chrono::Utc::now().to_rfc3339(),
++            "reason": "SIM_2LEG_SAMPLE",
++            "best_in": best_x,
++            "pnl_usd": pnl.net_usd,
++            "gas_usd": pnl.gas_usd
++        }))?;
++
++        if pnl.net_usd >= thr_min_usd {
++            logging::jsonlog::log_line(serde_json::json!({
++                "ts": chrono::Utc::now().to_rfc3339(),
++                "reason": "OPPORTUNITY",
++                "kind": "2-legs",
++                "net_usd": pnl.net_usd
++            }))?;
++        }
++    }
++
+     // 4) EVENTOS EVM por WS (opcional, solo si se compila con --features evm y hay WS)
+     #[cfg(feature = "evm")]
+     {
+         use scanners::event_scanner::EventScanner;
+         for ch in cfg.chains.iter().filter(|c| c.ws.is_some()) {
+             let ws = ch.ws.clone().unwrap();
+             // lanzar en tasks independientes para cada chain con WS
+             tokio::spawn(async move {
+                 if let Ok(scanner) = EventScanner::connect(&ws).await {
+                     // Si no hay pools definidos, el scanner solo valida conexión
+                     let pools = ch.pools.iter().filter_map(|p| p.parse().ok()).collect::<Vec<ethers::types::Address>>();
+-                    let _ = scanner.watch_pools(pools).await;
++                    let _ = scanner.watch_pools(pools).await;
+                 }
+             });
+         }
+         // Mantener vivo el proceso si se activó WS
+         tokio::time::sleep(Duration::from_secs(2)).await;
+     }
+ 
+     Ok(())
+ }
+ 
+diff --git a/rust-mev-engine/src/logging/mod.rs b/rust-mev-engine/src/logging/mod.rs
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/rust-mev-engine/src/logging/mod.rs
+@@ -0,0 +1 @@
++pub mod jsonlog;
+diff --git a/rust-mev-engine/src/logging/jsonlog.rs b/rust-mev-engine/src/logging/jsonlog.rs
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/rust-mev-engine/src/logging/jsonlog.rs
+@@ -0,0 +1,56 @@
++use eyre::Result;
++use fs2::FileExt;
++use std::{fs::{OpenOptions, create_dir_all}, io::Write, path::Path};
++
++/// Imprime y persiste una línea JSON en logs/mev-scanner.jsonl (append seguro).
++pub fn log_line(v: serde_json::Value) -> Result<()> {
++    let s = v.to_string();
++    println!("{}", s);
++    let log_dir = Path::new("logs");
++    if !log_dir.exists() { create_dir_all(log_dir)?; }
++    let p = log_dir.join("mev-scanner.jsonl");
++    let f = OpenOptions::new().create(true).append(true).open(p)?;
++    f.lock_exclusive()?; // bloqueo simple para procesos concurrentes
++    writeln!(&f, "{}", s)?;
++    f.unlock()?;
++    Ok(())
++}
++
+diff --git a/rust-mev-engine/src/simulate/mod.rs b/rust-mev-engine/src/simulate/mod.rs
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/rust-mev-engine/src/simulate/mod.rs
+@@ -0,0 +1,25 @@
++pub mod two_leg;
++pub mod three_leg;
++
++#[derive(Debug, Clone, Copy)]
++pub struct PnL {
++    pub gross_usd: f64,
++    pub fee_usd: f64,
++    pub gas_usd: f64,
++    pub net_usd: f64,
++}
++
+diff --git a/rust-mev-engine/src/simulate/two_leg.rs b/rust-mev-engine/src/simulate/two_leg.rs
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/rust-mev-engine/src/simulate/two_leg.rs
+@@ -0,0 +1,55 @@
++use super::PnL;
++
++/// Simula un 2-legs con closures de cotización (quote_1, quote_2).
++/// - `amount_in_usd`: tamaño de entrada (USD nocional).
++/// - `fee_bps_leg`: fee por leg (bps). Ej.: 30 bps = 0.30%.
++/// - `gas_usd`: costo de gas fijo estimado para la tx atómica.
++/// - `quote_1`: función que entrega salida tras el leg 1.
++/// - `quote_2`: función que entrega salida tras el leg 2.
++/// Devuelve (mejor_amount_in, PnL).
++pub fn simulate_2leg<F1, F2>(
++    amount_in_usd: f64,
++    fee_bps_leg: f64,
++    gas_usd: f64,
++    quote_1: F1,
++    quote_2: F2,
++) -> (f64, PnL)
++where
++    F1: Fn(f64) -> f64,
++    F2: Fn(f64) -> f64,
++{
++    // Búsqueda simple en grilla (podrías reemplazar por tu optimizador real)
++    let steps = 20usize;
++    let min_in = amount_in_usd * 0.10;
++    let max_in = amount_in_usd * 1.50;
++    let fee_frac = fee_bps_leg / 10_000.0;
++
++    let mut best_x = min_in;
++    let mut best_pnl = PnL { gross_usd: 0.0, fee_usd: 0.0, gas_usd, net_usd: f64::NEG_INFINITY };
++    let dx = (max_in - min_in) / steps as f64;
++    let mut x = min_in;
++    for _ in 0..=steps {
++        let leg1_out = quote_1(x);
++        let leg2_out = quote_2(leg1_out);
++        let gross = leg2_out - x;
++        let fee = (x * fee_frac) + (leg1_out * fee_frac);
++        let net = gross - fee - gas_usd;
++        if net > best_pnl.net_usd {
++            best_pnl = PnL { gross_usd: gross, fee_usd: fee, gas_usd, net_usd: net };
++            best_x = x;
++        }
++        x += dx;
++    }
++    (best_x, best_pnl)
++}
++
+diff --git a/rust-mev-engine/src/simulate/three_leg.rs b/rust-mev-engine/src/simulate/three_leg.rs
+new file mode 100644
+index 0000000..5555555
+--- /dev/null
++++ b/rust-mev-engine/src/simulate/three_leg.rs
+@@ -0,0 +1,51 @@
++use super::PnL;
++
++/// Simulación de 3-legs con closures de cotización (quote_a, quote_b, quote_c).
++/// Incluye gas y fees por leg de manera simple.
++pub fn simulate_3leg<F1, F2, F3>(
++    amount_in_usd: f64,
++    fee_bps_leg: f64,
++    gas_usd: f64,
++    quote_a: F1,
++    quote_b: F2,
++    quote_c: F3,
++) -> (f64, PnL)
++where
++    F1: Fn(f64) -> f64,
++    F2: Fn(f64) -> f64,
++    F3: Fn(f64) -> f64,
++{
++    let steps = 20usize;
++    let min_in = amount_in_usd * 0.10;
++    let max_in = amount_in_usd * 1.50;
++    let fee_frac = fee_bps_leg / 10_000.0;
++
++    let mut best_x = min_in;
++    let mut best_pnl = PnL { gross_usd: 0.0, fee_usd: 0.0, gas_usd, net_usd: f64::NEG_INFINITY };
++    let dx = (max_in - min_in) / steps as f64;
++    let mut x = min_in;
++    for _ in 0..=steps {
++        let o1 = quote_a(x);
++        let o2 = quote_b(o1);
++        let o3 = quote_c(o2);
++        let gross = o3 - x;
++        let fee = (x * fee_frac) + (o1 * fee_frac) + (o2 * fee_frac);
++        let net = gross - fee - gas_usd;
++        if net > best_pnl.net_usd {
++            best_pnl = PnL { gross_usd: gross, fee_usd: fee, gas_usd, net_usd: net };
++            best_x = x;
++        }
++        x += dx;
++    }
++    (best_x, best_pnl)
++}
++
+diff --git a/scripts/run-mev-scanner-sim.sh b/scripts/run-mev-scanner-sim.sh
+new file mode 100755
+index 0000000..6666666
+--- /dev/null
++++ b/scripts/run-mev-scanner-sim.sh
+@@ -0,0 +1,32 @@
++#!/usr/bin/env bash
++set -euo pipefail
++SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
++REPO_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
++
++# Config del scanner
++export MEV_SCANNER_CONFIG="${MEV_SCANNER_CONFIG:-$REPO_ROOT/mev-scanner-config.json}"
++
++# Flags de simulación (puedes tunearlos desde el dashboard en el futuro)
++export MEV_SIMULATE="${MEV_SIMULATE:-1}"
++export THRESH_MIN_USD="${THRESH_MIN_USD:-1.00}"
++export GAS_USD="${GAS_USD:-0.01}"
++export FEE_BPS_PER_LEG="${FEE_BPS_PER_LEG:-30}"
++
++echo "[mev-scanner-sim] config=$MEV_SCANNER_CONFIG MEV_SIMULATE=$MEV_SIMULATE THRESH_MIN_USD=$THRESH_MIN_USD GAS_USD=$GAS_USD FEE_BPS_PER_LEG=$FEE_BPS_PER_LEG"
++cd "$REPO_ROOT/rust-mev-engine"
++cargo run --bin mev-scanner --features scanners
++
+```
+
+---
+
+## Qué te habilita este patch (sin romper nada)
+
+* **Logger JSON** robusto (`logs/mev-scanner.jsonl` + stdout), listo para que tu UI lo lea por tail o por ingesta.
+* **Simulador 2-legs/3-legs** desacoplado que acepta **closures de quote** (ahí conectas rápidamente tus bindings reales de pools).
+* **Umbrales por ENV** (`THRESH_MIN_USD`, `GAS_USD`, `FEE_BPS_PER_LEG`) para tunear sin recompilar.
+* **Script dedicado** para correr el modo simulación sin WS (o junto a él si activas `evm`).
+
+---
+
+## Siguiente micro-paso (cuando quieras)
+
+1. **Cambiar los closures de ejemplo por cotizadores reales**:
+
+   * `quote_1/2/3` ⇒ llama a tu módulo de “quotes” de cada DEX (o un agregador interno).
+   * Pasa notional en token (no USD) si así lo manejas — el esqueleto es agnóstico.
+2. **Emitir a tu WS/DB** además de `logs/`:
+
+   * Si tu server tiene un endpoint, en `logging/jsonlog.rs` agrega POST asíncrono cuando exista `MEV_SCANNER_POST_URL`.
+3. **Activar 3-legs por grafo**:
+
+   * Usa tu `graph::bellman` para detectar el ciclo; cuando salga ciclo ⇢ llama `simulate::three_leg::simulate_3leg`.
+
+¿Quieres que te deje un **patch 0004** con `MEV_SCANNER_POST_URL` (POST JSON) y `#[serde(alias)]` para soportar `bridgedGroups/prioritizeDex` **y** `bridged_groups/prioritize_dex` sin warnings? Te lo armo en el mismo formato.
