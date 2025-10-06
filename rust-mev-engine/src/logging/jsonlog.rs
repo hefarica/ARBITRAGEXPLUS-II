@@ -1,18 +1,25 @@
 use eyre::Result;
 use fs2::FileExt;
-use std::{fs::{OpenOptions, create_dir_all}, io::Write, path::Path};
+use std::{fs::{OpenOptions, create_dir_all}, io::Write, path::PathBuf, env};
 
 /// Imprime y persiste una línea JSON en logs/mev-scanner.jsonl (append seguro).
 pub fn log_line(v: serde_json::Value) -> Result<()> {
     let s = v.to_string();
     println!("{}", s);
-    let log_dir = Path::new("logs");
-    if !log_dir.exists() { create_dir_all(log_dir)?; }
+    
+    // Buscar la raíz del proyecto (donde está mev-scanner-config.json)
+    let log_dir = if let Ok(config_path) = env::var("MEV_SCANNER_CONFIG") {
+        PathBuf::from(config_path).parent().unwrap_or(std::path::Path::new(".")).join("logs")
+    } else {
+        PathBuf::from("../logs") // fallback para cuando se ejecuta desde rust-mev-engine/
+    };
+    
+    if !log_dir.exists() { create_dir_all(&log_dir)?; }
     let p = log_dir.join("mev-scanner.jsonl");
     let f = OpenOptions::new().create(true).append(true).open(p)?;
     f.lock_exclusive()?; // bloqueo simple para procesos concurrentes
     writeln!(&f, "{}", s)?;
-    f.unlock()?;
+    fs2::FileExt::unlock(&f)?; // usar método estático para evitar conflicto
     // Enviar a backend si está configurado
     post_if_configured(&v);
     Ok(())
