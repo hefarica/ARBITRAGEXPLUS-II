@@ -89,19 +89,21 @@ export default function AssetOrchestratorPage() {
       const response = await fetch("/cf/engine/state");
       const data = await response.json();
       
-      const assetsWithValidation: AssetWithValidation[] = (data.assets || []).map((a: any) => ({
-        trace_id: `${a.chainId}:${a.address}`,
-        chainId: a.chainId,
-        address: a.address,
-        symbol: a.symbol,
-        decimals: a.decimals || 18,
-        name: a.name || a.symbol,
-        score: a.riskScore || 0,
-        flags: a.riskFlags || [],
-        pools: [],
-        dexes: [],
-        validation_status: "pending"
-      }));
+      const assetsWithValidation: AssetWithValidation[] = (data.assets || [])
+        .filter((a: any) => a && a.address && a.chainId)
+        .map((a: any) => ({
+          trace_id: `${a.chainId}:${a.address}`,
+          chainId: a.chainId,
+          address: a.address,
+          symbol: a.symbol || "UNKNOWN",
+          decimals: a.decimals || 18,
+          name: a.name || a.symbol || "Unknown Token",
+          score: a.riskScore || 0,
+          flags: a.riskFlags || [],
+          pools: [],
+          dexes: [],
+          validation_status: "pending"
+        }));
 
       setAssets(assetsWithValidation);
     } catch (error) {
@@ -125,8 +127,8 @@ export default function AssetOrchestratorPage() {
 
       const result = await response.json();
 
-      setAssets(prev => prev.map(a => 
-        a.trace_id === asset.trace_id 
+      setAssets(prev => prev.filter(a => a).map(a => 
+        a?.trace_id === asset.trace_id 
           ? (result.asset as AssetWithValidation)
           : a
       ));

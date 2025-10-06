@@ -16,3 +16,15 @@
 {"ts":1759755269195,"trace_id":"1:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","op":"reject","result":{"valid":false,"reason":"NOT_CONFIGURED"},"reason":"this.config.chains?.find is not a function"}
 {"ts":1759755270946,"trace_id":"1:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48","op":"validate","asset":{"symbol":"USDC","address":"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48","chainId":1}}
 {"ts":1759755270975,"trace_id":"1:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48","op":"reject","result":{"valid":false,"reason":"NOT_CONFIGURED"},"reason":"this.config.chains?.find is not a function"}
+{"ts":1759755343585,"trace_id":"1:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","op":"validate","asset":{"symbol":"WETH","address":"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","chainId":1}}
+{"ts":1759755343614,"trace_id":"1:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","op":"reject","result":{"valid":false,"reason":"NOT_CONFIGURED"},"reason":"this.config.chains?.find is not a function"}
+{"ts":1759755345880,"trace_id":"1:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48","op":"validate","asset":{"symbol":"USDC","address":"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48","chainId":1}}
+{"ts":1759755345905,"trace_id":"1:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48","op":"reject","result":{"valid":false,"reason":"NOT_CONFIGURED"},"reason":"this.config.chains?.find is not a function"}
+{"ts":1759755446138,"trace_id":"1:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","op":"validate","asset":{"symbol":"WETH","address":"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","chainId":1}}
+{"ts":1759755446170,"trace_id":"1:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2","op":"reject","result":{"valid":false,"reason":"NOT_CONFIGURED"},"reason":"this.config.chains?.find is not a function"}
+{"ts":1759755447624,"trace_id":"1:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48","op":"validate","asset":{"symbol":"USDC","address":"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48","chainId":1}}
+{"ts":1759755447649,"trace_id":"1:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48","op":"reject","result":{"valid":false,"reason":"NOT_CONFIGURED"},"reason":"this.config.chains?.find is not a function"}
+{"ts":1759755449207,"trace_id":"1:0xdac17f958d2ee523a2206206994597c13d831ec7","op":"validate","asset":{"symbol":"USDT","address":"0xdac17f958d2ee523a2206206994597c13d831ec7","chainId":1}}
+{"ts":1759755449232,"trace_id":"1:0xdac17f958d2ee523a2206206994597c13d831ec7","op":"reject","result":{"valid":false,"reason":"NOT_CONFIGURED"},"reason":"this.config.chains?.find is not a function"}
+{"ts":1759755450343,"trace_id":"56:0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c","op":"validate","asset":{"symbol":"WBNB","address":"0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c","chainId":56}}
+{"ts":1759755450367,"trace_id":"56:0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c","op":"reject","result":{"valid":false,"reason":"NOT_CONFIGURED"},"reason":"this.config.chains?.find is not a function"}
