@@ -82,6 +82,7 @@ app.prepare().then(() => {
   });
   
   server.use("/cf/engine", engineApiRouter);
+  server.use("/api/engine", engineApiRouter); // Also mount on /api/engine for convenience
   server.use("/cf/orchestrator", assetOrchestratorRouter);
 
   server.get("/cf/opportunities", async (req, res) => {
