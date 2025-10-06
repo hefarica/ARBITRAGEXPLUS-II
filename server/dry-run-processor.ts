@@ -1,12 +1,17 @@
 import { db } from "./db";
 import { dryRunSessions, dryRunTrades, opportunities, chains } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+import { logMonitor } from "./log-monitor";
 
 export class DryRunProcessor {
   private processingEnabled: boolean = true;
 
   constructor() {
     console.log("🔬 Dry-Run Processor initialized");
+  }
+
+  setProcessingEnabled(enabled: boolean): void {
+    this.processingEnabled = enabled;
   }
 
   async processOpportunity(opportunity: {
@@ -34,7 +39,7 @@ export class DryRunProcessor {
         !Number.isFinite(opportunity.estProfitUsd) || 
         !Number.isFinite(opportunity.gasUsd) ||
         !opportunity.ts) {
-      console.warn('⚠️  Skipping opportunity with incomplete or invalid real data:', {
+      const details = JSON.stringify({
         hasId: !!opportunity.id,
         hasChainId: !!opportunity.chainId,
         hasDexIn: !!opportunity.dexIn,
@@ -47,6 +52,8 @@ export class DryRunProcessor {
         profitValue: opportunity.estProfitUsd,
         gasValue: opportunity.gasUsd,
       });
+      console.warn('⚠️  Skipping opportunity with incomplete or invalid real data:', details);
+      logMonitor.recordSkip('incomplete_data', details);
       return; // Skip - do not process incomplete or invalid data
     }
 
@@ -69,7 +76,9 @@ export class DryRunProcessor {
         .limit(1);
 
       if (!chainData || !chainData.name) {
+        const details = `chainId ${opportunity.chainId} not found in database`;
         console.warn(`⚠️  Skipping opportunity - no real chain data found for chainId ${opportunity.chainId}`);
+        logMonitor.recordSkip('invalid_chain', details);
         return; // Skip - do not invent chain name
       }
 
@@ -135,7 +144,9 @@ export class DryRunProcessor {
       // Validate amountIn is a real finite number
       const amountIn = parseFloat(opportunity.amountIn);
       if (!Number.isFinite(amountIn) || amountIn <= 0) {
+        const details = `amountIn="${opportunity.amountIn}" parsed to ${amountIn}`;
         console.warn(`⚠️  Skipping opportunity - invalid amountIn: ${opportunity.amountIn}`);
+        logMonitor.recordSkip('invalid_amount', details);
         // Update counter but don't execute
         await db.update(dryRunSessions).set({
           totalOpportunities: session.totalOpportunities + 1,

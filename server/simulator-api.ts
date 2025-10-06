@@ -2,6 +2,7 @@ import express from "express";
 import { db } from "./db";
 import { dryRunSessions, dryRunTrades, opportunities } from "@shared/schema";
 import { eq, desc, sql, and, gte } from "drizzle-orm";
+import { logMonitor } from "./log-monitor";
 
 export const simulatorApiRouter = express.Router();
 
@@ -35,6 +36,35 @@ simulatorApiRouter.post("/sessions", async (req, res) => {
 
     if (!name) {
       return res.status(400).json({ error: "Session name is required" });
+    }
+
+    // VALIDATE: All numeric values must be finite (reject NaN, Infinity)
+    if (!Number.isFinite(startCapitalUsd) || startCapitalUsd <= 0) {
+      return res.status(400).json({ 
+        error: "Invalid startCapitalUsd: must be a positive finite number",
+        value: startCapitalUsd 
+      });
+    }
+
+    if (!Number.isFinite(minProfitUsd) || minProfitUsd < 0) {
+      return res.status(400).json({ 
+        error: "Invalid minProfitUsd: must be a non-negative finite number",
+        value: minProfitUsd 
+      });
+    }
+
+    if (!Number.isFinite(maxGasUsd) || maxGasUsd < 0) {
+      return res.status(400).json({ 
+        error: "Invalid maxGasUsd: must be a non-negative finite number",
+        value: maxGasUsd 
+      });
+    }
+
+    if (!Number.isFinite(riskPerTrade) || riskPerTrade <= 0 || riskPerTrade > 1) {
+      return res.status(400).json({ 
+        error: "Invalid riskPerTrade: must be a finite number between 0 and 1",
+        value: riskPerTrade 
+      });
     }
 
     const [session] = await db.insert(dryRunSessions).values({
@@ -343,5 +373,47 @@ simulatorApiRouter.delete("/sessions/:id", async (req, res) => {
   } catch (error: any) {
     console.error("Error deleting session:", error);
     res.status(500).json({ error: error?.message || "Failed to delete session" });
+  }
+});
+
+// GET /simulator/monitor/stats - Get log monitoring statistics
+simulatorApiRouter.get("/monitor/stats", async (req, res) => {
+  try {
+    const stats = logMonitor.getStats();
+    const recentMinutes = parseInt(req.query.minutes as string) || 5;
+    const recentSkips = logMonitor.getRecentSkips(recentMinutes);
+
+    res.json({
+      success: true,
+      monitor: {
+        totalSkips: stats.totalSkips,
+        skipsByType: stats.skipsByType,
+        recentSkips: {
+          count: recentSkips.length,
+          timeWindow: `${recentMinutes} minutes`,
+          details: recentSkips.slice(0, 20), // Last 20 skips
+        },
+        lastAlert: stats.lastAlert,
+      }
+    });
+  } catch (error: any) {
+    console.error("Error fetching monitor stats:", error);
+    res.status(500).json({ error: error?.message || "Failed to fetch monitor stats" });
+  }
+});
+
+// POST /simulator/monitor/reset - Reset monitoring statistics
+simulatorApiRouter.post("/monitor/reset", async (req, res) => {
+  try {
+    logMonitor.reset();
+    console.log("✅ Log monitor statistics reset");
+
+    res.json({
+      success: true,
+      message: "Monitor statistics reset successfully"
+    });
+  } catch (error: any) {
+    console.error("Error resetting monitor:", error);
+    res.status(500).json({ error: error?.message || "Failed to reset monitor" });
   }
 });
