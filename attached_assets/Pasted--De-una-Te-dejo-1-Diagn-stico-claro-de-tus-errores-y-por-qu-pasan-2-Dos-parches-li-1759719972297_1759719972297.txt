@@ -1,0 +1,291 @@
+¡De una! Te dejo:
+
+1. **Diagnóstico claro de tus errores** y por qué pasan.
+
+2. **Dos parches listos** para tu agente:
+
+   * `0005-defaults.patch` → agrega los **defaults** (arrays de assets/pares) y los **inyecta automáticamente** al `mev-scanner` en runtime.
+   * `0006-deps-runtime-fix.patch` → corrige **dependencias** faltantes y el **async main** con Tokio.
+
+3. **PROMPT** para que tu agente lo aplique “al pie de la letra”.
+
+---
+
+# 0) Por qué falló el job (rápido)
+
+* El binario que se está compilando (p. ej. `src/minimal.rs`) **usa** `serde_json`, `tokio`, `reqwest`, pero **no están declaradas** (o estaban `optional` sin activarse).
+* Tienes un `async fn main()` **sin runtime** → hay que anotar `#[tokio::main]` y tener `tokio` en `[dependencies]`.
+
+---
+
+# 1) Patch `0005-defaults.patch`
+
+* Añade `default-assets-and-pairs.json` (la “verdad fuente” end-to-end).
+* El `mev-scanner` **carga y fusiona** estos defaults con tu `mev-scanner-config.json` en runtime (si faltan assets/pairs en la config actual, los añade).
+* No toca tu UI; si ya lee de la misma ruta/endpoint, quedará poblada. Si no, como mínimo el engine queda con defaults sólidos.
+
+> Crea el archivo y aplícalo con `git apply 0005-defaults.patch`.
+
+```patch
+*** Begin Patch
+*** Add File: default-assets-and-pairs.json
++{
++  "chains": [
++    {
++      "chain_id": 8453,
++      "name": "base",
++      "assets": [
++        { "symbol": "WETH",  "address": "0x4200000000000000000000000000000000000006", "decimals": 18, "risk_score": 100 },
++        { "symbol": "USDC",  "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "decimals": 6,  "risk_score": 100 },
++        { "symbol": "USDbC", "address": "0xd9aaece17f2641f24ae83637ab66a2cca9c378b9", "decimals": 6,  "risk_score": 98  }
++      ],
++      "default_pairs": [["WETH","USDC"],["WETH","USDbC"],["USDC","USDbC"]],
++      "default_tri_routes": [["USDC","WETH","USDbC"],["USDbC","WETH","USDC"]]
++    },
++    {
++      "chain_id": 42161,
++      "name": "arbitrum",
++      "assets": [
++        { "symbol": "WETH",   "address": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1", "decimals": 18, "risk_score": 100 },
++        { "symbol": "USDC.e", "address": "0xff970a61a04b1ca377afd59175740bbea77437b",  "decimals": 6,  "risk_score": 100 },
++        { "symbol": "USDC",   "address": "0xaf88d067cbf20c33caeaaf088df0854e627741fd", "decimals": 6,  "risk_score": 100 }
++      ],
++      "default_pairs": [["WETH","USDC"],["WETH","USDC.e"],["USDC","USDC.e"]],
++      "default_tri_routes": [["USDC","WETH","USDC.e"],["USDC.e","WETH","USDC"]]
++    },
++    {
++      "chain_id": 43114,
++      "name": "avalanche",
++      "assets": [
++        { "symbol": "WAVAX",  "address": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7", "decimals": 18, "risk_score": 100 },
++        { "symbol": "WETH.e", "address": "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab", "decimals": 18, "risk_score": 100 },
++        { "symbol": "USDC",   "address": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e", "decimals": 6,  "risk_score": 100 },
++        { "symbol": "USDC.e", "address": "0xa7d7079b0fead91f3e65f86e8915cb59c1a4c664", "decimals": 6,  "risk_score": 100 }
++      ],
++      "default_pairs": [["WAVAX","USDC"],["WAVAX","USDC.e"],["USDC","USDC.e"],["WETH.e","USDC"]],
++      "default_tri_routes": [["USDC","WAVAX","USDC.e"],["USDC.e","WAVAX","USDC"],["USDC","WETH.e","USDC.e"]]
++    },
++    {
++      "chain_id": 10,
++      "name": "optimism",
++      "assets": [
++        { "symbol": "WETH",   "address": "0x4200000000000000000000000000000000000006", "decimals": 18, "risk_score": 100 },
++        { "symbol": "USDC.e", "address": "0x7f5c764cbc14f9669b88837ca1490cca17c31607", "decimals": 6,  "risk_score": 100 }
++      ],
++      "default_pairs": [["WETH","USDC.e"]],
++      "default_tri_routes": []
++    },
++    {
++      "chain_id": 137,
++      "name": "polygon",
++      "assets": [
++        { "symbol": "WMATIC","address": "0x0d500b6de48ed47b1ca14ffaa86cab33ee4950e2", "decimals": 18, "risk_score": 100 },
++        { "symbol": "WETH",  "address": "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619", "decimals": 18, "risk_score": 100 },
++        { "symbol": "USDC.e","address": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174", "decimals": 6,  "risk_score": 100 },
++        { "symbol": "USDT",  "address": "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", "decimals": 6,  "risk_score": 100 }
++      ],
++      "default_pairs": [["WETH","USDC.e"],["WMATIC","USDC.e"],["USDT","USDC.e"]],
++      "default_tri_routes": []
++    },
++    {
++      "chain_id": 56,
++      "name": "bsc",
++      "assets": [
++        { "symbol": "WBNB", "address": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", "decimals": 18, "risk_score": 100 },
++        { "symbol": "USDT", "address": "0x55d398326f99059ff775485246999027b3197955", "decimals": 18, "risk_score": 100 },
++        { "symbol": "USDC", "address": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", "decimals": 18, "risk_score": 100 }
++      ],
++      "default_pairs": [["WBNB","USDT"],["WBNB","USDC"],["USDT","USDC"]],
++      "default_tri_routes": []
++    }
++  ],
++  "bridgedGroups": { "USDC": ["USDC","USDbC","USDC.e"] },
++  "prioritizeDex": ["aerodrome","velodrome","balancer","curve","uniswapv3","baseswap","camelot","traderjoe","pangolin","quickswap"]
++}
++
+*** End Patch
+```
+
+```patch
+*** Begin Patch
+*** Update File: rust-mev-engine/src/bin/mev_scanner.rs
+@@
+-use eyre::Result;
+-use std::{env, fs::File, io::BufReader, time::Duration};
+-use crate::types::ScanConfig;
++use eyre::Result;
++use std::{env, fs::File, io::BufReader, time::Duration};
++use crate::types::ScanConfig;
++use serde::Deserialize;
+@@
+-    let path = std::env::var("MEV_SCANNER_CONFIG").unwrap_or_else(|_| "mev-scanner-config.json".to_string());
+-    let cfg: ScanConfig = serde_json::from_reader(BufReader::new(File::open(&path)?))?;
++    let path = std::env::var("MEV_SCANNER_CONFIG").unwrap_or_else(|_| "mev-scanner-config.json".to_string());
++    let mut cfg: ScanConfig = serde_json::from_reader(BufReader::new(File::open(&path)?))?;
++    // Merge defaults (arrays de assets/pares) para evitar “relojes desincronizados”
++    merge_defaults_into_cfg(&mut cfg)?;
+@@
+     Ok(())
+ }
++
++#[derive(Debug, Deserialize)]
++struct DefaultAsset { symbol: String, address: String, decimals: u8 }
++#[derive(Debug, Deserialize)]
++struct DefaultChain {
++    chain_id: u64,
++    name: String,
++    assets: Vec<DefaultAsset>,
++    #[allow(dead_code)]
++    default_pairs: Vec<(String,String)>,
++    #[allow(dead_code)]
++    default_tri_routes: Vec<Vec<String>>,
++}
++#[derive(Debug, Deserialize)]
++struct DefaultCfgRoot {
++    chains: Vec<DefaultChain>,
++    #[serde(default, alias="bridged_groups")] bridgedGroups: std::collections::BTreeMap<String, Vec<String>>,
++    #[serde(default, alias="prioritize_dex")] prioritizeDex: Vec<String>
++}
++
++fn merge_defaults_into_cfg(cfg: &mut ScanConfig) -> Result<()> {
++    let defaults_path = env::var("DEFAULTS_JSON").unwrap_or_else(|_| "default-assets-and-pairs.json".to_string());
++    let Ok(f) = File::open(&defaults_path) else {
++        println!(r#"{{"reason":"DEFAULTS_SKIP","msg":"file_not_found","path":"{}"}}"#, defaults_path);
++        return Ok(());
++    };
++    let def: DefaultCfgRoot = serde_json::from_reader(BufReader::new(f))?;
++    // 1) bridged/prioritize
++    if cfg.bridgedGroups.is_empty() { cfg.bridgedGroups = def.bridgedGroups; }
++    if cfg.prioritizeDex.is_empty() { cfg.prioritizeDex = def.prioritizeDex; }
++    // 2) assets por chain (si faltan)
++    for dc in def.chains {
++        // busca chain existente
++        if let Some(c) = cfg.chains.iter_mut().find(|c| c.chain_id == dc.chain_id) {
++            for a in dc.assets {
++                let exists = c.assets.iter().any(|x| x.address.eq_ignore_ascii_case(&a.address));
++                if !exists {
++                    c.assets.push(crate::types::AssetCfg {
++                        address: a.address,
++                        symbol: Some(a.symbol),
++                    });
++                }
++            }
++        } else {
++            // crea chain mínima para que el escáner la tome
++            cfg.chains.push(crate::types::ChainCfg{
++                chain_id: dc.chain_id,
++                name: dc.name,
++                ws_url: None,
++                pools: vec![],
++                assets: dc.assets.into_iter().map(|a| crate::types::AssetCfg{ address: a.address, symbol: Some(a.symbol) }).collect()
++            });
++        }
++    }
++    println!(r#"{{"reason":"DEFAULTS_MERGED"}}"#);
++    Ok(())
++}
+*** End Patch
+```
+
+---
+
+# 2) Patch `0006-deps-runtime-fix.patch`
+
+* Declara **dependencias** mínimas no-opcionales para evitar “unresolved crate”.
+* Si tu `Cargo.toml` ya tenía algunas **optional**, este patch las **normaliza**.
+* Arregla `async main` en `rust-mev-engine/src/minimal.rs` con `#[tokio::main]`.
+
+```patch
+*** Begin Patch
+*** Update File: rust-mev-engine/Cargo.toml
+@@
+-[dependencies]
+-tokio = { version = "1", features = ["rt-multi-thread","macros"], optional = true }
+-serde = { version = "1", features = ["derive"], optional = true }
+-serde_json = { version = "1", optional = true }
+-eyre = { version = "0.6", optional = true }
+-petgraph = { version = "0.6", optional = true }
+-ethers = { version = "2", default-features = false, features = ["ws","rustls"], optional = true }
+-chrono = { version = "0.4", optional = true }
+-once_cell = { version = "1", optional = true }
+-fs2 = { version = "0.4", optional = true }
+-reqwest = { version = "0.11", default-features = false, features = ["json","rustls-tls"], optional = true }
++[dependencies]
++# Runtime y utilidades (NO opcionales → evitan "unresolved crate")
++tokio = { version = "1", features = ["full"] }
++serde = { version = "1", features = ["derive"] }
++serde_json = "1"
++eyre = "0.6"
++chrono = "0.4"
++once_cell = "1"
++fs2 = "0.4"
++reqwest = { version = "0.11", default-features = false, features = ["json","rustls-tls"] }
++petgraph = "0.6"
++ethers = { version = "2", default-features = false, features = ["ws","rustls"] }
+ 
+*** End Patch
+```
+
+```patch
+*** Begin Patch
+*** Update File: rust-mev-engine/src/minimal.rs
+@@
+-async fn main() -> Result<(), Box<dyn std::error::Error>> {
++#[tokio::main]
++async fn main() -> Result<(), Box<dyn std::error::Error>> {
+     // tu código…
+ }
+*** End Patch
+```
+
+> Si `src/minimal.rs` no existe en tu árbol, este último hunk se ignora; el importante es que **todo `async fn main()`** que tengas quede anotado con `#[tokio::main]`.
+
+---
+
+# 3) PROMPT para tu agente (copiar/pegar tal cual)
+
+```
+Objetivo:
+1) Agregar defaults end-to-end (arrays de assets/pares) y fusionarlos en runtime.
+2) Corregir dependencias y runtime async para que el job compile.
+
+Pasos:
+
+1) Crear rama
+git checkout -b feat/defaults-and-deps-fix
+
+2) Guardar y aplicar 0005-defaults.patch
+# (pegar el contenido exacto del patch 0005 en un archivo)
+git apply --whitespace=fix 0005-defaults.patch
+
+3) Guardar y aplicar 0006-deps-runtime-fix.patch
+# (pegar el contenido exacto del patch 0006 en un archivo)
+git apply --whitespace=fix 0006-deps-runtime-fix.patch || true
+
+4) Build local de verificación
+cd rust-mev-engine
+cargo clean
+cargo build --bins
+
+5) Ejecutar escáner con defaults
+cd ..
+export DEFAULTS_JSON="${DEFAULTS_JSON:-$(pwd)/default-assets-and-pairs.json}"
+./scripts/run-mev-scanner.sh | head -n 20
+
+# Éxito esperado en logs:
+# {"reason":"DEFAULTS_MERGED"} y luego BRIDGED_STABLE_PAIR / TWAP_POOL_CANDIDATE
+
+6) Commit y push
+git add .
+git commit -m "feat(defaults): add default asset/pair arrays + merge at runtime; fix deps and async main"
+git push --set-upstream origin feat/defaults-and-deps-fix
+```
+
+---
+
+## Notas finales
+
+* Si tu CI compila un binario distinto (p. ej. `minimal.rs`), asegúrate de **anotar todos** los `async fn main()` con `#[tokio::main]`.
+* Si en tu `Cargo.toml` aún prefieres **features opcionales** para slimming, ok: pero en el CI usa `cargo build --features "scanners,http,evm"` o ajusta el `Cargo.toml` para que los módulos que se compilan por defecto **no** usen crates marcados `optional`.
+
+¿Quieres que además deje un **botón “Restaurar defaults”** en tu UI (Next.js) que sobreescriba la config actual desde `default-assets-and-pairs.json`? Te lo preparo en otro patch (`0007-ui-restore-defaults.patch`).

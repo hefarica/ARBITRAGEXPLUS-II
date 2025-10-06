@@ -1,0 +1,73 @@
+{
+  "chains": [
+    {
+      "chain_id": 8453,
+      "name": "base",
+      "assets": [
+        { "symbol": "WETH",  "address": "0x4200000000000000000000000000000000000006", "decimals": 18, "risk_score": 100 },
+        { "symbol": "USDC",  "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "decimals": 6,  "risk_score": 100 },
+        { "symbol": "USDbC", "address": "0xd9aaece17f2641f24ae83637ab66a2cca9c378b9", "decimals": 6,  "risk_score": 98  }
+      ],
+      "default_pairs": [["WETH","USDC"],["WETH","USDbC"],["USDC","USDbC"]],
+      "default_tri_routes": [["USDC","WETH","USDbC"],["USDbC","WETH","USDC"]]
+    },
+    {
+      "chain_id": 42161,
+      "name": "arbitrum",
+      "assets": [
+        { "symbol": "WETH",   "address": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1", "decimals": 18, "risk_score": 100 },
+        { "symbol": "USDC.e", "address": "0xff970a61a04b1ca377afd59175740bbea77437b",  "decimals": 6,  "risk_score": 100 },
+        { "symbol": "USDC",   "address": "0xaf88d067cbf20c33caeaaf088df0854e627741fd", "decimals": 6,  "risk_score": 100 }
+      ],
+      "default_pairs": [["WETH","USDC"],["WETH","USDC.e"],["USDC","USDC.e"]],
+      "default_tri_routes": [["USDC","WETH","USDC.e"],["USDC.e","WETH","USDC"]]
+    },
+    {
+      "chain_id": 43114,
+      "name": "avalanche",
+      "assets": [
+        { "symbol": "WAVAX",  "address": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7", "decimals": 18, "risk_score": 100 },
+        { "symbol": "WETH.e", "address": "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab", "decimals": 18, "risk_score": 100 },
+        { "symbol": "USDC",   "address": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e", "decimals": 6,  "risk_score": 100 },
+        { "symbol": "USDC.e", "address": "0xa7d7079b0fead91f3e65f86e8915cb59c1a4c664", "decimals": 6,  "risk_score": 100 }
+      ],
+      "default_pairs": [["WAVAX","USDC"],["WAVAX","USDC.e"],["USDC","USDC.e"],["WETH.e","USDC"]],
+      "default_tri_routes": [["USDC","WAVAX","USDC.e"],["USDC.e","WAVAX","USDC"],["USDC","WETH.e","USDC.e"]]
+    },
+    {
+      "chain_id": 10,
+      "name": "optimism",
+      "assets": [
+        { "symbol": "WETH",   "address": "0x4200000000000000000000000000000000000006", "decimals": 18, "risk_score": 100 },
+        { "symbol": "USDC.e", "address": "0x7f5c764cbc14f9669b88837ca1490cca17c31607", "decimals": 6,  "risk_score": 100 }
+      ],
+      "default_pairs": [["WETH","USDC.e"]],
+      "default_tri_routes": []
+    },
+    {
+      "chain_id": 137,
+      "name": "polygon",
+      "assets": [
+        { "symbol": "WMATIC","address": "0x0d500b6de48ed47b1ca14ffaa86cab33ee4950e2", "decimals": 18, "risk_score": 100 },
+        { "symbol": "WETH",  "address": "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619", "decimals": 18, "risk_score": 100 },
+        { "symbol": "USDC.e","address": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174", "decimals": 6,  "risk_score": 100 },
+        { "symbol": "USDT",  "address": "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", "decimals": 6,  "risk_score": 100 }
+      ],
+      "default_pairs": [["WETH","USDC.e"],["WMATIC","USDC.e"],["USDT","USDC.e"]],
+      "default_tri_routes": []
+    },
+    {
+      "chain_id": 56,
+      "name": "bsc",
+      "assets": [
+        { "symbol": "WBNB", "address": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", "decimals": 18, "risk_score": 100 },
+        { "symbol": "USDT", "address": "0x55d398326f99059ff775485246999027b3197955", "decimals": 18, "risk_score": 100 },
+        { "symbol": "USDC", "address": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", "decimals": 18, "risk_score": 100 }
+      ],
+      "default_pairs": [["WBNB","USDT"],["WBNB","USDC"],["USDT","USDC"]],
+      "default_tri_routes": []
+    }
+  ],
+  "bridgedGroups": { "USDC": ["USDC","USDbC","USDC.e"] },
+  "prioritizeDex": ["aerodrome","velodrome","balancer","curve","uniswapv3","baseswap","camelot","traderjoe","pangolin","quickswap"]
+}
