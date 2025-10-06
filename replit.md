@@ -1,7 +1,7 @@
-# ArbitrageX Supreme V3.6 Dashboard
+# ARBITRAGEXPLUS-II
 
 ## Overview
-ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and configuring a DeFi arbitrage/MEV trading system. It provides real-time visibility into arbitrage opportunities, asset safety (Anti-Rugpull system), execution history, and system configuration. The project aims to scale from a limited number of trading pairs to 100+ blockchains with dynamic, database-driven configuration, offering a comprehensive interface for managing high-frequency, low-latency DeFi trading.
+ARBITRAGEXPLUS-II es un sistema MEV de alto rendimiento que integra un motor Rust con cálculo diferencial, adquisición de datos en tiempo real, validación de contratos, y un frontend Next.js para monitoreo y configuración de arbitraje DeFi/MEV multichain. It provides real-time visibility into arbitrage opportunities, asset safety (Anti-Rugpull system), execution history, and system configuration. The project aims to scale from a limited number of trading pairs to 100+ blockchains with dynamic, database-driven configuration, offering a comprehensive interface for managing high-frequency, low-latency DeFi trading.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language (Spanish preferred).
