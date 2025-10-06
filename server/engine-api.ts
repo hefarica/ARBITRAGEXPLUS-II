@@ -1178,7 +1178,7 @@ engineApiRouter.post("/chains/toggle", async (req, res) => {
   }
 });
 
-// GET /api/engine/dexes/suggest/:chainId - Get suggested DEXs for a chain from DeFi Llama
+// GET /api/engine/dexes/suggest/:chainId - Get ALL available DEXs for a chain (both added and available)
 engineApiRouter.get("/dexes/suggest/:chainId", async (req, res) => {
   try {
     const { chainId } = req.params;
@@ -1192,7 +1192,7 @@ engineApiRouter.get("/dexes/suggest/:chainId", async (req, res) => {
     const existingDexes = await db.select().from(chainDexes).where(eq(chainDexes.chainId, Number(chainId)));
     const existingDexNames = existingDexes.map(d => d.dex.toLowerCase());
 
-    console.log(`🔍 Fetching DEX suggestions for ${chainName} from DeFi Llama...`);
+    console.log(`🔍 Fetching ALL DEXs for ${chainName} from DeFi Llama (added + available)...`);
 
     const response = await fetch('https://api.llama.fi/protocols');
     const protocols = await response.json();
@@ -1204,10 +1204,10 @@ engineApiRouter.get("/dexes/suggest/:chainId", async (req, res) => {
     
     console.log(`✅ Found ${dexesForChain.length} DEXs for ${chainName}`);
 
-    const dexProtocols = dexesForChain
+    const allDexProtocols = dexesForChain
       .filter((p: any) => p.tvl > 100000)
       .sort((a: any, b: any) => b.tvl - a.tvl)
-      .slice(0, 20)
+      .slice(0, 30)
       .map((p: any) => ({
         name: p.name,
         slug: p.slug,
@@ -1217,16 +1217,14 @@ engineApiRouter.get("/dexes/suggest/:chainId", async (req, res) => {
         isAdded: existingDexNames.includes(p.name.toLowerCase())
       }));
 
-    const suggestions = dexProtocols.filter((d: any) => !d.isAdded);
-    const alreadyAdded = dexProtocols.filter((d: any) => d.isAdded);
-
     res.json({
       success: true,
       chainId: Number(chainId),
       chainName,
-      suggestions,
-      alreadyAdded,
-      total: dexProtocols.length
+      dexes: allDexProtocols,
+      total: allDexProtocols.length,
+      added: allDexProtocols.filter((d: any) => d.isAdded).length,
+      available: allDexProtocols.filter((d: any) => !d.isAdded).length
     });
   } catch (error: any) {
     console.error("Error getting DEX suggestions:", error);
@@ -1234,7 +1232,7 @@ engineApiRouter.get("/dexes/suggest/:chainId", async (req, res) => {
   }
 });
 
-// POST /api/engine/dexes/add - Add multiple DEXs to a chain
+// POST /api/engine/dexes/add - Add multiple DEXs to a chain (DEPRECATED - use /dexes/set instead)
 engineApiRouter.post("/dexes/add", async (req, res) => {
   try {
     const { chainId, dexes } = req.body;
@@ -1268,6 +1266,58 @@ engineApiRouter.post("/dexes/add", async (req, res) => {
   } catch (error: any) {
     console.error("Error adding DEXs:", error);
     res.status(500).json({ error: error?.message || "Failed to add DEXs" });
+  }
+});
+
+// PUT /api/engine/dexes/set - SET complete list of DEXs for a chain (IDEMPOTENT)
+// This is the canonical endpoint for managing DEXs - replaces entire DEX list atomically
+engineApiRouter.put("/dexes/set", async (req, res) => {
+  try {
+    const { chainId, dexes } = req.body;
+
+    if (!chainId || !Array.isArray(dexes)) {
+      return res.status(400).json({ error: "chainId and dexes array are required" });
+    }
+
+    const chainData = await db.select().from(chains).where(eq(chains.chainId, Number(chainId))).limit(1);
+    if (!chainData || chainData.length === 0) {
+      return res.status(404).json({ error: "Chain not found" });
+    }
+
+    const chainName = chainData[0].name;
+
+    console.log(`🔄 Setting DEXs for ${chainName} (Chain ${chainId}): ${dexes.length} DEXs`);
+    console.log(`📋 DEXs to set:`, dexes.join(', '));
+
+    await db.delete(chainDexes).where(eq(chainDexes.chainId, Number(chainId)));
+    console.log(`🗑️ Removed all existing DEXs for chain ${chainId}`);
+
+    const inserted = [];
+    for (const dexName of dexes) {
+      await db.insert(chainDexes).values({
+        chainId: Number(chainId),
+        dex: dexName,
+        isActive: true,
+      });
+
+      inserted.push(dexName);
+      console.log(`✅ Set DEX: ${dexName} for chain ${chainId}`);
+    }
+
+    await autoSaveAndReload();
+
+    res.json({
+      success: true,
+      chainId: Number(chainId),
+      chainName,
+      dexes: inserted,
+      count: inserted.length,
+      message: `Successfully set ${inserted.length} DEX(s) for ${chainName}`,
+      action: 'idempotent_set'
+    });
+  } catch (error: any) {
+    console.error("Error setting DEXs:", error);
+    res.status(500).json({ error: error?.message || "Failed to set DEXs" });
   }
 });
 

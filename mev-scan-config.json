@@ -1,5 +1,5 @@
 {
-  "version": "2025-10-05T21:39:09.464Z",
+  "version": "2025-10-05T23:53:58.500Z",
   "chains": [
     {
       "name": "Gnosis",
@@ -9,9 +9,9 @@
       "rpcPool": {
         "wss": [],
         "https": [
-          "https://rpc.gnosischain.com",
+          "https://rpc.gnosis.gateway.fm",
           "https://gnosis-mainnet.public.blastapi.io",
-          "https://rpc.gnosis.gateway.fm"
+          "https://rpc.gnosischain.com"
         ]
       },
       "dexs": [],
@@ -84,10 +84,10 @@
       "rpcPool": {
         "wss": [],
         "https": [
-          "https://base.gateway.tenderly.co",
           "https://base-rpc.publicnode.com",
           "https://developer-access-mainnet.base.org/",
-          "https://mainnet.base.org/"
+          "https://mainnet.base.org/",
+          "https://base.gateway.tenderly.co"
         ]
       },
       "dexs": [],
@@ -160,10 +160,10 @@
       "rpcPool": {
         "wss": [],
         "https": [
-          "https://optimism-rpc.publicnode.com",
-          "https://optimism.gateway.tenderly.co",
           "https://optimism.drpc.org",
-          "https://mainnet.optimism.io"
+          "https://optimism.gateway.tenderly.co",
+          "https://mainnet.optimism.io",
+          "https://optimism-rpc.publicnode.com"
         ]
       },
       "dexs": [],
@@ -199,9 +199,9 @@
       "rpcPool": {
         "wss": [],
         "https": [
-          "https://bsc.publicnode.com",
-          "https://bsc-dataseed1.defibit.io",
           "https://binance.llamarpc.com",
+          "https://bsc-dataseed1.defibit.io",
+          "https://bsc.publicnode.com",
           "https://bsc-dataseed1.ninicoin.io",
           "https://bsc-dataseed.binance.org"
         ]
@@ -257,6 +257,12 @@
       ],
       "assets": [
         {
+          "address": "0x0000000000000000000000000000000000000001",
+          "symbol": "TEST",
+          "decimals": 18,
+          "tags": []
+        },
+        {
           "address": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "symbol": "USDC",
           "decimals": 18,
@@ -277,31 +283,38 @@
       ],
       "pools": [
         {
+          "dexId": "pancakeswap",
+          "pairAddress": "0xf2688fb5b81049dfb7703ada5e770543770612c4",
+          "feeBps": 25
+        },
+        {
+          "dexId": "pancakeswap",
+          "pairAddress": "0xd99c7f6c65857ac913a8f880a4cb84032ab2fc5b",
+          "feeBps": 25
+        },
+        {
+          "dexId": "pancakeswap",
+          "pairAddress": "0x81a9b5f18179ce2bf8f001b8a634db80771f1824",
+          "feeBps": 25
+        },
+        {
           "dexId": "biswap",
           "pairAddress": "0x06cd679121ec37b0a2fd673d4976b09d81791856",
-          "base": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "quote": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "feeBps": 30
         },
         {
           "dexId": "uniswap",
           "pairAddress": "0x4141325bac36affe9db165e854982230a14e6d48",
-          "base": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "quote": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "feeBps": 30
         },
         {
           "dexId": "uniswap",
           "pairAddress": "0x6bcb0ba386e9de0c29006e46b2f01f047ca1806e",
-          "base": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "quote": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "feeBps": 30
         },
         {
           "dexId": "uniswap",
           "pairAddress": "0x5289a8dbf7029ee0b0498a84777ed3941d9acfec",
-          "base": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "quote": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "feeBps": 30
         }
       ],
@@ -377,8 +390,8 @@
       "rpcPool": {
         "wss": [],
         "https": [
-          "https://cronos-evm-rpc.publicnode.com",
           "https://evm.cronos.org",
+          "https://cronos-evm-rpc.publicnode.com",
           "https://cronos.drpc.org"
         ]
       },
@@ -479,6 +492,11 @@
         },
         {
           "dexId": "uniswap",
+          "pairAddress": "0xe500210c7ea6bfd9f69dce044b09ef384ec2b34832f132baec3b418208e3a657",
+          "feeBps": 30
+        },
+        {
+          "dexId": "uniswap",
           "pairAddress": "0x4e68ccd3e89f51c3074ca5072bbac773960dfa36",
           "feeBps": 30
         },
@@ -505,6 +523,12 @@
           "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
           "token1": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
           "pairAddress": "0xe0554a476a092703abdb3ef35c80e0d76d32939f"
+        },
+        {
+          "name": "WETH/USDC @ uniswapv2 (e3a657)",
+          "token0": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "token1": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "pairAddress": "0xe500210c7ea6bfd9f69dce044b09ef384ec2b34832f132baec3b418208e3a657"
         },
         {
           "name": "WETH/USDT @ uniswapv2 (0dFa36)",
@@ -548,5 +572,5 @@
   ],
   "totalChains": 8,
   "totalDexs": 12,
-  "lastUpdated": 1759700350617
+  "lastUpdated": 1759708439210
 }

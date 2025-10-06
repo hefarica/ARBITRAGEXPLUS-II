@@ -1,0 +1,49 @@
+Quiero que actúes como un ingeniero fullstack experto en sistemas DeFi, y me ayudes a construir una funcionalidad de administración de blockchains y DEXs dentro de un dashboard.
+
+La solución debe cumplir con lo siguiente:
+
+Usar arrays dinámicos como fuente de verdad (admin_config.json con chains, dexes, revision).
+
+Mostrar en el dashboard todas las blockchains presentes, extraídas de los RPCs configurados y opcionalmente del Engine.
+
+Permitir activar/desactivar chains y ver su estado (RPCs OK, latencia promedio, etc.).
+
+Permitir agregar o quitar DEXs por chain desde un modal llamado “Agregar DEXs”.
+
+En ese modal deben aparecer todos los DEX soportados, mostrando seleccionados los que ya están agregados.
+
+Al guardar, debe enviarse un set total (PUT) del array de DEXs seleccionados (no diferencias incrementales).
+
+La solución debe ser idempotente, sin mocks, y debe propagar los cambios a:
+
+Base de datos o archivo de configuración.
+
+Engine en Rust (vía endpoint /engine/config/upsert y /engine/runtime/reload).
+
+Sistema de monitoreo (scanners).
+
+UI/websocket (config.applied).
+
+Quiero que me entregues:
+
+El esquema del JSON de configuración (admin_config.json) que contiene la info clave.
+
+El diseño de los endpoints REST (GET/PUT/POST/DELETE) que manipulan las chains y DEXs.
+
+Un ejemplo de implementación del modal “Agregar DEXs” en React (con Tailwind + Shadcn/ui).
+
+Código backend para Next.js que maneje:
+
+detección de chains presentes,
+
+obtención del catálogo de DEXs para una chain,
+
+escritura idempotente del array final de DEXs seleccionados.
+
+Explicación de cómo sincronizar todo con el Engine Rust (contracto mínimo).
+
+Todo debe estar listo para conectar, sin datos falsos ni hardcodeados. El catálogo de DEXs puede venir de DeFiLlama o una fuente real, pero necesito que todo esté orientado a producción. Usa tipado fuerte (ChainId, DexId), evita drift y asegura atomicidad en las escrituras.
+
+No quiero ayuda superficial, sino una solución real, sólida y cableable, como si fuera para producción. Usa nombres de archivos y funciones realistas.
+
+Finalmente, asegúrate de que el sistema sea extensible para soportar más chains o DEXs

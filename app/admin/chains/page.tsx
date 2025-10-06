@@ -267,31 +267,30 @@ export default function ChainsAdminPage() {
       const data = await response.json();
       
       if (data.success) {
-        setDexSuggestions(data.suggestions || []);
-        if (data.suggestions.length === 0) {
-          toast.info("No hay DEXs nuevos disponibles para esta blockchain");
-        }
+        setDexSuggestions(data.dexes || []);
+        
+        const alreadySelected = data.dexes
+          .filter((d: DexSuggestion) => d.isAdded)
+          .map((d: DexSuggestion) => d.name);
+        setSelectedDexes(alreadySelected);
+        
+        console.log(`📋 Loaded ${data.total} DEXs: ${data.added} added, ${data.available} available`);
       } else {
-        toast.error("Error al cargar sugerencias de DEXs");
+        toast.error("Error al cargar DEXs");
       }
     } catch (error) {
-      console.error("Error fetching DEX suggestions:", error);
-      toast.error("Error obteniendo sugerencias de DEXs");
+      console.error("Error fetching DEXs:", error);
+      toast.error("Error obteniendo DEXs");
     } finally {
       setLoadingSuggestions(false);
     }
   };
 
-  const addSelectedDexes = async (chainId: number) => {
-    if (selectedDexes.length === 0) {
-      toast.error("Selecciona al menos un DEX");
-      return;
-    }
-
+  const saveSelectedDexes = async (chainId: number) => {
     try {
       setAddingDexes(true);
-      const response = await fetch("/cf/engine/dexes/add", {
-        method: "POST",
+      const response = await fetch("/cf/engine/dexes/set", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chainId, dexes: selectedDexes }),
       });
@@ -299,16 +298,16 @@ export default function ChainsAdminPage() {
       const data = await response.json();
 
       if (data.success) {
-        toast.success(`${data.count} DEXs agregados - Motor actualizado automáticamente ✅`);
+        toast.success(`✅ ${data.count} DEX(s) configurados para ${data.chainName}`);
         setSelectedDexes([]);
         setDexSuggestions([]);
         await fetchChains();
       } else {
-        toast.error("Error al agregar DEXs");
+        toast.error("Error al guardar DEXs");
       }
     } catch (error) {
-      console.error("Error adding DEXs:", error);
-      toast.error("Error agregando DEXs");
+      console.error("Error saving DEXs:", error);
+      toast.error("Error guardando DEXs");
     } finally {
       setAddingDexes(false);
     }
@@ -492,9 +491,9 @@ export default function ChainsAdminPage() {
                         </DialogTrigger>
                         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
                           <DialogHeader>
-                            <DialogTitle>Agregar DEXs a {chain.name}</DialogTitle>
+                            <DialogTitle>Gestionar DEXs - {chain.name}</DialogTitle>
                             <DialogDescription>
-                              Selecciona los DEXs que deseas agregar desde DeFi Llama (ordenados por TVL)
+                              Selecciona los DEXs activos para esta blockchain. Los cambios se aplican de forma completa e inmediata.
                             </DialogDescription>
                           </DialogHeader>
 
@@ -516,7 +515,14 @@ export default function ChainsAdminPage() {
                                     onClick={() => toggleDexSelection(dex.name)}
                                   >
                                     <div className="flex-1">
-                                      <div className="font-medium">{dex.name}</div>
+                                      <div className="flex items-center gap-2">
+                                        <div className="font-medium">{dex.name}</div>
+                                        {dex.isAdded && (
+                                          <Badge variant="secondary" className="text-xs">
+                                            Activo
+                                          </Badge>
+                                        )}
+                                      </div>
                                       <div className="text-sm text-muted-foreground">
                                         TVL: ${(dex.tvl / 1e6).toFixed(2)}M
                                         {dex.change1d && (
@@ -544,18 +550,18 @@ export default function ChainsAdminPage() {
                                   {selectedDexes.length} DEX(s) seleccionado(s)
                                 </span>
                                 <Button
-                                  onClick={() => addSelectedDexes(chain.chainId)}
-                                  disabled={selectedDexes.length === 0 || addingDexes}
+                                  onClick={() => saveSelectedDexes(chain.chainId)}
+                                  disabled={addingDexes}
                                 >
                                   {addingDexes ? (
                                     <>
                                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                      Agregando...
+                                      Guardando...
                                     </>
                                   ) : (
                                     <>
-                                      <Plus className="h-4 w-4 mr-2" />
-                                      Agregar {selectedDexes.length > 0 && `(${selectedDexes.length})`}
+                                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                                      Guardar Configuración
                                     </>
                                   )}
                                 </Button>
@@ -563,7 +569,7 @@ export default function ChainsAdminPage() {
                             </div>
                           ) : (
                             <div className="text-center py-8 text-muted-foreground">
-                              No hay DEXs disponibles para agregar
+                              No hay DEXs disponibles
                             </div>
                           )}
                         </DialogContent>
@@ -604,9 +610,9 @@ export default function ChainsAdminPage() {
                         </DialogTrigger>
                         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
                           <DialogHeader>
-                            <DialogTitle>Agregar DEXs a {chain.name}</DialogTitle>
+                            <DialogTitle>Gestionar DEXs - {chain.name}</DialogTitle>
                             <DialogDescription>
-                              Selecciona los DEXs que deseas agregar desde DeFi Llama (ordenados por TVL)
+                              Selecciona los DEXs activos para esta blockchain. Los cambios se aplican de forma completa e inmediata.
                             </DialogDescription>
                           </DialogHeader>
 
@@ -628,7 +634,14 @@ export default function ChainsAdminPage() {
                                     onClick={() => toggleDexSelection(dex.name)}
                                   >
                                     <div className="flex-1">
-                                      <div className="font-medium">{dex.name}</div>
+                                      <div className="flex items-center gap-2">
+                                        <div className="font-medium">{dex.name}</div>
+                                        {dex.isAdded && (
+                                          <Badge variant="secondary" className="text-xs">
+                                            Activo
+                                          </Badge>
+                                        )}
+                                      </div>
                                       <div className="text-sm text-muted-foreground">
                                         TVL: ${(dex.tvl / 1e6).toFixed(2)}M
                                         {dex.change1d && (
@@ -656,18 +669,18 @@ export default function ChainsAdminPage() {
                                   {selectedDexes.length} DEX(s) seleccionado(s)
                                 </span>
                                 <Button
-                                  onClick={() => addSelectedDexes(chain.chainId)}
-                                  disabled={selectedDexes.length === 0 || addingDexes}
+                                  onClick={() => saveSelectedDexes(chain.chainId)}
+                                  disabled={addingDexes}
                                 >
                                   {addingDexes ? (
                                     <>
                                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                      Agregando...
+                                      Guardando...
                                     </>
                                   ) : (
                                     <>
-                                      <Plus className="h-4 w-4 mr-2" />
-                                      Agregar {selectedDexes.length > 0 && `(${selectedDexes.length})`}
+                                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                                      Guardar Configuración
                                     </>
                                   )}
                                 </Button>
@@ -675,7 +688,7 @@ export default function ChainsAdminPage() {
                             </div>
                           ) : (
                             <div className="text-center py-8 text-muted-foreground">
-                              No hay DEXs disponibles para agregar
+                              No hay DEXs disponibles
                             </div>
                           )}
                         </DialogContent>
