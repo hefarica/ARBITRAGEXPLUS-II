@@ -11,6 +11,8 @@ use crate::config::Config;
 use crate::database::{Database, Execution};
 use crate::monitoring::Monitoring;
 use crate::rpc_manager::RpcManager;
+use crate::math_engine;
+use crate::types::{KitDeArmado, PoolReserves, DexFees, GasCostEstimator};
 
 // Flashbots bundle relay
 const FLASHBOTS_RELAY: &str = "https://relay.flashbots.net";
@@ -102,28 +104,25 @@ impl Executor {
         Ok(())
     }
 
-    async fn execute_atomic_arbitrage(
+        async fn execute_atomic_arbitrage(
         &self,
         execution: &Execution,
         config: &Config,
     ) -> Result<()> {
-        debug!("Executing atomic arbitrage: {}", execution.id);
-        
+        debug!("Executing atomic arbitrage with Kit de Armado: {}", execution.id);
+
         let chain = &execution.chain;
-        let provider = self.rpc_manager.get_provider(chain).await?;
-        
-        // Build arbitrage transaction
-        let tx = self.build_arbitrage_transaction(execution, config).await?;
-        
-        // Execute based on configuration
-        if config.execution.private_mempool {
-            // Send via Flashbots or other private relay
-            self.send_private_transaction(tx, chain, config).await?;
-        } else {
-            // Send via public mempool
-            self.send_public_transaction(tx, provider).await?;
-        }
-        
+
+        // Asegurarse de que el kit de armado está presente
+        let kit = execution.kit_de_armado.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Kit de Armado no encontrado para la ejecución {}", execution.id))?;
+
+        // Construir el bundle de transacciones a partir del kit de armado
+        let bundle = self.build_kit_de_armado_bundle(kit, config).await?;
+
+        // Enviar el bundle a través de un relay privado como Flashbots
+        self.send_flashbots_bundle(bundle, chain).await?;
+
         Ok(())
     }
 
@@ -283,7 +282,11 @@ impl Executor {
         // Set gas parameters
         let gas_price = self.gas_oracle.get_gas_price(&execution.chain).await?;
         tx = tx.gas_price(gas_price);
-        tx = tx.gas(U256::from(500000));
+        
+        // Simulate transaction to estimate gas more accurately
+        let simulated_tx = tx.clone().into();
+        let (estimated_gas_used, _) = self.simulate_transaction(&simulated_tx, &execution.chain).await?;
+        tx = tx.gas(estimated_gas_used + U256::from(50000)); // Add a buffer
         
         // Get nonce
         let nonce = self.nonce_tracker.write().await.get_next_nonce(&execution.chain).await?;
@@ -469,37 +472,113 @@ impl Executor {
         
         info!("Sent public transaction: {:?}", tx_hash);
         self.monitoring.increment_transactions_sent();
+
+        // Wait for transaction receipt to check status
+        match pending_tx.await {
+            Ok(Some(receipt)) => {
+                if receipt.status == Some(1.into()) { // 1 means success
+                    self.monitoring.increment_transactions_successful();
+                    info!("Public transaction successful: {:?}", tx_hash);
+                } else {
+                    self.monitoring.increment_reverted_transactions();
+                    warn!("Public transaction reverted: {:?}", tx_hash);
+                }
+            },
+            Ok(None) => {
+                self.monitoring.increment_transactions_failed();
+                warn!("Public transaction not found after sending: {:?}", tx_hash);
+            },
+            Err(e) => {
+                self.monitoring.increment_transactions_failed();
+                error!("Error waiting for public transaction receipt {:?}: {}", tx_hash, e);
+            }
+        }
         
         Ok(tx_hash)
+
     }
 
-    async fn send_private_transaction(
+      async fn send_private_transaction(
         &self,
         tx: TypedTransaction,
         chain: &str,
         config: &Config,
     ) -> Result<H256> {
-        // Send to configured relays
+        info!("Sending private transaction on {}", chain);
+        self.monitoring.increment_transactions_sent();
+
+        let mut last_error: Option<String> = None;
+
         for relay in &config.execution.relays {
             match relay.as_str() {
                 "flashbots" => {
-                    if let Ok(hash) = self.send_to_flashbots(tx.clone(), chain).await {
-                        return Ok(hash);
+                    if config.execution.flashbots_enabled {
+                        match self.send_to_flashbots(tx.clone(), chain).await {
+                            Ok(hash) => return Ok(hash),
+                            Err(e) => {
+                                error!("Flashbots relay failed: {}", e);
+                                last_error = Some(e.to_string());
+                            }
+                        }
                     }
                 }
                 "bloxroute" => {
-                    if let Ok(hash) = self.send_to_bloxroute(tx.clone(), chain).await {
-                        return Ok(hash);
+                    if config.execution.bloxroute_enabled {
+                        match self.send_to_bloxroute(tx.clone(), chain).await {
+                            Ok(hash) => return Ok(hash),
+                            Err(e) => {
+                                error!("Bloxroute relay failed: {}", e);
+                                last_error = Some(e.to_string());
+                            }
+                        }
                     }
                 }
-                "mev-share" => {
-                    if let Ok(hash) = self.send_to_mev_share(tx.clone(), chain).await {
-                        return Ok(hash);
+                "mev_share" => {
+                    if config.execution.mev_share_enabled {
+                        match self.send_to_mev_share(tx.clone(), chain).await {
+                            Ok(hash) => return Ok(hash),
+                            Err(e) => {
+                                error!("MEV-Share relay failed: {}", e);
+                                last_error = Some(e.to_string());
+                            }
+                        }
                     }
                 }
-                _ => {}
+                _ => {
+                    warn!("Unknown private relay configured: {}", relay);
+                }
             }
         }
+
+        if let Some(err_msg) = last_error {
+            self.monitoring.increment_reverted_transactions();
+            Err(anyhow::anyhow!("All private relays failed: {}", err_msg))
+        } else {
+            self.monitoring.increment_reverted_transactions();
+            Err(anyhow::anyhow!("No private relays enabled or configured"))
+        }
+    }
+                        Ok(hash) => {
+                            self.monitoring.increment_transactions_sent();
+                            info!("Sent private transaction via Flashbots: {:?}", hash);
+                            return Ok(hash);
+                        },
+                        Err(e) => {
+                            self.monitoring.increment_transactions_failed();
+                            error!("Failed to send private transaction via Flashbots: {}", e);
+                        }
+                    }
+                }
+                "bloxroute" => {
+                    // Similar logic for bloxroute
+                    self.monitoring.increment_transactions_failed(); // Placeholder for now
+                }
+                _ => {
+                    warn!("Unknown private relay configured: {}");
+                }
+            }
+        }
+        Err(anyhow::anyhow!("All private relays failed or no valid relay configured"))   }
         
         anyhow::bail!("Failed to send private transaction to any relay")
     }
@@ -596,3 +675,50 @@ struct Bundle {
     min_timestamp: Option<u64>,
     max_timestamp: Option<u64>,
 }
+
+
+    async fn build_kit_de_armado_bundle(
+        &self,
+        kit: &KitDeArmado,
+        config: &Config,
+    ) -> Result<Vec<TypedTransaction>> {
+        let mut bundle = Vec::new();
+
+        for step in &kit.pasos {
+            let mut tx = TransactionRequest::new();
+            tx = tx.to(step.contrato.parse::<Address>()?);
+            tx = tx.value(step.valor.parse::<U256>()?);
+            tx = tx.data(step.calldata.parse::<Bytes>()?);
+
+            // Configurar gas y nonce (esto es una simplificación)
+            let gas_price = self.gas_oracle.get_gas_price(&kit.chain).await?;
+            tx = tx.gas_price(gas_price);
+            tx = tx.gas(U256::from(500000)); // Gas estimado por paso
+
+            bundle.push(tx.into());
+        }
+
+        Ok(bundle)
+    }
+
+
+
+
+    async fn simulate_transaction(
+        &self,
+        tx: &TypedTransaction,
+        chain: &str,
+    ) -> Result<(U256, U256)> { // Returns (estimated_gas_used, estimated_profit)
+        let provider = self.rpc_manager.get_provider(chain).await?;
+
+        // Estimate gas usage
+        let gas_used = provider.estimate_gas(tx).await
+            .context("Failed to estimate gas for transaction")?;
+
+        // For profit estimation, we would need to run a local EVM fork or a more sophisticated simulation
+        // For now, we'll return a placeholder profit based on the opportunity's estimated profit
+        // In a real scenario, this would involve replaying the transaction on a local fork
+        // and analyzing the state changes.
+        Ok((gas_used, U256::zero())) // Placeholder for profit
+    }
+

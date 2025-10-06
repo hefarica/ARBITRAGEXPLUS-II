@@ -36,6 +36,8 @@ reqwest = { version = "0.11", default-features = false, features = ["json", "rus
 petgraph = "0.6"
 ethers = { version = "2", default-features = false, features = ["ws", "rustls"] }
 futures-util = "0.3"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 [[bin]]
 name = "mev-engine-minimal"
@@ -49,3 +51,7 @@ required-features = ["scanners"]
 [profile.dev]
 opt-level = 1
 debug = false
+
+[dev-dependencies]
+tracing-test = "0.1"
+

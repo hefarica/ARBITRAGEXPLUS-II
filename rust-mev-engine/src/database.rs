@@ -79,6 +79,7 @@ pub struct Opportunity {
     pub gas_usd: f64,
     pub ts: i64,
     pub metadata: Option<serde_json::Value>,
+    pub kit_de_armado: Option<KitDeArmado>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Insertable)]
@@ -92,6 +93,8 @@ pub struct AssetSafety {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Insertable)]
 #[diesel(table_name = executions)]
+use crate::types::KitDeArmado;
+
 pub struct Execution {
     pub id: String,
     pub opportunity_id: Option<String>,
@@ -107,6 +110,7 @@ pub struct Execution {
     pub created_at: i64,
     pub updated_at: i64,
     pub metadata: Option<serde_json::Value>,
+    pub kit_de_armado: Option<KitDeArmado>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Insertable)]

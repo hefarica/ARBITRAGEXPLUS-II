@@ -17,6 +17,8 @@ pub struct Monitoring {
     transactions_successful: Counter,
     transactions_failed: Counter,
     bundles_sent: Counter,
+    validation_failures: Counter,
+    reverted_transactions: Counter,
     
     // Gauges
     active_opportunities: Gauge,
@@ -86,6 +88,16 @@ impl Monitoring {
             "Total number of bundles sent to relays"
         ).expect("Failed to register bundles_sent counter");
         
+        let validation_failures = register_counter!(
+            "mev_validation_failures_total",
+            "Total number of validation failures"
+        ).expect("Failed to register validation_failures counter");
+        
+        let reverted_transactions = register_counter!(
+            "mev_reverted_transactions_total",
+            "Total number of reverted transactions"
+        ).expect("Failed to register reverted_transactions counter");
+        
         let active_opportunities = register_gauge!(
             "mev_active_opportunities",
             "Number of currently active opportunities"
@@ -154,6 +166,8 @@ impl Monitoring {
             transactions_successful,
             transactions_failed,
             bundles_sent,
+            validation_failures,
+            reverted_transactions,
             active_opportunities,
             pending_executions,
             total_profit_usd,
@@ -190,6 +204,14 @@ impl Monitoring {
     
     pub fn increment_bundles_sent(&self) {
         self.bundles_sent.inc();
+    }
+
+    pub fn increment_validation_failures(&self) {
+        self.validation_failures.inc();
+    }
+
+    pub fn increment_reverted_transactions(&self) {
+        self.reverted_transactions.inc();
     }
     
     // Gauge methods

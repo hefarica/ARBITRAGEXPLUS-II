@@ -12,7 +12,12 @@ use crate::config::Config;
 use crate::database::{Database, Opportunity};
 use crate::monitoring::Monitoring;
 use crate::multicall::{MulticallManager, PriceResult};
+use crate::data_fetcher::DataFetcher;
 use crate::rpc_manager::RpcManager;
+use crate::math_engine;
+use crate::math_engine;
+use crate::types::{PoolReserves, DexFees, GasCostEstimator};
+use crate::address_validator::AddressValidator;
 
 pub struct MevScanner {
     rpc_manager: Arc<RpcManager>,
@@ -21,6 +26,8 @@ pub struct MevScanner {
     config: Arc<RwLock<Config>>,
     multicall: Arc<MulticallManager>,
     dex_registry: DexRegistry,
+    address_validator: AddressValidator,
+    data_fetcher: DataFetcher,
 }
 
 impl MevScanner {
@@ -37,6 +44,8 @@ impl MevScanner {
             config,
             multicall: Arc::new(MulticallManager::new()),
             dex_registry: DexRegistry::new(),
+            address_validator: AddressValidator::new(),
+            data_fetcher: DataFetcher::new(rpc_manager.clone()),
         }
     }
 
@@ -205,7 +214,14 @@ impl MevScanner {
         tx: &Transaction,
     ) -> Option<Opportunity> {
         // Check if transaction is a large swap on a known DEX
-        if !self.dex_registry.is_dex_router(&tx.to?) {
+                if let Some(to_addr) = tx.to {
+            if !self.address_validator.is_address_safe(&to_addr).await {
+                return None;
+            }
+            if !self.dex_registry.is_dex_router(&to_addr) {
+                return None;
+            }
+        } else {
             return None;
         }
 
@@ -245,7 +261,14 @@ impl MevScanner {
         // Check if transaction creates an arbitrage opportunity
         // For example, after a large swap that moves the price
         
-        if !self.dex_registry.is_dex_router(&tx.to?) {
+        if let Some(to_addr) = tx.to {
+            if !self.address_validator.is_address_safe(&to_addr).await {
+                return None;
+            }
+            if !self.dex_registry.is_dex_router(&to_addr) {
+                return None;
+            }
+        } else {
             return None;
         }
 
@@ -277,7 +300,14 @@ impl MevScanner {
         // Check if transaction is adding/removing liquidity from Uniswap V3
         let uniswap_v3_positions = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88".parse::<Address>().ok()?;
         
-        if tx.to != Some(uniswap_v3_positions) {
+        if let Some(to_addr) = tx.to {
+            if !self.address_validator.is_address_safe(&to_addr).await {
+                return None;
+            }
+            if to_addr != uniswap_v3_positions {
+                return None;
+            }
+        } else {
             return None;
         }
 
@@ -318,24 +348,65 @@ impl MevScanner {
                 // Find arbitrage opportunities
                 for i in 0..prices.len() {
                     for j in i+1..prices.len() {
-                        let price_diff = (prices[i].1 - prices[j].1).abs() / prices[i].1;
-                        
-                        if price_diff > 0.015 { // 1.5% difference
+                    // Aquí integramos el cálculo diferencial para encontrar la cantidad óptima y el beneficio
+                    // Esto es una simplificación. En un bot real, se necesitarían las reservas reales de los pools
+                    // y se modelaría la función de beneficio de forma más precisa.
+
+                    // Obtener reservas de pools en tiempo real usando DataFetcher
+                    let pool1_reserves = match self.data_fetcher.get_pool_reserves(chain, &prices[i].0, &token0, &token1).await {
+                        Ok(res) => res,
+                        Err(e) => {
+                            warn!("Failed to get pool1 reserves for {}/{}: {}", token0, token1, e);
+                            continue;
+                        }
+                    };
+                    let pool2_reserves = match self.data_fetcher.get_pool_reserves(chain, &prices[j].0, &token1, &token0).await {
+                        Ok(res) => res,
+                        Err(e) => {
+                            warn!("Failed to get pool2 reserves for {}/{}: {}", token1, token0, e);
+                            continue;
+                        }
+                    };
+                    let dex_fees = DexFees { fee_rate_pool1: 0.003, fee_rate_pool2: 0.003 };
+                    let gas_estimator = GasCostEstimator { fixed_cost: 20.0 }; // Costo de gas en USD
+
+                    let profit_function = |x_in: f64| {
+                        math_engine::calculate_profit(
+                            x_in,
+                            &pool1_reserves,
+                            &pool2_reserves,
+                            &dex_fees,
+                            &gas_estimator,
+                        )
+                    };
+
+                    let initial_guess = 1.0; // Cantidad inicial de Token A a probar (ej. 1 WETH)
+                    let tolerance = 1e-6;
+                    let max_iterations = 1000;
+                    let step_size = 0.1;
+
+                    if let Some(optimal_x) = math_engine::find_optimal_x(profit_function, initial_guess, tolerance, max_iterations, step_size) {
+                        let max_profit = profit_function(optimal_x);
+
+                        if max_profit > 0.0 { // Umbral de beneficio mínimo
+                            info!("Arbitrage opportunity detected: {} -> {} (Optimal Amount: {:.6}, Profit: {:.6} USD)", prices[i].0, prices[j].0, optimal_x, max_profit);
+
                             let opp = Opportunity {
-                                id: format!("arb_{}_{}_{}", chain, token0, chrono::Utc::now().timestamp_millis()),
+                                id: format!("arb_{}_{}_{}", chain, prices[i].0, prices[j].0),
                                 chain_id: chain_id as i32,
                                 strategy: "dex-arb".to_string(),
                                 dex_in: prices[i].0.clone(),
                                 dex_out: prices[j].0.clone(),
                                 base_token: token0.clone(),
                                 quote_token: token1.clone(),
-                                amount_in: "1000000000000000000".to_string(), // 1 ETH
-                                est_profit_usd: price_diff * 3000.0, // Rough estimate
-                                gas_usd: 20.0,
+                                amount_in: optimal_x.to_string(), // Cantidad óptima calculada
+                                est_profit_usd: max_profit,
+                                gas_usd: gas_estimator.estimate_cost(optimal_x),
                                 ts: chrono::Utc::now().timestamp_millis(),
                                 metadata: serde_json::json!({
                                     "type": "dex-arb",
-                                    "price_diff_pct": price_diff * 100.0,
+                                    "optimal_amount_in": optimal_x,
+                                    "estimated_profit_usd": max_profit,
                                 }),
                             };
                             
@@ -343,6 +414,17 @@ impl MevScanner {
                                 error!("Failed to save arbitrage opportunity: {}", e);
                             }
                         }
+                    } else { 
+                            debug!("No profitable opportunity after optimization for {} -> {}", prices[i].0, prices[j].0);
+                        }
+                    } else {
+                        debug!("Could not find optimal amount for arbitrage opportunity: {} -> {}", prices[i].0, prices[j].0);
+                    }                   } else { 
+                            debug!("No profitable opportunity after optimization for {} -> {}", prices[i].0, prices[j].0);
+                        }
+                    } else {
+                        debug!("Could not find optimal amount for arbitrage opportunity: {} -> {}", prices[i].0, prices[j].0);
+                    }
                     }
                 }
             }
