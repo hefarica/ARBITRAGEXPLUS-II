@@ -1,0 +1,406 @@
+¡Vamos a convertir **Admin Assets** en tu **Asset & Pair Orchestrator v2.0** — sin “quizás”. Solo config válida, trazable y ejecutable.
+
+Abajo tienes: **arquitectura**, **pipeline de validación**, **contratos de datos**, y **código clave (frontend, backend, Rust)** para que lo pegues encima del starter que te dejé. Si no descargaste el starter, aquí está otra vez:
+**[asset-pair-orchestrator-v2.zip](sandbox:/mnt/data/asset-pair-orchestrator-v2.zip)**
+
+---
+
+# 1) Arquitectura (determinística)
+
+**Frontend (Vite+React)**
+
+* Asset Discovery → Validation Gate → Pair Planner → “Agregar a Trading”.
+* Badges de estado: `No Configurado` / `Alto Riesgo` / `Listo`.
+* Drawer de “Razones” (cada regla explica el porqué).
+
+**Backend (Express)**
+
+* `/api/discover`: catálogos/seed → dónde existe el token.
+* `/api/validate-asset`: **pipeline duro** (chain/dex → liquidez → score → pares → profit → atomicidad).
+* `/api/pairs/plan`: genera/valida rutas (2 y 3 legs).
+* Sincroniza al **Engine Rust por WS** (`add_asset`, `add_pairs`, `reload_scanner`).
+* **Audit trail** (JSON append-only) y `trace_id` por asset/par.
+
+**Engine (Rust)**
+
+* `is_valid_for_trading()` → única puerta de entrada.
+* `generate_auto_pairs()` + filtros (TVL mínimo, base quotes).
+* `precheck_profit()` y `can_execute_atomically()` (rutas 2-3 hops).
+* WS `/ws` recibe `add_asset`, `add_pairs` y responde `ack`.
+
+---
+
+# 2) Pipeline de validación (reglas obligatorias)
+
+Orden y “razón” (para trazabilidad):
+
+1. **Pre-config:** chain & dex configurados → `reason:"NOT_CONFIGURED"`
+2. **Liquidez mínima:** pools ≥ `TVL_MIN` (ej. USD 1M) → `LOW_LIQ`
+3. **Safety score ≥ 70:** fórmula compuesta → `LOW_SCORE`
+4. **Pares base/quote:** (USDC, WETH, WBTC, stable nativo) → `NO_PAIRS`
+5. **Profit pre-check:** `(Π(Out/In * 1/(1-fee)))*(1-gas) − 1 ≥ ROI_MIN` → `NO_PROFIT`
+6. **Atomicidad:** ruta 2-3 legs ejecutable (router contracts soportados, allowances, bundle) → `NOT_ATOMIC`
+
+Si **cualquiera** falla: no se agrega, no se escanea, **se documenta** la razón.
+
+---
+
+# 3) Contratos de datos (TS y Rust)
+
+**TypeScript (server)**
+
+```ts
+// server/types.ts
+export type ChainId = string; // "ethereum" | "base" | ...
+export type DexId = string;   // "uniswapv3" | "aerodrome" | ...
+
+export interface PoolRef {
+  dex: DexId; address: string; feeBps: number; liquidityUsd: number;
+}
+
+export interface AssetCandidate {
+  trace_id: string;           // `${chain}:${address}`
+  chain: ChainId;
+  address: string;
+  symbol: string;
+  score: number;
+  flags: string[];
+  pools: PoolRef[];
+}
+
+export interface PairPlan {
+  token_in: string; token_out: string;
+  route: string[];            // e.g. ["uniswapv3","aerodrome"]
+  hops: number;               // 2 o 3
+  est_profit_usd: number;
+  atomic: boolean;
+  reasons_block?: string[];   // si atomic=false
+}
+```
+
+**Rust**
+
+```rust
+// rust-engine-skeleton/src/config.rs
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Asset {
+    pub trace_id: String,
+    pub chain: String,
+    pub token: String,
+    pub address: String,
+    pub score: i32,
+    pub flags: Vec<String>,
+    pub is_safe: bool,
+    pub is_configured: bool,
+}
+
+impl Asset {
+    pub fn is_valid_for_trading(&self) -> bool {
+        self.is_safe && self.is_configured
+    }
+}
+```
+
+---
+
+# 4) Backend — reglas duras + endpoints
+
+**A. Utilidades de validación** (pega en `server/server.js` o separa en `validators.js`)
+
+```js
+// --- Parámetros de política (ajustables) ---
+const TVL_MIN_USD = 1_000_000;
+const ROI_MIN = 0.0005;         // 0.05% neto
+const GAS_COST_FRACTION = 0.0002;
+
+// 1) Config
+function hasConfiguredChainDex(savedConfig, chain, dexes=[]) {
+  const c = savedConfig.chains.find(x => x.chain.toLowerCase() === chain.toLowerCase());
+  if (!c) return false;
+  const set = new Set((c.dexes || []).map(d => d.toLowerCase()));
+  return dexes.every(d => set.has(String(d).toLowerCase()));
+}
+
+// 2) Liquidez
+function hasLiquidity(pools=[]) {
+  const rich = pools.filter(p => (p.liquidityUsd || p.liquidity || 0) >= TVL_MIN_USD);
+  return rich.length > 0 ? { ok:true, pools: rich } : { ok:false, reason:"LOW_LIQ" };
+}
+
+// 3) Score
+function isSafe(score) { return (score || 0) >= 70; }
+
+// 4) Pares base/quote
+const BASE_QUOTES = ["USDC","WETH","WBTC","DAI","USDT"];
+function generatePairs(symbol) {
+  return BASE_QUOTES.filter(q => q !== symbol).map(q => ({ token_in: symbol, token_out: q }));
+}
+
+// 5) Profit pre-check (estimado, sin slippage dinámico)
+function estimateProfit(routeQuotes=[]) {
+  // routeQuotes: [{outOverIn: number, feeFraction: number}]
+  const prod = routeQuotes.reduce((acc, leg) => acc * (leg.outOverIn * (1/(1 - leg.feeFraction))), 1);
+  const net = prod * (1 - GAS_COST_FRACTION) - 1;
+  return net;
+}
+
+// 6) Atomicidad (chequeos mínimos off-chain)
+function canExecuteAtomically(pairPlan) {
+  const reasons = [];
+  if (pairPlan.hops < 2 || pairPlan.hops > 3) reasons.push("HOPS_UNSUPPORTED");
+  if (!pairPlan.route || pairPlan.route.length !== pairPlan.hops) reasons.push("ROUTE_MISMATCH");
+  // Aquí agregarías: allowance OK, router soportado, calldata size, bundle path, etc.
+  return { ok: reasons.length === 0, reasons };
+}
+```
+
+**B. `/api/validate-asset`** (reemplaza el handler actual por este más estricto)
+
+```js
+app.post('/api/validate-asset', (req, res) => {
+  const { address, chain, dexes } = req.body || {};
+  if (!address || !chain) return res.json({ error: 'Faltan parámetros mínimos' });
+
+  const entries = findTokenEntries(address);
+  const entry = entries.find(e => e.chain.toLowerCase() === String(chain).toLowerCase());
+  if (!entry) return res.json({ error: 'Token no encontrado en el registro' });
+
+  const configured = hasConfiguredChainDex(savedConfig, chain, dexes || entry.dexes || []);
+  if (!configured) return res.json({ error: 'NOT_CONFIGURED', reason: 'Chain/DEX no configurados' });
+
+  const liq = hasLiquidity(entry.pools || []);
+  if (!liq.ok) return res.json({ error: liq.reason, reason: 'Liquidez insuficiente' });
+
+  if (!isSafe(entry.score)) return res.json({ error: 'LOW_SCORE', reason: 'Score < 70' });
+
+  // Pares candidatos
+  const pairs = generatePairs(entry.symbol);
+
+  // Pre-check de profit: ejemplo simplificado por leg
+  // (En producción: cotiza en vivo por DEX+pool con fee tier real)
+  const planned = pairs.map(p => {
+    const route = (dexes && dexes.length >= 2) ? [dexes[0], dexes[1]] : ['uniswapv3','sushiswap'];
+    const hops = route.length;
+    const net = estimateProfit([{outOverIn:1.0007, feeFraction:0.0005}, {outOverIn:1.0006, feeFraction:0.0005}]);
+    return {
+      token_in: p.token_in, token_out: p.token_out,
+      route, hops, est_profit_usd: Math.round(10000*net)/10000, // demo
+    };
+  });
+
+  const profitable = planned.filter(x => x.est_profit_usd >= ROI_MIN);
+  if (profitable.length === 0) return res.json({ error: 'NO_PROFIT', reason: 'Profit estimado < ROI_MIN' });
+
+  const atomicChecked = profitable.map(p => {
+    const atomic = canExecuteAtomically(p);
+    return { ...p, atomic: atomic.ok, reasons_block: atomic.ok ? [] : atomic.reasons };
+  });
+  const atomicOk = atomicChecked.filter(p => p.atomic);
+  if (atomicOk.length === 0) return res.json({ error: 'NOT_ATOMIC', reason: 'Ruta no atómica', plans: atomicChecked });
+
+  const asset = {
+    trace_id: `${chain}:${address}`,
+    chain,
+    token: entry.symbol,
+    address,
+    score: entry.score,
+    flags: entry.flags || [],
+    is_safe: true,
+    is_configured: true
+  };
+
+  // Persistimos asset y pares aprobados
+  if (!savedConfig.assets.find(a => a.address.toLowerCase() === address.toLowerCase())) {
+    savedConfig.assets.push(asset);
+  }
+  savedConfig.pairs = (savedConfig.pairs || []).concat(atomicOk);
+  persist();
+
+  // Audit trail
+  appendAudit({ ts: Date.now(), op:"validate-asset", asset, plans: atomicOk });
+
+  // Notificar al Engine
+  engine.send({ type: 'add_asset', asset });
+  engine.send({ type: 'add_pairs', pairs: atomicOk });
+
+  return res.json({ ok: true, asset, plans: atomicOk });
+});
+```
+
+**C. Audit trail** (agrega esto en `server/server.js`)
+
+```js
+const auditPath = path.join(__dirname, 'audit.log.jsonl');
+function appendAudit(evt){ fs.appendFileSync(auditPath, JSON.stringify(evt) + "\n"); }
+```
+
+---
+
+# 5) Frontend — UI con “Validation Drawer” y Pair Planner
+
+**A. Botón “Validar y Agregar”** (en `TokenCard.jsx` reemplaza `handleAdd`)
+
+```jsx
+const handleAdd = async () => {
+  setIsAdding(true);
+  setStatus('validating');
+  try {
+    const res = await fetch('/api/validate-asset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        address: token.address,
+        chain: token.chain,
+        dexes: token.dexes
+      })
+    });
+    const result = await res.json();
+    if (!result.ok) {
+      setStatus('error');
+      setErrorDetail(result.reason || result.error || 'Rechazado por política');
+      setPlans(result.plans || []);
+      return;
+    }
+    setPlans(result.plans || []);
+    setStatus('success');
+  } catch (err) {
+    setStatus('error');
+    setErrorDetail('Falla de red/servidor');
+  } finally {
+    setIsAdding(false);
+  }
+};
+```
+
+**B. Tabla de Pares aprobados** (nuevo `PairTable.jsx`)
+
+```jsx
+export default function PairTable({ plans=[] }) {
+  if (plans.length === 0) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <h5>Pares aprobados</h5>
+      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign:'left' }}>Ruta</th>
+            <th>Hops</th>
+            <th>Profit est.</th>
+            <th>Atomic</th>
+          </tr>
+        </thead>
+        <tbody>
+          {plans.map((p,i)=>(
+            <tr key={i} style={{ borderTop:'1px solid #eee' }}>
+              <td>{p.token_in} → {p.token_out} ({p.route.join(' › ')})</td>
+              <td style={{ textAlign:'center' }}>{p.hops}</td>
+              <td style={{ textAlign:'center' }}>{(p.est_profit_usd*100).toFixed(3)}%</td>
+              <td style={{ textAlign:'center' }}>{p.atomic ? '✅' : `❌ (${(p.reasons_block||[]).join(',')})`}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+```
+
+(Impórtala en `TokenCard.jsx` y muestra `PairTable` cuando `status==='success'` o cuando existan `plans`.)
+
+---
+
+# 6) Engine (Rust) — validación y pares
+
+**A. Pairs y precheck** (`rust-engine-skeleton/src/scanner.rs`)
+
+```rust
+use crate::config::Asset;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PairPlan {
+    pub token_in: String,
+    pub token_out: String,
+    pub route: Vec<String>,   // e.g. ["uniswapv3","sushiswap"]
+    pub hops: usize,
+    pub est_profit_usd: f64,
+    pub atomic: bool,
+}
+
+pub fn generate_auto_pairs(asset: &Asset) -> Vec<PairPlan> {
+    let base_quotes = vec!["USDC","WETH","WBTC","DAI","USDT"];
+    let mut out = Vec::new();
+    for q in base_quotes {
+        if q != asset.token {
+            out.push(PairPlan {
+                token_in: asset.token.clone(),
+                token_out: q.to_string(),
+                route: vec!["uniswapv3".into(),"sushiswap".into()],
+                hops: 2,
+                est_profit_usd: 0.0,
+                atomic: false,
+            });
+        }
+    }
+    out
+}
+
+pub fn can_execute_atomically(plan: &PairPlan) -> bool {
+    (2..=3).contains(&plan.hops) && (plan.route.len() == plan.hops)
+}
+```
+
+**B. WS: aceptar `add_pairs`** (`rust-engine-skeleton/src/ws_server.rs`) — añade al enum y handler:
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum EngineMsgIn {
+    #[serde(rename = "add_asset")]
+    AddAsset { asset: Asset },
+    #[serde(rename = "add_pairs")]
+    AddPairs { pairs: Vec<crate::scanner::PairPlan> },
+}
+
+...
+Message::Text(txt) => {
+  match serde_json::from_str::<EngineMsgIn>(&txt) {
+    Ok(EngineMsgIn::AddAsset { asset }) => { /* igual que antes */ }
+    Ok(EngineMsgIn::AddPairs { pairs }) => {
+        // Aquí podrías persistir en memoria/DB y disparar un “reload”
+        let _ = socket.send(Message::Text(
+            serde_json::json!({"type":"ack","op":"add_pairs","count":pairs.len()}).to_string()
+        )).await;
+    }
+    Err(e) => error!("Invalid WS message: {e}"),
+  }
+}
+```
+
+---
+
+# 7) Estados & Trazabilidad
+
+Estados por asset:
+`discovered → pending_config → risk_blocked → validated → trading_enabled → disabled`
+
+Cada transición genera un registro en `audit.log.jsonl` con: `ts, op, trace_id, reason/opcode, diff`.
+
+---
+
+# 8) Aceptación (qué debe cumplirse)
+
+* No se permite *agregar* un token si **no** supera **todas** las reglas.
+* Las razones de bloqueo se muestran en UI y se loguean.
+* El Engine **solo** recibe `add_asset`/`add_pairs` aprobados y responde `ack`.
+* Cualquier cambio de config (chains/dexes) invalida assets/par es y dispara `reload_scanner` (puedes enviar `engine.send({type:'apply_config'})`).
+
+---
+
+## Siguiente upgrade (cuando quieras)
+
+* Integrar **quotes reales** (UniswapV3 subgraph / pool reads) y costo de gas por chain.
+* Safety score compuesto: TVL, holders, listas de riesgo, centralización, verified sources.
+* Check de **atomicidad real**: allowances, calldata size, soporte de router, **Flashbots bundle** dry-run.
+
+¿Lo cableo ya con cotización real (Uniswap V3 + Aerodrome) y logger JSON por `reason` (TWAP, etc.)?

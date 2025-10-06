@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -29,132 +28,171 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  Link as LinkIcon,
+  Play,
+  FileText,
+  TrendingUp,
+  Zap,
+  Info
 } from "lucide-react";
 import { toast } from "sonner";
 
-interface Asset {
+interface PoolRef {
+  dex: string;
+  address: string;
+  feeBps: number;
+  liquidityUsd: number;
+}
+
+interface AssetCandidate {
+  trace_id: string;
   chainId: number;
   address: string;
   symbol: string;
   decimals: number;
   name: string;
-  riskScore: number;
-  riskFlags: string[];
+  score: number;
+  flags: string[];
+  pools: PoolRef[];
+  dexes: string[];
 }
 
-interface Pair {
-  chainId: number;
-  base: string;
-  quote: string;
-  enabled: boolean;
+interface PairPlan {
+  trace_id: string;
+  token_in: string;
+  token_out: string;
+  route: string[];
+  hops: number;
+  est_profit_bps: number;
+  atomic: boolean;
+  reasons_block?: string[];
 }
 
-export default function AssetsAdminPage() {
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [pairs, setPairs] = useState<Pair[]>([]);
+interface AssetWithValidation extends AssetCandidate {
+  validation_status: "pending" | "validating" | "valid" | "rejected";
+  validation_reason?: string;
+  validation_message?: string;
+  validated_at?: number;
+  pairs?: PairPlan[];
+}
+
+export default function AssetOrchestratorPage() {
+  const [assets, setAssets] = useState<AssetWithValidation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [scanning, setScanning] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [validating, setValidating] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedAsset, setSelectedAsset] = useState<AssetWithValidation | null>(null);
+  const [showValidationDetails, setShowValidationDetails] = useState(false);
 
-  const fetchData = async () => {
+  const fetchAssets = async () => {
     try {
       setLoading(true);
       const response = await fetch("/cf/engine/state");
       const data = await response.json();
       
-      setAssets(data.assets || []);
-      setPairs(data.pairs || []);
+      const assetsWithValidation: AssetWithValidation[] = (data.assets || []).map((a: any) => ({
+        trace_id: `${a.chainId}:${a.address}`,
+        chainId: a.chainId,
+        address: a.address,
+        symbol: a.symbol,
+        decimals: a.decimals || 18,
+        name: a.name || a.symbol,
+        score: a.riskScore || 0,
+        flags: a.riskFlags || [],
+        pools: [],
+        dexes: [],
+        validation_status: "pending"
+      }));
+
+      setAssets(assetsWithValidation);
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Error fetching assets:", error);
       toast.error("Error al cargar datos");
     } finally {
       setLoading(false);
     }
   };
 
-  const scanAssets = async () => {
+  const validateAsset = async (asset: AssetCandidate) => {
     try {
-      setScanning(true);
-      toast.info("Escaneando assets para riesgos...");
-      
-      // Group assets by chain
-      const assetsByChain = assets.reduce((acc, asset) => {
-        if (!acc[asset.chainId]) acc[asset.chainId] = [];
-        acc[asset.chainId].push(asset.address);
-        return acc;
-      }, {} as Record<number, string[]>);
+      setValidating(asset.trace_id);
+      toast.info(`Validando ${asset.symbol}...`);
 
-      let totalScanned = 0;
-      
-      for (const [chainId, addresses] of Object.entries(assetsByChain)) {
-        const response = await fetch("/cf/engine/assets/scan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chainId: Number(chainId), addresses }),
-        });
-        
-        const data = await response.json();
-        if (data.success) {
-          totalScanned += data.scanned;
-        }
-      }
-      
-      toast.success(`${totalScanned} assets escaneados exitosamente`);
-      await fetchData();
-    } catch (error) {
-      console.error("Error scanning assets:", error);
-      toast.error("Error escaneando assets");
-    } finally {
-      setScanning(false);
-    }
-  };
-
-  const generatePairs = async () => {
-    try {
-      setGenerating(true);
-      toast.info("Generando pares de trading...");
-      
-      const response = await fetch("/cf/engine/pairs/generate", {
+      const response = await fetch("/cf/orchestrator/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ policy_key: "default_risk" }),
+        body: JSON.stringify({ asset })
       });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        toast.success(`${data.generated} pares generados automáticamente`);
-        await fetchData();
+
+      const result = await response.json();
+
+      setAssets(prev => prev.map(a => 
+        a.trace_id === asset.trace_id 
+          ? (result.asset as AssetWithValidation)
+          : a
+      ));
+
+      if (result.valid) {
+        toast.success(`✅ ${asset.symbol} validado - ${result.plans.length} pares atómicos disponibles`);
       } else {
-        toast.error("Error generando pares");
+        toast.error(`❌ ${asset.symbol} rechazado: ${result.message}`);
       }
+
+      return result;
     } catch (error) {
-      console.error("Error generating pairs:", error);
-      toast.error("Error generando pares");
+      console.error("Validation error:", error);
+      toast.error("Error en validación");
+      return null;
     } finally {
-      setGenerating(false);
+      setValidating(null);
     }
   };
 
-  const getRiskBadge = (score: number) => {
+  const addToTrading = async (asset: AssetWithValidation) => {
+    if (!asset.pairs || asset.pairs.length === 0) {
+      toast.error("No hay pares para agregar");
+      return;
+    }
+
+    try {
+      const response = await fetch("/cf/orchestrator/add-to-trading", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asset, pairs: asset.pairs })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(`✅ ${asset.symbol} agregado a trading con ${asset.pairs.length} pares`);
+      } else {
+        toast.error("Error al agregar a trading");
+      }
+    } catch (error) {
+      console.error("Add to trading error:", error);
+      toast.error("Error al agregar a trading");
+    }
+  };
+
+  const getStatusBadge = (asset: AssetWithValidation) => {
+    switch (asset.validation_status) {
+      case "valid":
+        return <Badge className="bg-green-500">✅ Listo</Badge>;
+      case "rejected":
+        return <Badge variant="destructive">❌ {asset.validation_reason}</Badge>;
+      case "validating":
+        return <Badge variant="outline">⏳ Validando...</Badge>;
+      default:
+        return <Badge variant="secondary">⚠️ No Configurado</Badge>;
+    }
+  };
+
+  const getScoreBadge = (score: number) => {
     if (score >= 70) {
       return <Badge className="bg-green-500">Seguro ({score})</Badge>;
     } else if (score >= 40) {
       return <Badge className="bg-yellow-500">Medio ({score})</Badge>;
     } else {
       return <Badge variant="destructive">Alto Riesgo ({score})</Badge>;
-    }
-  };
-
-  const getRiskIcon = (score: number) => {
-    if (score >= 70) {
-      return <CheckCircle2 className="h-5 w-5 text-green-500" />;
-    } else if (score >= 40) {
-      return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
-    } else {
-      return <XCircle className="h-5 w-5 text-red-500" />;
     }
   };
 
@@ -178,62 +216,56 @@ export default function AssetsAdminPage() {
       asset.address.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const stats = {
+    total: assets.length,
+    valid: assets.filter(a => a.validation_status === "valid").length,
+    rejected: assets.filter(a => a.validation_status === "rejected").length,
+    pending: assets.filter(a => a.validation_status === "pending").length,
+    totalPairs: assets.reduce((acc, a) => acc + (a.pairs?.length || 0), 0)
+  };
+
   useEffect(() => {
-    fetchData();
+    fetchAssets();
   }, []);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Gestión de Assets y Pares</h1>
+          <h1 className="text-3xl font-bold">Asset & Pair Orchestrator v2.0</h1>
           <p className="text-muted-foreground mt-1">
-            Administra tokens y pares de trading con scoring anti-rugpull
+            Validación estricta end-to-end - Solo lo verificable y ejecutable
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={scanAssets}
-            disabled={scanning || assets.length === 0}
-          >
-            {scanning ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Shield className="h-4 w-4 mr-2" />
-            )}
-            Escanear Assets
-          </Button>
-          <Button onClick={generatePairs} disabled={generating}>
-            {generating ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <LinkIcon className="h-4 w-4 mr-2" />
-            )}
-            Generar Pares
-          </Button>
-        </div>
+        <Button variant="outline" onClick={fetchAssets} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+          Recargar
+        </Button>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">{assets.length}</CardTitle>
+            <CardTitle className="text-2xl">{stats.total}</CardTitle>
             <CardDescription>Assets Totales</CardDescription>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">
-              {assets.filter((a) => a.riskScore >= 70).length}
-            </CardTitle>
-            <CardDescription>Assets Seguros (Score ≥70)</CardDescription>
+            <CardTitle className="text-2xl text-green-500">{stats.valid}</CardTitle>
+            <CardDescription>✅ Validados</CardDescription>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">{pairs.length}</CardTitle>
-            <CardDescription>Pares de Trading</CardDescription>
+            <CardTitle className="text-2xl text-red-500">{stats.rejected}</CardTitle>
+            <CardDescription>❌ Rechazados</CardDescription>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">{stats.totalPairs}</CardTitle>
+            <CardDescription>Pares Atómicos</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -242,15 +274,15 @@ export default function AssetsAdminPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Assets Configurados</CardTitle>
+              <CardTitle>Pipeline de Validación</CardTitle>
               <CardDescription>
-                Tokens con scoring de seguridad anti-rugpull
+                6 reglas obligatorias: Config → Liquidez → Score → Pares → Profit → Atomicidad
               </CardDescription>
             </div>
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por símbolo, nombre o dirección..."
+                placeholder="Buscar..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9"
@@ -268,27 +300,27 @@ export default function AssetsAdminPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Estado</TableHead>
                     <TableHead>Chain</TableHead>
                     <TableHead>Token</TableHead>
                     <TableHead>Dirección</TableHead>
                     <TableHead>Score</TableHead>
-                    <TableHead>Flags de Riesgo</TableHead>
+                    <TableHead>Pares</TableHead>
+                    <TableHead>Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredAssets.map((asset) => (
-                    <TableRow key={`${asset.chainId}-${asset.address}`}>
+                    <TableRow key={asset.trace_id}>
+                      <TableCell>{getStatusBadge(asset)}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{getChainName(asset.chainId)}</Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getRiskIcon(asset.riskScore)}
-                          <div>
-                            <div className="font-medium">{asset.symbol}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {asset.name}
-                            </div>
+                        <div>
+                          <div className="font-medium">{asset.symbol}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {asset.name}
                           </div>
                         </div>
                       </TableCell>
@@ -297,30 +329,50 @@ export default function AssetsAdminPage() {
                           {asset.address.slice(0, 6)}...{asset.address.slice(-4)}
                         </span>
                       </TableCell>
-                      <TableCell>{getRiskBadge(asset.riskScore)}</TableCell>
+                      <TableCell>{getScoreBadge(asset.score)}</TableCell>
                       <TableCell>
-                        {asset.riskFlags && asset.riskFlags.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {asset.riskFlags.slice(0, 3).map((flag, idx) => (
-                              <Badge
-                                key={idx}
-                                variant="secondary"
-                                className="text-xs"
-                              >
-                                {flag}
-                              </Badge>
-                            ))}
-                            {asset.riskFlags.length > 3 && (
-                              <Badge variant="secondary" className="text-xs">
-                                +{asset.riskFlags.length - 3}
-                              </Badge>
-                            )}
-                          </div>
+                        {asset.pairs && asset.pairs.length > 0 ? (
+                          <Badge variant="outline">{asset.pairs.length} pares</Badge>
                         ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Sin flags
-                          </span>
+                          <span className="text-xs text-muted-foreground">-</span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          {asset.validation_status === "pending" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => validateAsset(asset)}
+                              disabled={validating === asset.trace_id}
+                            >
+                              {validating === asset.trace_id ? (
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Shield className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                          {asset.validation_status === "valid" && (
+                            <Button
+                              size="sm"
+                              onClick={() => addToTrading(asset)}
+                            >
+                              <Play className="h-4 w-4 mr-1" />
+                              Agregar
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setSelectedAsset(asset);
+                              setShowValidationDetails(true);
+                            }}
+                          >
+                            <Info className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -333,73 +385,99 @@ export default function AssetsAdminPage() {
               <h3 className="text-lg font-semibold mb-2">
                 {searchTerm ? "No se encontraron assets" : "No hay assets configurados"}
               </h3>
-              <p className="text-muted-foreground">
-                {searchTerm
-                  ? "Intenta con otro término de búsqueda"
-                  : "Agrega assets usando el Engine API"}
-              </p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Pares de Trading Activos</CardTitle>
-          <CardDescription>
-            Pares configurados para detección de oportunidades MEV
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {pairs.length > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {pairs.map((pair, idx) => {
-                const baseAsset = assets.find(
-                  (a) => a.chainId === pair.chainId && a.address === pair.base
-                );
-                const quoteAsset = assets.find(
-                  (a) => a.chainId === pair.chainId && a.address === pair.quote
-                );
+      <Dialog open={showValidationDetails} onOpenChange={setShowValidationDetails}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Detalles de Validación: {selectedAsset?.symbol}
+            </DialogTitle>
+            <DialogDescription>
+              Trace ID: {selectedAsset?.trace_id}
+            </DialogDescription>
+          </DialogHeader>
 
-                return (
-                  <Card key={idx}>
-                    <CardContent className="pt-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <Badge variant="outline">{getChainName(pair.chainId)}</Badge>
-                        <Badge variant={pair.enabled ? "default" : "secondary"}>
-                          {pair.enabled ? "Activo" : "Inactivo"}
-                        </Badge>
-                      </div>
-                      <div className="text-lg font-semibold">
-                        {baseAsset?.symbol || "???"} / {quoteAsset?.symbol || "???"}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {baseAsset?.name || "Unknown"} / {quoteAsset?.name || "Unknown"}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <LinkIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No hay pares configurados</h3>
-              <p className="text-muted-foreground mb-4">
-                Genera pares automáticamente basados en assets seguros
-              </p>
-              <Button onClick={generatePairs} disabled={generating}>
-                {generating ? (
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <LinkIcon className="h-4 w-4 mr-2" />
-                )}
-                Generar Pares
-              </Button>
+          {selectedAsset && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-semibold mb-2">Estado</h4>
+                  {getStatusBadge(selectedAsset)}
+                </div>
+                <div>
+                  <h4 className="font-semibold mb-2">Safety Score</h4>
+                  {getScoreBadge(selectedAsset.score)}
+                </div>
+              </div>
+
+              {selectedAsset.validation_message && (
+                <div className="p-4 bg-muted rounded-lg">
+                  <h4 className="font-semibold mb-2">Mensaje de Validación</h4>
+                  <p className="text-sm">{selectedAsset.validation_message}</p>
+                </div>
+              )}
+
+              {selectedAsset.flags && selectedAsset.flags.length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-2">Flags de Riesgo</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedAsset.flags.map((flag, idx) => (
+                      <Badge key={idx} variant="secondary">{flag}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedAsset.pairs && selectedAsset.pairs.length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-2">Pares Validados ({selectedAsset.pairs.length})</h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Ruta</TableHead>
+                        <TableHead>Hops</TableHead>
+                        <TableHead>Profit (bps)</TableHead>
+                        <TableHead>Atómico</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedAsset.pairs.map((pair, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>
+                            <div className="font-mono text-xs">
+                              {pair.token_in} → {pair.token_out}
+                              <div className="text-muted-foreground">
+                                {pair.route.join(" › ")}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{pair.hops}</TableCell>
+                          <TableCell>
+                            <Badge variant={pair.est_profit_bps >= 5 ? "default" : "secondary"}>
+                              {pair.est_profit_bps.toFixed(2)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {pair.atomic ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

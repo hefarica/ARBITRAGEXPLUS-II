@@ -13,6 +13,7 @@ import { arbitrageScanner } from "./server/arbitrage-scanner";
 import { ChainDexFetcher } from "./server/chain-dex-fetcher";
 import { engineApiRouter } from "./server/engine-api";
 import { rpcHealthMonitor } from "./server/rpc-health-monitor";
+import { assetOrchestratorRouter } from "./server/asset-orchestrator-api";
 
 const CHAIN_NAMES: Record<number, string> = {
   1: "Ethereum",
@@ -81,6 +82,7 @@ app.prepare().then(() => {
   });
   
   server.use("/cf/engine", engineApiRouter);
+  server.use("/cf/orchestrator", assetOrchestratorRouter);
 
   server.get("/cf/opportunities", async (req, res) => {
     try {
