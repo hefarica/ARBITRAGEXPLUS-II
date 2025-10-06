@@ -3,6 +3,12 @@ name = "mev-engine-minimal"
 version = "3.6.0"
 edition = "2021"
 
+[features]
+# Conjunto mínimo para escaneo y utilidades (no toca tu binario actual)
+scanners = ["dep:eyre", "dep:petgraph", "dep:futures-util"]
+# EVM (event scanner con ethers). Habilita WebSocket solo cuando lo necesites.
+evm = ["scanners", "dep:ethers"]
+
 [dependencies]
 # Async runtime - minimal
 tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "time"] }
@@ -27,9 +33,20 @@ dotenv = "0.15"
 # UUID generation
 uuid = { version = "1.6", features = ["v4"] }
 
+# Optional dependencies for scanners
+eyre = { version = "0.6", optional = true }
+petgraph = { version = "0.6", optional = true }
+ethers = { version = "2", default-features = false, features = ["ws","rustls"], optional = true }
+futures-util = { version = "0.3", optional = true }
+
 [[bin]]
 name = "mev-engine-minimal"
 path = "src/minimal.rs"
+
+[[bin]]
+name = "mev-scanner"
+path = "src/bin/mev_scanner.rs"
+required-features = ["scanners"]
 
 [profile.dev]
 opt-level = 1

@@ -5,6 +5,27 @@ ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and
 
 ## Recent Changes (Oct 6, 2025)
 
+### Sistema de Escaneo Dirigido - Módulos Rust (Oct 6, 2025)
+
+**Nuevo binario `mev-scanner` con estrategias avanzadas:**
+- ✅ **event_scanner**: Detección en tiempo real vía WebSocket de eventos EVENT_SWAP (Uniswap V3-like)
+- ✅ **bridged_scanner**: Detección automática de pares USDC/USDC.e/USDbC en múltiples chains
+- ✅ **twap_scanner**: Priorización de pools TWAP (Aerodrome, Velodrome, Balancer, Curve)
+- ✅ **Algoritmo Bellman-Ford**: Detección de ciclos negativos para arbitrajes de 3 legs
+- ✅ **Grid Search Optimizer**: Optimización de tamaño de trade con búsqueda en grilla
+- ✅ **Sistema de features opcionales**: `scanners` (básico), `evm` (incluye WebSocket con ethers)
+- ✅ **Configuración independiente**: `mev-scanner-config.json` no interfiere con config principal
+- ✅ **Salida estructurada JSON**: Logs compatibles con pipelines de análisis
+- ✅ **Binario compilado y funcional**: Detecta correctamente pares bridged en 5 chains (Base, Arbitrum, Polygon, Optimism, Avalanche)
+- ✅ **Script de ejecución**: `scripts/run-mev-scanner.sh` para ejecutar con configuración personalizada
+
+**Arquitectura modular:**
+- Módulos: `src/scanners/`, `src/graph/`, `src/sizing/`, `src/types.rs`
+- Biblioteca compartida: `src/lib.rs` exporta módulos para uso en múltiples binarios
+- No interfiere con binario principal `mev-engine-minimal`
+
+## Recent Changes (Oct 6, 2025)
+
 ### RPC Health Monitor Automático - Sistema Anti-Sleep (Oct 6, 2025)
 
 **Sistema de Health Check Automático:**
