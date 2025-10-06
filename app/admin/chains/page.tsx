@@ -76,6 +76,7 @@ export default function ChainsAdminPage() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [updateLatency, setUpdateLatency] = useState<number>(0);
+  const [dexModalOpen, setDexModalOpen] = useState(false);
 
   const fetchChains = async (isInitial = false) => {
     try {
@@ -298,10 +299,9 @@ export default function ChainsAdminPage() {
       const data = await response.json();
 
       if (data.success) {
-        toast.success(`✅ ${data.count} DEX(s) configurados para ${data.chainName}`);
-        setSelectedDexes([]);
-        setDexSuggestions([]);
+        toast.success(`✅ ${data.count} DEX(s) guardados para ${data.chainName}`);
         await fetchChains();
+        setDexModalOpen(false);
       } else {
         toast.error("Error al guardar DEXs");
       }
@@ -475,7 +475,17 @@ export default function ChainsAdminPage() {
                       <div className="text-xs font-medium text-muted-foreground">
                         DEXs configurados ({chain.dexes.length}):
                       </div>
-                      <Dialog>
+                      <Dialog 
+                        open={dexModalOpen && selectedChain === chain.chainId}
+                        onOpenChange={(open) => {
+                          setDexModalOpen(open);
+                          if (!open) {
+                            setSelectedDexes([]);
+                            setDexSuggestions([]);
+                            setSelectedChain(null);
+                          }
+                        }}
+                      >
                         <DialogTrigger asChild>
                           <Button
                             variant="ghost"
@@ -484,6 +494,7 @@ export default function ChainsAdminPage() {
                             onClick={() => {
                               setSelectedChain(chain.chainId);
                               fetchDexSuggestions(chain.chainId);
+                              setDexModalOpen(true);
                             }}
                           >
                             <Plus className="h-4 w-4" />
@@ -594,7 +605,17 @@ export default function ChainsAdminPage() {
                       <div className="text-xs font-medium text-muted-foreground">
                         Sin DEXs configurados
                       </div>
-                      <Dialog>
+                      <Dialog 
+                        open={dexModalOpen && selectedChain === chain.chainId}
+                        onOpenChange={(open) => {
+                          setDexModalOpen(open);
+                          if (!open) {
+                            setSelectedDexes([]);
+                            setDexSuggestions([]);
+                            setSelectedChain(null);
+                          }
+                        }}
+                      >
                         <DialogTrigger asChild>
                           <Button
                             variant="outline"
@@ -602,6 +623,7 @@ export default function ChainsAdminPage() {
                             onClick={() => {
                               setSelectedChain(chain.chainId);
                               fetchDexSuggestions(chain.chainId);
+                              setDexModalOpen(true);
                             }}
                           >
                             <Plus className="h-4 w-4 mr-2" />

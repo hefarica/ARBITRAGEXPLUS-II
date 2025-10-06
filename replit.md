@@ -5,9 +5,12 @@ ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and
 
 ## Recent Changes (Oct 6, 2025)
 
-### DEX Management System Enhancement
+### DEX Management System Enhancement & Auto-Activation
 
-**Admin Chains UI Improvements (Oct 6, 2025):**
+**Admin Chains UI & UX Improvements (Oct 6, 2025):**
+- ✅ **Auto-activación de RPCs**: Cuando activas/desactivas una blockchain, todos sus RPCs se activan/desactivan automáticamente
+- ✅ **Modal de DEXs con auto-cierre**: Modal se cierra automáticamente después de guardar con éxito
+- ✅ **Mensaje de confirmación mejorado**: Muestra "✅ X DEX(s) guardados para [Blockchain]" con cantidad exacta
 - ✅ Modal de DEXs mejorado: Ahora muestra TODOS los DEXs disponibles en una sola vista
 - ✅ Pre-selección automática: DEXs ya agregados aparecen pre-seleccionados con checkbox marcado
 - ✅ Endpoint PUT /cf/engine/dexes/set: SET completo idempotente - reemplaza lista completa de DEXs atómicamente

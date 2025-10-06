@@ -1,5 +1,5 @@
 {
-  "version": "2025-10-06T00:45:01.177Z",
+  "version": "2025-10-06T00:50:54.774Z",
   "chains": [
     {
       "name": "Binance",
@@ -9,18 +9,15 @@
       "rpcPool": {
         "wss": [],
         "https": [
-          "https://binance.llamarpc.com",
+          "https://bsc.publicnode.com",
           "https://bsc-dataseed1.defibit.io",
           "https://bsc-dataseed.binance.org",
-          "https://bsc.publicnode.com",
+          "https://binance.llamarpc.com",
           "https://bsc-dataseed1.ninicoin.io"
         ]
       },
       "dexs": [
         "Uniswap V3",
-        "PancakeSwap AMM",
-        "Curve DEX",
-        "Uniswap V2",
         "Uniswap V4",
         "PancakeSwap AMM V3",
         "SushiSwap V3",
@@ -30,18 +27,6 @@
       "dexes": [
         {
           "dexId": "Uniswap V3",
-          "enabled": true
-        },
-        {
-          "dexId": "PancakeSwap AMM",
-          "enabled": true
-        },
-        {
-          "dexId": "Curve DEX",
-          "enabled": true
-        },
-        {
-          "dexId": "Uniswap V2",
           "enabled": true
         },
         {
@@ -143,19 +128,19 @@
           "pairAddress": "0x5289a8dbf7029ee0b0498a84777ed3941d9acfec"
         },
         {
-          "name": "WBNB/USDC @ pancakeswapamm (0612C4)",
+          "name": "WBNB/USDC @ pancakeswapammv3 (0612C4)",
           "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
           "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "pairAddress": "0xf2688fb5b81049dfb7703ada5e770543770612c4"
         },
         {
-          "name": "WBNB/USDC @ pancakeswapamm (B2FC5b)",
+          "name": "WBNB/USDC @ pancakeswapammv3 (B2FC5b)",
           "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
           "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "pairAddress": "0xd99c7f6c65857ac913a8f880a4cb84032ab2fc5b"
         },
         {
-          "name": "WBNB/USDC @ pancakeswapamm (1F1824)",
+          "name": "WBNB/USDC @ pancakeswapammv3 (1F1824)",
           "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
           "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "pairAddress": "0x81a9b5f18179ce2bf8f001b8a634db80771f1824"
@@ -183,6 +168,6 @@
     }
   ],
   "totalChains": 1,
-  "totalDexs": 9,
-  "lastUpdated": 1759711501343
+  "totalDexs": 6,
+  "lastUpdated": 1759711854929
 }
