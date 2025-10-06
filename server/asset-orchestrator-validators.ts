@@ -219,6 +219,8 @@ export class AssetValidator {
 export function estimatePairProfit(
   tokenInSymbol: string,
   tokenOutSymbol: string,
+  assetAddress: string,
+  quoteAddress: string,
   route: PoolRef[]
 ): PairPlan {
   let grossMultiplier = 1.0;
@@ -234,12 +236,17 @@ export function estimatePairProfit(
   const profitBps = (netMultiplier - 1) * 10000;
   const grossBps = (grossMultiplier - 1) * 10000;
 
+  const firstPool = route[0];
+  const token_in_address = firstPool?.token0.toLowerCase() === assetAddress.toLowerCase()
+    ? firstPool.token0
+    : firstPool?.token1 || assetAddress;
+
   return {
     trace_id: `${tokenInSymbol}_${tokenOutSymbol}_${route.map(r => r.dex).join("_")}`,
     token_in: tokenInSymbol,
     token_out: tokenOutSymbol,
-    token_in_address: route[0]?.token0 || "",
-    token_out_address: route[route.length - 1]?.token1 || "",
+    token_in_address,
+    token_out_address: quoteAddress,
     route: route.map(r => r.dex),
     hops: route.length,
     est_profit_bps: Math.round(profitBps * 100) / 100,

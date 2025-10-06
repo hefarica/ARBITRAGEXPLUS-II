@@ -103,6 +103,8 @@ router.post("/validate", async (req, res) => {
     }
 
     for (const candidate of pairCandidates) {
+      if (!BASE_QUOTE_TOKENS.includes(candidate.token_out)) continue;
+
       const firstHopPools = richPools.filter(p => 
         p.token0.toLowerCase() === asset.address.toLowerCase() || 
         p.token1.toLowerCase() === asset.address.toLowerCase()
@@ -124,12 +126,18 @@ router.post("/validate", async (req, res) => {
 
         for (const secondPool of secondHopPools) {
           const route = [firstPool, secondPool];
-          const finalToken = secondPool.token0.toLowerCase() === intermediateToken.toLowerCase()
+
+          const quoteAddress = secondPool.token0.toLowerCase() === intermediateToken.toLowerCase()
             ? secondPool.token1
             : secondPool.token0;
 
-          const plan = estimatePairProfit(candidate.token_in, candidate.token_out, route);
-          plan.token_out_address = finalToken;
+          const plan = estimatePairProfit(
+            candidate.token_in, 
+            candidate.token_out, 
+            asset.address,
+            quoteAddress,
+            route
+          );
 
           const atomicityResult = validator.validate6_Atomicity(plan);
           plan.atomic = atomicityResult.valid;
@@ -307,15 +315,44 @@ router.post("/pairs/plan", async (req, res) => {
     const richPools = asset.pools.filter(p => p.liquidityUsd >= 1_000_000);
 
     for (const candidate of pairCandidates) {
-      if (richPools.length >= 2) {
-        const route = richPools.slice(0, 2);
-        const plan = estimatePairProfit(candidate.token_in, candidate.token_out, route);
+      const firstHopPools = richPools.filter(p => 
+        p.token0.toLowerCase() === asset.address.toLowerCase() || 
+        p.token1.toLowerCase() === asset.address.toLowerCase()
+      );
 
-        const atomicityResult = validator.validate6_Atomicity(plan);
-        plan.atomic = atomicityResult.valid;
-        plan.reasons_block = atomicityResult.data?.reasons || [];
+      for (const firstPool of firstHopPools.slice(0, 3)) {
+        const intermediateToken = firstPool.token0.toLowerCase() === asset.address.toLowerCase()
+          ? firstPool.token1
+          : firstPool.token0;
 
-        plans.push(plan);
+        const secondHopPools = richPools.filter(p => {
+          const hasIntermediate = p.token0.toLowerCase() === intermediateToken.toLowerCase() || 
+                                   p.token1.toLowerCase() === intermediateToken.toLowerCase();
+          
+          return hasIntermediate && p.address !== firstPool.address;
+        });
+
+        for (const secondPool of secondHopPools.slice(0, 2)) {
+          const route = [firstPool, secondPool];
+          
+          const quoteAddress = secondPool.token0.toLowerCase() === intermediateToken.toLowerCase()
+            ? secondPool.token1
+            : secondPool.token0;
+
+          const plan = estimatePairProfit(
+            candidate.token_in, 
+            candidate.token_out, 
+            asset.address,
+            quoteAddress,
+            route
+          );
+
+          const atomicityResult = validator.validate6_Atomicity(plan);
+          plan.atomic = atomicityResult.valid;
+          plan.reasons_block = atomicityResult.data?.reasons || [];
+
+          plans.push(plan);
+        }
       }
     }
 
