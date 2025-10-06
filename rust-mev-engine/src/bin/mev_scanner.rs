@@ -6,6 +6,7 @@
 use eyre::Result;
 use std::{env, fs::File, io::BufReader};
 use mev_engine_minimal::{scanners, types::ScanConfig, logging, simulate};
+use serde::Deserialize;
 
 fn env_bool(k: &str, default_: bool) -> bool {
     env::var(k).ok().map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(default_)
@@ -18,7 +19,9 @@ fn env_f64(k: &str, default_: f64) -> f64 {
 async fn main() -> Result<()> {
     // 1) Cargar configuración local (no toca tu config actual)
     let path = std::env::var("MEV_SCANNER_CONFIG").unwrap_or_else(|_| "mev-scanner-config.json".to_string());
-    let cfg: ScanConfig = serde_json::from_reader(BufReader::new(File::open(&path)?))?;
+    let mut cfg: ScanConfig = serde_json::from_reader(BufReader::new(File::open(&path)?))?;
+    // Merge defaults (arrays de assets/pares) para evitar "relojes desincronizados"
+    merge_defaults_into_cfg(&mut cfg)?;
     
     // Si vienen en config, exporta a ENV (para el logger HTTP)
     if let Some(url) = cfg.postUrl.as_ref() { env::set_var("MEV_POST_URL", url); }
@@ -101,5 +104,62 @@ async fn main() -> Result<()> {
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
 
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct DefaultAsset { symbol: String, address: String, decimals: u8 }
+#[derive(Debug, Deserialize)]
+struct DefaultChain {
+    chain_id: u64,
+    name: String,
+    assets: Vec<DefaultAsset>,
+    #[allow(dead_code)]
+    default_pairs: Vec<(String,String)>,
+    #[allow(dead_code)]
+    default_tri_routes: Vec<Vec<String>>,
+}
+#[derive(Debug, Deserialize)]
+struct DefaultCfgRoot {
+    chains: Vec<DefaultChain>,
+    #[serde(default, alias="bridged_groups")] bridgedGroups: std::collections::BTreeMap<String, Vec<String>>,
+    #[serde(default, alias="prioritize_dex")] prioritizeDex: Vec<String>
+}
+
+fn merge_defaults_into_cfg(cfg: &mut ScanConfig) -> Result<()> {
+    let defaults_path = env::var("DEFAULTS_JSON").unwrap_or_else(|_| "default-assets-and-pairs.json".to_string());
+    let Ok(f) = File::open(&defaults_path) else {
+        println!(r#"{{"reason":"DEFAULTS_SKIP","msg":"file_not_found","path":"{}"}}"#, defaults_path);
+        return Ok(());
+    };
+    let def: DefaultCfgRoot = serde_json::from_reader(BufReader::new(f))?;
+    // 1) bridged/prioritize
+    if cfg.bridgedGroups.is_empty() { cfg.bridgedGroups = def.bridgedGroups; }
+    if cfg.prioritizeDex.is_empty() { cfg.prioritizeDex = def.prioritizeDex; }
+    // 2) assets por chain (si faltan)
+    for dc in def.chains {
+        // busca chain existente
+        if let Some(c) = cfg.chains.iter_mut().find(|c| c.chain_id == dc.chain_id) {
+            for a in dc.assets {
+                let exists = c.assets.iter().any(|x| x.address.eq_ignore_ascii_case(&a.address));
+                if !exists {
+                    c.assets.push(mev_engine_minimal::types::AssetCfg {
+                        address: a.address,
+                        symbol: Some(a.symbol),
+                    });
+                }
+            }
+        } else {
+            // crea chain mínima para que el escáner la tome
+            cfg.chains.push(mev_engine_minimal::types::ChainCfg{
+                chain_id: dc.chain_id,
+                name: dc.name,
+                ws_url: None,
+                pools: vec![],
+                assets: dc.assets.into_iter().map(|a| mev_engine_minimal::types::AssetCfg{ address: a.address, symbol: Some(a.symbol) }).collect()
+            });
+        }
+    }
+    println!(r#"{{"reason":"DEFAULTS_MERGED"}}"#);
     Ok(())
 }
