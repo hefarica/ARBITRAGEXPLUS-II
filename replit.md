@@ -95,3 +95,35 @@ The system relies on a PostgreSQL database for dynamic configuration, including:
 -   **DeFi Llama API:** For blockchain auto-discovery and DEX suggestions.
 -   **GoPlus Security API:** For automated token risk scoring (Anti-Rugpull).
 -   **DexScreener API & GeckoTerminal API:** For robust pool address validation and multi-DEX pool discovery.
+
+## Recent Changes (Oct 6, 2025)
+
+### Sistema de Defaults End-to-End + Dependencias Corregidas (Patches 0005 + 0006)
+
+**Archivo de Defaults (`default-assets-and-pairs.json`):**
+- ✅ **6 chains con assets y pares precargados**: Base, Arbitrum, Avalanche, Optimism, Polygon, BSC
+- ✅ **Merge automático en runtime**: Si faltan assets/pares en config actual, los agrega sin sobrescribir
+- ✅ **Grupos bridged preconfigurados**: USDC → [USDC, USDbC, USDC.e]
+- ✅ **DEXs priorizados**: aerodrome, velodrome, balancer, curve, uniswapv3, etc.
+- ✅ **Variable DEFAULTS_JSON**: Configurable para apuntar a archivo personalizado
+
+**Integración en mev-scanner:**
+- ✅ **Función merge_defaults_into_cfg()**: Fusiona defaults con config actual al inicio
+- ✅ **12 pares bridged detectados**: Antes 5, ahora muchos más por combinaciones adicionales
+- ✅ **Evento DEFAULTS_MERGED**: Log JSON confirma carga exitosa
+- ✅ **Chains adicionales**: BSC y otras chains ahora disponibles automáticamente
+
+**Dependencias Corregidas (Cargo.toml):**
+- ✅ **Runtime no-opcional**: tokio, serde, serde_json, eyre, chrono, etc. ahora siempre disponibles
+- ✅ **Fix "unresolved crate"**: Evita errores de compilación en CI/CD
+- ✅ **Features simplificadas**: scanners, evm, http ya no necesitan dep: prefixes
+- ✅ **async fn main()**: Ya incluye #[tokio::main] en minimal.rs
+
+**Uso:**
+```bash
+# Con defaults automáticos
+DEFAULTS_JSON="$(pwd)/default-assets-and-pairs.json" ./scripts/run-mev-scanner-sim.sh
+
+# Verifica log de merge
+grep "DEFAULTS_MERGED" logs/mev-scanner.jsonl
+```
