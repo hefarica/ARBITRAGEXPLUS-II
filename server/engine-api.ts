@@ -68,6 +68,29 @@ async function autoSaveAndReload() {
   }
 }
 
+// GET /cf/engine/chains - Get all chains with DEXs
+engineApiRouter.get("/chains", async (req, res) => {
+  try {
+    const chainsData = await db.select().from(chains);
+    
+    const chainsWithDexesAndRpcs = await Promise.all(chainsData.map(async (chain) => {
+      const dexes = await db.select().from(chainDexes).where(eq(chainDexes.chainId, chain.chainId));
+      const rpcs = await db.select().from(chainRpcs).where(eq(chainRpcs.chainId, chain.chainId));
+      
+      return {
+        ...chain,
+        dexes: dexes.map(d => d.dex),
+        rpcs: rpcs.map(r => ({ url: r.rpcUrl, wss: r.wssUrl, healthStatus: r.healthStatus, avgLatency: r.avgLatency }))
+      };
+    }));
+    
+    res.json(chainsWithDexesAndRpcs);
+  } catch (error) {
+    console.error("Error fetching chains:", error);
+    res.status(500).json({ error: "Failed to fetch chains" });
+  }
+});
+
 // GET /api/engine/state - Returns complete engine configuration state
 engineApiRouter.get("/state", async (req, res) => {
   try {

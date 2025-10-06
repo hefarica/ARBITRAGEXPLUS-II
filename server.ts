@@ -45,6 +45,11 @@ app.prepare().then(() => {
   server.use(cors());
   server.use(express.json());
   
+  server.use((req, res, next) => {
+    console.log(`📥 Request: ${req.method} ${req.url}`);
+    next();
+  });
+  
   server.use("/cf/engine", engineApiRouter);
 
   server.get("/cf/opportunities", async (req, res) => {
