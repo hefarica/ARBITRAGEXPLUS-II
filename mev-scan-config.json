@@ -1,5 +1,5 @@
 {
-  "version": "2025-10-06T00:53:33.040Z",
+  "version": "2025-10-06T09:48:45.196Z",
   "chains": [
     {
       "name": "Binance",
@@ -9,19 +9,16 @@
       "rpcPool": {
         "wss": [],
         "https": [
-          "https://bsc-dataseed1.defibit.io",
-          "https://bsc-dataseed.binance.org",
-          "https://binance.llamarpc.com",
+          "https://bsc-dataseed1.ninicoin.io",
           "https://bsc.publicnode.com",
-          "https://bsc-dataseed1.ninicoin.io"
+          "https://binance.llamarpc.com",
+          "https://bsc-dataseed1.defibit.io",
+          "https://bsc-dataseed.binance.org"
         ]
       },
       "dexs": [
         "Uniswap V4",
-        "PancakeSwap AMM V3",
-        "SushiSwap V3",
-        "SushiSwap",
-        "Thorchain DEX"
+        "PancakeSwap AMM V3"
       ],
       "dexes": [
         {
@@ -30,18 +27,6 @@
         },
         {
           "dexId": "PancakeSwap AMM V3",
-          "enabled": true
-        },
-        {
-          "dexId": "SushiSwap V3",
-          "enabled": true
-        },
-        {
-          "dexId": "SushiSwap",
-          "enabled": true
-        },
-        {
-          "dexId": "Thorchain DEX",
           "enabled": true
         }
       ],
@@ -163,6 +148,6 @@
     }
   ],
   "totalChains": 1,
-  "totalDexs": 5,
-  "lastUpdated": 1759712013189
+  "totalDexs": 2,
+  "lastUpdated": 1759744125349
 }

@@ -98,6 +98,34 @@ The system relies on a PostgreSQL database for dynamic configuration, including:
 
 ## Recent Changes (Oct 6, 2025)
 
+### Security Hardening + CSP Fix (Oct 6, 2025)
+
+**Content Security Policy (CSP) corregido:**
+- ✅ **script-src 'unsafe-inline'**: Agregado para permitir scripts inline de Next.js (hidratación, HMR)
+- ✅ **worker-src 'self' blob:**: Monaco Editor workers funcionando
+- ✅ **connect-src 'self' https: wss: blob:**: WebSockets y blob connections habilitados
+- ✅ **Página Admin Blockchains funcional**: Carga correcta de 9+ blockchains con RPCs, DEXs y health status
+
+**Headers de Seguridad (next.config.js):**
+- ✅ **CSP completo**: default-src, script-src, style-src, img-src, font-src, connect-src, worker-src
+- ✅ **HSTS**: max-age=31536000; includeSubDomains
+- ✅ **X-Frame-Options**: DENY (protección clickjacking)
+- ✅ **Referrer-Policy**: strict-origin-when-cross-origin
+- ✅ **Permissions-Policy**: cámara, micrófono, geolocalización deshabilitados
+
+**Rate Limiting (server.ts):**
+- ✅ **100 req/min por IP** (ventana 60s, memoria limitada a 10k IPs)
+- ✅ **Headers X-RateLimit**: Limit, Remaining, Reset
+- ✅ **429 Too Many Requests** con Retry-After
+
+**Rust Build Hardening (.cargo/config.toml):**
+- ✅ **rustflags estrictos**: -D warnings, optimizaciones LTO
+- ✅ **Release profile**: panic=abort, strip symbols, codegen-units=1
+
+**SBOM (Software Bill of Materials):**
+- ✅ **scripts/generate-sbom-rust.sh**: cargo tree + CycloneDX
+- ✅ **scripts/generate-sbom-node.sh**: npm list + audit
+
 ### Sistema de Defaults End-to-End + Dependencias Corregidas (Patches 0005 + 0006)
 
 **Archivo de Defaults (`default-assets-and-pairs.json`):**
