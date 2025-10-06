@@ -5,11 +5,11 @@ edition = "2021"
 
 [features]
 # Conjunto mínimo para escaneo y utilidades (no toca tu binario actual)
-scanners = ["dep:eyre", "dep:petgraph", "dep:futures-util", "dep:chrono", "dep:fs2", "dep:serde", "dep:serde_json", "dep:tokio"]
+scanners = []
 # EVM (event scanner con ethers). Habilita WebSocket solo cuando lo necesites.
-evm = ["scanners", "dep:ethers"]
+evm = ["scanners"]
 # HTTP para POST de oportunidades al backend
-http = ["scanners", "dep:reqwest-opt", "dep:once_cell"]
+http = ["scanners"]
 
 [dependencies]
 # Database - simplified (solo para binario principal)
@@ -24,18 +24,18 @@ dotenv = "0.15"
 # UUID generation
 uuid = { version = "1.6", features = ["v4"] }
 
-# Optional dependencies for scanners
-tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "time"], optional = true }
-serde = { version = "1.0", features = ["derive"], optional = true }
-serde_json = { version = "1.0", optional = true }
-eyre = { version = "0.6", optional = true }
-petgraph = { version = "0.6", optional = true }
-ethers = { version = "2", default-features = false, features = ["ws","rustls"], optional = true }
-futures-util = { version = "0.3", optional = true }
-chrono = { version = "0.4", features = ["serde"], optional = true }
-once_cell = { version = "1", optional = true }
-fs2 = { version = "0.4", optional = true }
-reqwest-opt = { package = "reqwest", version = "0.11", default-features = false, features = ["json", "rustls-tls"], optional = true }
+# Runtime y utilidades (NO opcionales → evitan "unresolved crate")
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+eyre = "0.6"
+chrono = "0.4"
+once_cell = "1"
+fs2 = "0.4"
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+petgraph = "0.6"
+ethers = { version = "2", default-features = false, features = ["ws", "rustls"] }
+futures-util = "0.3"
 
 [[bin]]
 name = "mev-engine-minimal"
