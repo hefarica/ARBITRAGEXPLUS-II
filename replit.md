@@ -3,9 +3,20 @@
 ## Overview
 ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and configuring a DeFi arbitrage/MEV trading system. It provides real-time visibility into arbitrage opportunities, asset safety (Anti-Rugpull system), execution history, and system configuration. The project aims to scale from 5 hardcoded trading pairs to 100+ blockchains with dynamic, database-driven configuration, providing a comprehensive interface for managing a high-frequency, low-latency DeFi trading operation.
 
-## Recent Changes (Oct 5, 2025)
+## Recent Changes (Oct 6, 2025)
 
-### PRD EXTENDIDO + MEV Engine Manager System - 100% Complete
+### DEX Management System Enhancement
+
+**Admin Chains UI Improvements (Oct 6, 2025):**
+- ✅ Modal de DEXs mejorado: Ahora muestra TODOS los DEXs disponibles en una sola vista
+- ✅ Pre-selección automática: DEXs ya agregados aparecen pre-seleccionados con checkbox marcado
+- ✅ Endpoint PUT /cf/engine/dexes/set: SET completo idempotente - reemplaza lista completa de DEXs atómicamente
+- ✅ Arquitectura idempotente: Frontend envía array de DEXs seleccionados → Backend hace DELETE + INSERT en transacción
+- ✅ Auto-reload integrado: Al guardar cambios de DEXs → actualiza DB → exporta config → recarga motor RUST → broadcast WebSocket
+- ✅ **BUG FIX CRÍTICO**: Agregada ruta GET /cf/engine/chains que faltaba y causaba 404s en dashboard
+- ✅ Express routing funcionando correctamente: server.use("/cf/engine", engineApiRouter) maneja rutas antes de Next.js
+
+### PRD EXTENDIDO + MEV Engine Manager System - 100% Complete (Oct 5, 2025)
 
 **Core Infrastructure:**
 - ✅ Engine config service rewritten with dual-format JSON (PRD + backward compatibility)
@@ -15,7 +26,7 @@ ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and
 - ✅ Versioned snapshots with compare-and-swap for atomic updates
 - ✅ Backward compatibility maintained with existing RUST MEV engine
 
-**MEV Engine Manager Implementation (Oct 5, 2025):**
+**MEV Engine Manager Implementation:**
 - ✅ WebSocket config.applied events: Real-time broadcast when configuration is applied
 - ✅ Singleton WebSocket instance: Global access via websocket-instance.ts
 - ✅ autoSaveAndReload() enhanced: Snapshots + validation + reload + WebSocket emission
@@ -30,7 +41,7 @@ ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and
 - ✅ Warnings for recommendations (RPC quorum, WSS availability)
 - ✅ Non-blocking validation: System works with minimal RPCs, warns about quorum
 
-**Arbitrage Detection System (Oct 5, 2025):**
+**Arbitrage Detection System:**
 - ✅ **REAL DATA INTEGRATION**: Sistema integrado 100% con DexScreener API (300 req/min, sin API key)
 - ✅ PriceFeedService: Servicio de precios con caching (30s TTL), batching (30 pools/request), rate limiting
 - ✅ Arbitrage simulator: Cálculo matemático preciso de 2-leg y 3-leg con precios reales on-chain
@@ -47,6 +58,7 @@ ArbitrageX Supreme V3.6 is a Next.js-based frontend dashboard for monitoring and
 - ✅ WebSocket server operational with config.applied broadcast
 - ✅ All CRUD endpoints updated with unified autoSaveAndReload pattern
 - ✅ Arbitrage scanner running: Auto-scans every 5 seconds, broadcasts via WebSocket
+- ✅ Express server handling API routes correctly before Next.js handler
 
 ## User Preferences
 Preferred communication style: Simple, everyday language (Spanish preferred).
