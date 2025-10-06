@@ -44,7 +44,36 @@ app.prepare().then(() => {
   const server = express();
 
   server.use(cors());
-  server.use(express.json());
+  server.use(express.json({ limit: '10mb' }));
+  
+  const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+  const RATE_LIMIT_WINDOW = 60000;
+  const RATE_LIMIT_MAX = 100;
+
+  server.use((req, res, next) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const clientData = rateLimitMap.get(ip);
+
+    if (clientData) {
+      if (now > clientData.resetTime) {
+        rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+      } else if (clientData.count >= RATE_LIMIT_MAX) {
+        return res.status(429).json({ error: 'Too many requests' });
+      } else {
+        clientData.count++;
+      }
+    } else {
+      rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    }
+
+    if (rateLimitMap.size > 10000) {
+      const oldestKey = Array.from(rateLimitMap.keys())[0];
+      rateLimitMap.delete(oldestKey);
+    }
+
+    next();
+  });
   
   server.use((req, res, next) => {
     console.log(`📥 Request: ${req.method} ${req.url}`);
