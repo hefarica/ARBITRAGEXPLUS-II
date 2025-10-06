@@ -1037,17 +1037,49 @@ engineApiRouter.post("/rpcs/healthcheck", async (req, res) => {
 // POST /api/engine/discover - Auto-discover blockchains from DeFi Llama
 engineApiRouter.post("/discover", async (req, res) => {
   try {
-    const { minTvl = 100_000_000, limit = 20 } = req.body;
+    const { minTvl = 100_000_000, limit = 20, autoAddDexs = true } = req.body;
 
     console.log(`🔍 Discovering blockchains with TVL > $${minTvl.toLocaleString()}...`);
 
     // Fetch chains from DeFi Llama
-    const response = await fetch("https://api.llama.fi/v2/chains");
-    if (!response.ok) {
-      throw new Error(`DeFi Llama API error: ${response.status}`);
+    const [chainsResponse, protocolsResponse, chainlistResponse] = await Promise.all([
+      fetch("https://api.llama.fi/v2/chains"),
+      fetch("https://api.llama.fi/protocols"),
+      fetch("https://chainid.network/chains.json")
+    ]);
+
+    if (!chainsResponse.ok) {
+      return res.status(502).json({
+        success: false,
+        error: `DeFi Llama chains API error: ${chainsResponse.status}`,
+        discovered: 0,
+        chains: []
+      });
     }
 
-    const chainsData = await response.json();
+    if (!protocolsResponse.ok) {
+      return res.status(502).json({
+        success: false,
+        error: `DeFi Llama protocols API error: ${protocolsResponse.status}`,
+        discovered: 0,
+        chains: []
+      });
+    }
+
+    if (!chainlistResponse.ok) {
+      return res.status(502).json({
+        success: false,
+        error: `Chainlist API error: ${chainlistResponse.status}`,
+        discovered: 0,
+        chains: []
+      });
+    }
+
+    const [chainsData, protocolsData, chainlistData] = await Promise.all([
+      chainsResponse.json(),
+      protocolsResponse.json(),
+      chainlistResponse.json()
+    ]);
     
     // Filter and sort by TVL
     const eligibleChains = chainsData
@@ -1061,6 +1093,25 @@ engineApiRouter.post("/discover", async (req, res) => {
 
     const discovered = [];
     const errors = [];
+    const skipped = [];
+
+    // Build DEX map by chain
+    const dexProtocols = protocolsData.filter((p: any) => 
+      p.category === 'Dexs' && p.tvl > 1_000_000
+    );
+    
+    const chainDexMap = new Map<string, Array<{name: string, tvl: number}>>();
+    dexProtocols.forEach((protocol: any) => {
+      protocol.chains?.forEach((chainName: string) => {
+        if (!chainDexMap.has(chainName)) {
+          chainDexMap.set(chainName, []);
+        }
+        chainDexMap.get(chainName)!.push({
+          name: protocol.name,
+          tvl: protocol.tvl / (protocol.chains?.length || 1)
+        });
+      });
+    });
 
     for (const chain of eligibleChains) {
       try {
@@ -1070,21 +1121,18 @@ engineApiRouter.post("/discover", async (req, res) => {
         const existing = await db.select().from(chains).where(eq(chains.chainId, chainId));
         if (existing.length > 0) {
           console.log(`⏭️  Skipping ${chain.name} (already exists)`);
+          skipped.push({ name: chain.name, chainId, reason: "Already exists" });
           continue;
         }
 
-        // Fetch RPCs from chainlist.org
-        const chainlistResponse = await fetch(`https://chainid.network/chains.json`);
-        const chainlistData = await chainlistResponse.json();
         const chainInfo = chainlistData.find((c: any) => c.chainId === chainId);
-
         const rpcs = chainInfo?.rpc
           ?.filter((rpc: string) => rpc.startsWith("https://") && !rpc.includes("${"))
           .slice(0, 5) || [];
 
         if (rpcs.length < 3) {
           console.log(`⚠️  ${chain.name}: Not enough public RPCs (${rpcs.length}/3 minimum)`);
-          errors.push({ chain: chain.name, reason: "Insufficient RPCs" });
+          errors.push({ chain: chain.name, chainId, reason: "Insufficient RPCs" });
           continue;
         }
 
@@ -1093,6 +1141,7 @@ engineApiRouter.post("/discover", async (req, res) => {
           name: chain.name,
           chainId: chainId,
           evm: true,
+          isActive: false, // Start as inactive until DEXs are added
         }).returning();
 
         // Insert RPCs
@@ -1100,8 +1149,26 @@ engineApiRouter.post("/discover", async (req, res) => {
           await db.insert(chainRpcs).values({
             chainId: chainId,
             url: rpc,
-            isActive: true,
+            isActive: true, // Mark as active so they're ready when chain is activated
           });
+        }
+
+        let dexCount = 0;
+        if (autoAddDexs) {
+          const dexsForChain = chainDexMap.get(chain.name) || [];
+          const topDexs = dexsForChain
+            .sort((a, b) => b.tvl - a.tvl)
+            .slice(0, 5)
+            .map(d => d.name);
+
+          for (const dexName of topDexs) {
+            await db.insert(chainDexes).values({
+              chainId: chainId,
+              dex: dexName,
+              isActive: true, // Mark as active so chain is immediately usable after activation
+            }).onConflictDoNothing();
+            dexCount++;
+          }
         }
 
         discovered.push({
@@ -1109,20 +1176,31 @@ engineApiRouter.post("/discover", async (req, res) => {
           chainId: chainId,
           tvl: chain.tvl,
           rpcs: rpcs.length,
+          dexs: dexCount,
         });
 
-        console.log(`✅ Added ${chain.name} (TVL: $${(chain.tvl / 1e9).toFixed(2)}B, RPCs: ${rpcs.length})`);
+        console.log(`✅ Added ${chain.name} (TVL: $${(chain.tvl / 1e9).toFixed(2)}B, RPCs: ${rpcs.length}, DEXs: ${dexCount})`);
       } catch (error: any) {
         console.error(`❌ Error adding ${chain.name}:`, error);
         errors.push({ chain: chain.name, reason: error?.message || "Unknown error" });
       }
     }
 
+    // Auto-save if any chains were discovered
+    if (discovered.length > 0) {
+      await autoSaveAndReload();
+    }
+
     res.json({
       success: true,
       discovered: discovered.length,
+      skipped: skipped.length,
       chains: discovered,
+      skippedChains: skipped.length > 0 ? skipped : undefined,
       errors: errors.length > 0 ? errors : undefined,
+      message: discovered.length > 0 
+        ? `Successfully discovered ${discovered.length} chains. Activate them in Admin UI to start trading.`
+        : "No new chains discovered"
     });
   } catch (error) {
     console.error("Error discovering chains:", error);
@@ -1191,15 +1269,23 @@ engineApiRouter.post("/chains/toggle", async (req, res) => {
 
     // Automatically activate/deactivate ALL RPCs for this blockchain
     // This ensures that when you activate a blockchain, all its RPCs are ready to use
-    const rpcUpdateResult = await db.update(chainRpcs)
+    await db.update(chainRpcs)
       .set({ 
         isActive,
         updatedAt: new Date()
       })
       .where(eq(chainRpcs.chainId, chainId));
 
+    // Also update all DEXs for consistency
+    await db.update(chainDexes)
+      .set({ 
+        isActive,
+        updatedAt: new Date()
+      })
+      .where(eq(chainDexes.chainId, chainId));
+
     const action = isActive ? "activated" : "deactivated";
-    console.log(`✅ Chain ${chainId} ${action} (including all RPCs)`);
+    console.log(`✅ Chain ${chainId} ${action} (including all RPCs and DEXs)`);
 
     // Auto-save and reload engine
     await autoSaveAndReload();
@@ -1208,11 +1294,84 @@ engineApiRouter.post("/chains/toggle", async (req, res) => {
       success: true,
       chainId,
       isActive,
-      message: `Chain and all RPCs ${action} successfully`
+      message: `Chain, RPCs, and DEXs ${action} successfully`
     });
   } catch (error: any) {
     console.error("Error toggling chain:", error);
     res.status(500).json({ error: error?.message || "Failed to toggle chain" });
+  }
+});
+
+// POST /api/engine/chains/toggle-batch - Activate/Deactivate multiple blockchains at once
+engineApiRouter.post("/chains/toggle-batch", async (req, res) => {
+  try {
+    const { chainIds, isActive } = req.body;
+    
+    if (!Array.isArray(chainIds) || chainIds.length === 0) {
+      return res.status(400).json({ error: "chainIds array is required" });
+    }
+    
+    if (isActive === undefined) {
+      return res.status(400).json({ error: "isActive is required" });
+    }
+
+    console.log(`🔄 Batch toggling ${chainIds.length} chains to ${isActive ? 'active' : 'inactive'}...`);
+
+    const results = [];
+    const errors = [];
+
+    for (const chainId of chainIds) {
+      try {
+        // Update blockchain state
+        await db.update(chains)
+          .set({ 
+            isActive,
+            updatedAt: new Date()
+          })
+          .where(eq(chains.chainId, Number(chainId)));
+
+        // Update all RPCs for this blockchain
+        await db.update(chainRpcs)
+          .set({ 
+            isActive,
+            updatedAt: new Date()
+          })
+          .where(eq(chainRpcs.chainId, Number(chainId)));
+
+        // Update all DEXs for this blockchain
+        await db.update(chainDexes)
+          .set({ 
+            isActive,
+            updatedAt: new Date()
+          })
+          .where(eq(chainDexes.chainId, Number(chainId)));
+
+        results.push({ chainId: Number(chainId), success: true });
+        console.log(`  ✅ Chain ${chainId} toggled`);
+      } catch (error: any) {
+        console.error(`  ❌ Error toggling chain ${chainId}:`, error);
+        errors.push({ chainId: Number(chainId), error: error.message });
+      }
+    }
+
+    // Auto-save and reload engine if any succeeded
+    if (results.length > 0) {
+      await autoSaveAndReload();
+    }
+
+    const action = isActive ? "activated" : "deactivated";
+    
+    res.json({
+      success: errors.length === 0,
+      processed: results.length,
+      failed: errors.length,
+      results,
+      errors: errors.length > 0 ? errors : undefined,
+      message: `Successfully ${action} ${results.length} chain(s)${errors.length > 0 ? `, ${errors.length} failed` : ''}`
+    });
+  } catch (error: any) {
+    console.error("Error batch toggling chains:", error);
+    res.status(500).json({ error: error?.message || "Failed to batch toggle chains" });
   }
 });
 

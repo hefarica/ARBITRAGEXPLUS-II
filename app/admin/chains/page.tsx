@@ -77,6 +77,10 @@ export default function ChainsAdminPage() {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [updateLatency, setUpdateLatency] = useState<number>(0);
   const [dexModalOpen, setDexModalOpen] = useState(false);
+  const [selectedChainIds, setSelectedChainIds] = useState<number[]>([]);
+  const [batchToggling, setBatchToggling] = useState(false);
+  const [minTvl, setMinTvl] = useState<number>(100_000_000);
+  const [discoverLimit, setDiscoverLimit] = useState<number>(20);
 
   const fetchChains = async (isInitial = false) => {
     try {
@@ -122,27 +126,95 @@ export default function ChainsAdminPage() {
   const runAutoDiscovery = async () => {
     try {
       setDiscovering(true);
-      toast.info("Iniciando auto-discovery de blockchains...");
+      toast.info(`Descubriendo blockchains con TVL > $${(minTvl / 1e9).toFixed(1)}B...`);
       
       const response = await fetch("/cf/engine/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tvlThreshold: 1000000000 }),
+        body: JSON.stringify({ 
+          minTvl: minTvl,
+          limit: discoverLimit,
+          autoAddDexs: true
+        }),
       });
       
       const data = await response.json();
       
       if (data.success) {
-        toast.success(`${data.added} blockchains agregadas automáticamente`);
+        const msg = [
+          `✅ ${data.discovered} chains descubiertas`,
+          data.skipped > 0 ? `⏭️ ${data.skipped} ya existían` : "",
+          data.errors?.length > 0 ? `❌ ${data.errors.length} errores` : ""
+        ].filter(Boolean).join(" | ");
+        
+        toast.success(msg);
+        if (data.chains && data.chains.length > 0) {
+          toast.info("Las chains descubiertas están inactivas por defecto. Actívalas para empezar a operar.");
+        }
         await fetchChains();
       } else {
-        toast.error("Error en auto-discovery");
+        toast.error(data.error || "Error en auto-discovery");
       }
     } catch (error) {
       console.error("Error in auto-discovery:", error);
       toast.error("Error ejecutando auto-discovery");
     } finally {
       setDiscovering(false);
+    }
+  };
+
+  const toggleChainSelection = (chainId: number) => {
+    setSelectedChainIds(prev => 
+      prev.includes(chainId) 
+        ? prev.filter(id => id !== chainId)
+        : [...prev, chainId]
+    );
+  };
+
+  const selectAllChains = () => {
+    setSelectedChainIds(chains.map(c => c.chainId));
+  };
+
+  const clearSelection = () => {
+    setSelectedChainIds([]);
+  };
+
+  const batchToggleChains = async (isActive: boolean) => {
+    if (selectedChainIds.length === 0) {
+      toast.error("Selecciona al menos una blockchain");
+      return;
+    }
+
+    try {
+      setBatchToggling(true);
+      toast.info(`${isActive ? 'Activando' : 'Desactivando'} ${selectedChainIds.length} blockchain(s)...`);
+      
+      const response = await fetch("/cf/engine/chains/toggle-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          chainIds: selectedChainIds,
+          isActive 
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success || data.processed > 0) {
+        toast.success(`${data.processed} blockchain(s) ${isActive ? 'activadas' : 'desactivadas'}. Motor actualizado automáticamente.`);
+        if (data.failed > 0) {
+          toast.warning(`${data.failed} blockchain(s) fallaron`);
+        }
+        clearSelection();
+        await fetchChains();
+      } else {
+        toast.error(data.message || "Error en batch toggle");
+      }
+    } catch (error) {
+      console.error("Error batch toggling chains:", error);
+      toast.error("Error al cambiar estado de blockchains");
+    } finally {
+      setBatchToggling(false);
     }
   };
 
@@ -419,6 +491,157 @@ export default function ChainsAdminPage() {
         </div>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Descubrimiento Masivo de Blockchains</CardTitle>
+          <CardDescription>
+            Descubre y agrega automáticamente blockchains desde DeFi Llama API
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="space-y-2">
+              <Label htmlFor="minTvl">TVL Mínimo (USD)</Label>
+              <Input
+                id="minTvl"
+                type="number"
+                value={minTvl}
+                onChange={(e) => setMinTvl(parseInt(e.target.value) || 100_000_000)}
+                placeholder="100000000"
+              />
+              <p className="text-xs text-muted-foreground">
+                ${(minTvl / 1e9).toFixed(2)}B
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="limit">Límite de Chains</Label>
+              <Input
+                id="limit"
+                type="number"
+                value={discoverLimit}
+                onChange={(e) => setDiscoverLimit(parseInt(e.target.value) || 20)}
+                placeholder="20"
+                max="100"
+              />
+              <p className="text-xs text-muted-foreground">
+                Máx 100 chains
+              </p>
+            </div>
+            <div className="flex items-end">
+              <Button
+                onClick={runAutoDiscovery}
+                disabled={discovering}
+                className="w-full"
+                size="lg"
+              >
+                {discovering ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Descubriendo...
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-4 w-4 mr-2" />
+                    Descubrir Chains
+                  </>
+                )}
+              </Button>
+            </div>
+            <div className="flex items-end">
+              <Button
+                onClick={() => runHealthCheck()}
+                disabled={healthChecking}
+                variant="outline"
+                className="w-full"
+                size="lg"
+              >
+                {healthChecking ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Checking...
+                  </>
+                ) : (
+                  <>
+                    <Activity className="h-4 w-4 mr-2" />
+                    Health Check
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {selectedChainIds.length > 0 && (
+        <Card className="border-primary">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Operaciones Batch</CardTitle>
+                <CardDescription>
+                  {selectedChainIds.length} blockchain(s) seleccionada(s)
+                </CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={selectAllChains}
+                >
+                  Seleccionar Todas
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearSelection}
+                >
+                  Limpiar Selección
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => batchToggleChains(true)}
+                disabled={batchToggling}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                {batchToggling ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Procesando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Activar Seleccionadas
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => batchToggleChains(false)}
+                disabled={batchToggling}
+                variant="destructive"
+                className="flex-1"
+              >
+                {batchToggling ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Procesando...
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Desactivar Seleccionadas
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -426,10 +649,19 @@ export default function ChainsAdminPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {chains.map((chain) => (
-            <Card key={chain.chainId} className="hover:shadow-lg transition-shadow">
+            <Card 
+              key={chain.chainId} 
+              className={`hover:shadow-lg transition-shadow ${selectedChainIds.includes(chain.chainId) ? 'ring-2 ring-primary' : ''}`}
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedChainIds.includes(chain.chainId)}
+                      onChange={() => toggleChainSelection(chain.chainId)}
+                      className="h-4 w-4 cursor-pointer"
+                    />
                     <Network className="h-5 w-5 text-primary" />
                     <CardTitle className="text-lg">{chain.name}</CardTitle>
                   </div>

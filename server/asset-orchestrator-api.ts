@@ -105,7 +105,7 @@ router.post("/validate", async (req, res) => {
     for (const candidate of pairCandidates) {
       if (!BASE_QUOTE_TOKENS.includes(candidate.token_out)) continue;
 
-      const firstHopPools = richPools.filter(p => 
+      const firstHopPools = richPools.filter((p: PoolRef) => 
         p.token0.toLowerCase() === asset.address.toLowerCase() || 
         p.token1.toLowerCase() === asset.address.toLowerCase()
       );
@@ -115,7 +115,7 @@ router.post("/validate", async (req, res) => {
           ? firstPool.token1
           : firstPool.token0;
 
-        const secondHopPools = richPools.filter(p => {
+        const secondHopPools = richPools.filter((p: PoolRef) => {
           const hasIntermediate = p.token0.toLowerCase() === intermediateToken.toLowerCase() || 
                                    p.token1.toLowerCase() === intermediateToken.toLowerCase();
           
