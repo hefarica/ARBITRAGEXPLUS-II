@@ -218,10 +218,10 @@ export default function AssetOrchestratorPage() {
 
   const stats = {
     total: assets.length,
-    valid: assets.filter(a => a.validation_status === "valid").length,
-    rejected: assets.filter(a => a.validation_status === "rejected").length,
-    pending: assets.filter(a => a.validation_status === "pending").length,
-    totalPairs: assets.reduce((acc, a) => acc + (a.pairs?.length || 0), 0)
+    valid: assets.filter(a => a?.validation_status === "valid").length,
+    rejected: assets.filter(a => a?.validation_status === "rejected").length,
+    pending: assets.filter(a => a?.validation_status === "pending").length,
+    totalPairs: assets.reduce((acc, a) => acc + (a?.pairs?.length || 0), 0)
   };
 
   useEffect(() => {
