@@ -1,5 +1,5 @@
 {
-  "version": "2025-10-06T00:52:59.940Z",
+  "version": "2025-10-06T00:53:33.040Z",
   "chains": [
     {
       "name": "Binance",
@@ -164,5 +164,5 @@
   ],
   "totalChains": 1,
   "totalDexs": 5,
-  "lastUpdated": 1759711980099
+  "lastUpdated": 1759712013189
 }
