@@ -1,5 +1,5 @@
 {
-  "version": "2025-10-06T00:50:54.774Z",
+  "version": "2025-10-06T00:52:59.940Z",
   "chains": [
     {
       "name": "Binance",
@@ -9,15 +9,14 @@
       "rpcPool": {
         "wss": [],
         "https": [
-          "https://bsc.publicnode.com",
           "https://bsc-dataseed1.defibit.io",
           "https://bsc-dataseed.binance.org",
           "https://binance.llamarpc.com",
+          "https://bsc.publicnode.com",
           "https://bsc-dataseed1.ninicoin.io"
         ]
       },
       "dexs": [
-        "Uniswap V3",
         "Uniswap V4",
         "PancakeSwap AMM V3",
         "SushiSwap V3",
@@ -25,10 +24,6 @@
         "Thorchain DEX"
       ],
       "dexes": [
-        {
-          "dexId": "Uniswap V3",
-          "enabled": true
-        },
         {
           "dexId": "Uniswap V4",
           "enabled": true
@@ -110,19 +105,19 @@
       ],
       "topPairs": [
         {
-          "name": "WBNB/USDC @ uniswapv3 (4e6d48)",
+          "name": "WBNB/USDC @ uniswapv4 (4e6d48)",
           "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
           "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "pairAddress": "0x4141325bac36affe9db165e854982230a14e6d48"
         },
         {
-          "name": "WBNB/USDC @ uniswapv3 (A1806E)",
+          "name": "WBNB/USDC @ uniswapv4 (A1806E)",
           "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
           "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "pairAddress": "0x6bcb0ba386e9de0c29006e46b2f01f047ca1806e"
         },
         {
-          "name": "WBNB/USDC @ uniswapv3 (9acfEc)",
+          "name": "WBNB/USDC @ uniswapv4 (9acfEc)",
           "token0": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
           "token1": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
           "pairAddress": "0x5289a8dbf7029ee0b0498a84777ed3941d9acfec"
@@ -168,6 +163,6 @@
     }
   ],
   "totalChains": 1,
-  "totalDexs": 6,
-  "lastUpdated": 1759711854929
+  "totalDexs": 5,
+  "lastUpdated": 1759711980099
 }
