@@ -112,10 +112,14 @@ The system relies on a PostgreSQL database for dynamic configuration, including:
 **Arquitectura del Orchestrator:**
 - 📄 **Tipos TypeScript**: AssetCandidate, PairPlan, ValidationResult, AuditEvent
 - 🔍 **Validadores**: AssetValidator con pipeline completo en `server/asset-orchestrator-validators.ts`
+- 🔄 **Generación de Rutas**: Sistema de routing ejecutable con conectividad secuencial verificada
+  - Primer hop: asset → intermediate (pool contiene asset)
+  - Segundo hop: intermediate → quote (pool contiene intermediate AND quote)
+  - Validación hop-por-hop con TOKEN_MISMATCH / FINAL_TOKEN_MISMATCH
 - 🛣️ **API Endpoints**:
-  - `POST /cf/orchestrator/validate` - Validación completa de asset
+  - `POST /cf/orchestrator/validate` - Validación completa de asset con rutas ejecutables
   - `POST /cf/orchestrator/discover` - Descubrimiento de nuevos assets
-  - `POST /cf/orchestrator/pairs/plan` - Generación y validación de pares
+  - `POST /cf/orchestrator/pairs/plan` - Generación y validación de pares atómicos
   - `POST /cf/orchestrator/add-to-trading` - Agregar asset validado a trading
   - `GET /cf/orchestrator/audit?trace_id=X&limit=100` - Audit trail completo
 
@@ -144,12 +148,20 @@ SLIPPAGE_BPS: 50,           // 0.5% slippage
 GAS_SAFETY_BPS: 20          // 0.2% margen de gas
 ```
 
+**Bugs Críticos Corregidos Durante Implementación:**
+1. ✅ **Propagación de datos**: richPools y pairCandidates ahora se propagan correctamente desde runFullPipeline
+2. ✅ **Routing ejecutable**: Rutas ahora se generan con conectividad secuencial (asset→intermediate→quote)
+3. ✅ **Firma de estimatePairProfit**: Actualizada a 5 parámetros (tokenInSymbol, tokenOutSymbol, assetAddress, quoteAddress, route)
+4. ✅ **Validación de atomicidad**: validate6_Atomicity ahora verifica conectividad hop-por-hop
+5. ✅ **Token matching**: Verificación de que token final coincide con quote esperado
+6. ✅ **Compatibilidad de endpoints**: Ambos /validate y /pairs/plan usan nueva firma correctamente
+
 **Archivos Clave:**
-- `server/asset-orchestrator-types.ts` - Tipos y constantes
-- `server/asset-orchestrator-validators.ts` - Lógica de validación
-- `server/asset-orchestrator-api.ts` - Endpoints REST
-- `app/admin/assets/page.tsx` - UI del orchestrator
-- `logs/asset-orchestrator-audit.jsonl` - Audit trail
+- `server/asset-orchestrator-types.ts` - Tipos, constantes, BASE_QUOTE_TOKENS, POLICY_PARAMS
+- `server/asset-orchestrator-validators.ts` - Pipeline de 6 reglas, estimatePairProfit, runFullPipeline
+- `server/asset-orchestrator-api.ts` - Endpoints REST con generación de rutas ejecutables
+- `app/admin/assets/page.tsx` - UI del orchestrator con estados de validación
+- `logs/asset-orchestrator-audit.jsonl` - Audit trail append-only
 
 ### Security Hardening + CSP Fix (Oct 6, 2025)
 
