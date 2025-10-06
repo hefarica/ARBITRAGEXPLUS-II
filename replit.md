@@ -98,6 +98,59 @@ The system relies on a PostgreSQL database for dynamic configuration, including:
 
 ## Recent Changes (Oct 6, 2025)
 
+### Asset & Pair Orchestrator v2.0 - Validación Estricta End-to-End (Oct 6, 2025)
+
+**Sistema de Validación de 6 Reglas Obligatorias:**
+- ✅ **Pipeline determinístico**: Solo se monitorea lo verificable y ejecutable atómicamente
+- ✅ **Regla 1 (NOT_CONFIGURED)**: Chain y DEX deben estar configurados y activos
+- ✅ **Regla 2 (LOW_LIQ)**: Pools con TVL ≥ $1M USD requerido
+- ✅ **Regla 3 (LOW_SCORE)**: Safety score ≥ 70 (Anti-Rugpull obligatorio)
+- ✅ **Regla 4 (NO_PAIRS)**: Generación de pares base/quote (USDC, WETH, WBTC, DAI, USDT)
+- ✅ **Regla 5 (NO_PROFIT)**: Profit estimado ≥ 5 bps después de gas y fees
+- ✅ **Regla 6 (NOT_ATOMIC)**: Ejecutable atómicamente (2-3 hops, DEXs soportados, routing válido)
+
+**Arquitectura del Orchestrator:**
+- 📄 **Tipos TypeScript**: AssetCandidate, PairPlan, ValidationResult, AuditEvent
+- 🔍 **Validadores**: AssetValidator con pipeline completo en `server/asset-orchestrator-validators.ts`
+- 🛣️ **API Endpoints**:
+  - `POST /cf/orchestrator/validate` - Validación completa de asset
+  - `POST /cf/orchestrator/discover` - Descubrimiento de nuevos assets
+  - `POST /cf/orchestrator/pairs/plan` - Generación y validación de pares
+  - `POST /cf/orchestrator/add-to-trading` - Agregar asset validado a trading
+  - `GET /cf/orchestrator/audit?trace_id=X&limit=100` - Audit trail completo
+
+**Trazabilidad y Audit Trail:**
+- ✅ **trace_id único**: `${chainId}:${address}` para cada asset
+- ✅ **Audit log append-only**: `logs/asset-orchestrator-audit.jsonl`
+- ✅ **Eventos trazables**: discover, validate, approve, reject, generate_pairs, add_to_trading
+- ✅ **Estado persistente**: validation_status, validation_reason, validation_message, validated_at
+
+**UI Admin Assets Rediseñada:**
+- ✅ **Dashboard con métricas**: Total, Validados, Rechazados, Pares Atómicos
+- ✅ **Estados visuales**: Badges (No Configurado, Alto Riesgo, Listo)
+- ✅ **Validación on-demand**: Botón "Validar" por asset
+- ✅ **Detalles completos**: Dialog con trace_id, razones de rechazo, pares validados
+- ✅ **Agregar a trading**: Solo assets con validation_status === "valid"
+
+**Parámetros de Política Configurables:**
+```typescript
+TVL_MIN_USD: 1_000_000,      // $1M liquidez mínima
+ROI_MIN_BPS: 5,              // 0.05% profit neto mínimo
+GAS_COST_FRACTION: 0.0002,   // 0.02% estimado de gas
+MIN_SAFETY_SCORE: 70,        // Score Anti-Rugpull mínimo
+MAX_HOPS: 3,                 // Máximo 3 saltos
+MIN_HOPS: 2,                 // Mínimo 2 saltos
+SLIPPAGE_BPS: 50,           // 0.5% slippage
+GAS_SAFETY_BPS: 20          // 0.2% margen de gas
+```
+
+**Archivos Clave:**
+- `server/asset-orchestrator-types.ts` - Tipos y constantes
+- `server/asset-orchestrator-validators.ts` - Lógica de validación
+- `server/asset-orchestrator-api.ts` - Endpoints REST
+- `app/admin/assets/page.tsx` - UI del orchestrator
+- `logs/asset-orchestrator-audit.jsonl` - Audit trail
+
 ### Security Hardening + CSP Fix (Oct 6, 2025)
 
 **Content Security Policy (CSP) corregido:**

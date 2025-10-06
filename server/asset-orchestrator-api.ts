@@ -76,20 +76,70 @@ router.post("/validate", async (req, res) => {
     }
 
     const pairCandidates = result.data?.pairCandidates || [];
+    const richPools = result.data?.richPools || [];
     const plans: PairPlan[] = [];
 
+    if (richPools.length === 0) {
+      appendAudit({
+        ts: Date.now(),
+        trace_id: asset.trace_id,
+        op: "reject",
+        result: { valid: false, reason: "LOW_LIQ" },
+        reason: "No richPools from validator (internal error)"
+      });
+
+      return res.json({
+        valid: false,
+        reason: "LOW_LIQ",
+        message: "Sin pools validados para generar rutas",
+        asset: {
+          ...asset,
+          validation_status: "rejected",
+          validation_reason: "LOW_LIQ",
+          validation_message: "Sin pools validados para generar rutas",
+          validated_at: Date.now()
+        }
+      });
+    }
+
     for (const candidate of pairCandidates) {
-      const richPools = asset.pools.filter(p => p.liquidityUsd >= 1_000_000);
+      const firstHopPools = richPools.filter(p => 
+        p.token0.toLowerCase() === asset.address.toLowerCase() || 
+        p.token1.toLowerCase() === asset.address.toLowerCase()
+      );
 
-      if (richPools.length >= 2) {
-        const route = richPools.slice(0, 2);
-        const plan = estimatePairProfit(candidate.token_in, candidate.token_out, route);
+      for (const firstPool of firstHopPools) {
+        const intermediateToken = firstPool.token0.toLowerCase() === asset.address.toLowerCase()
+          ? firstPool.token1
+          : firstPool.token0;
 
-        const atomicityResult = validator.validate6_Atomicity(plan);
-        plan.atomic = atomicityResult.valid;
-        plan.reasons_block = atomicityResult.data?.reasons || [];
+        const secondHopPools = richPools.filter(p => {
+          const hasIntermediate = p.token0.toLowerCase() === intermediateToken.toLowerCase() || 
+                                   p.token1.toLowerCase() === intermediateToken.toLowerCase();
+          
+          if (!hasIntermediate || p.address === firstPool.address) return false;
+          
+          return true;
+        });
 
-        plans.push(plan);
+        for (const secondPool of secondHopPools) {
+          const route = [firstPool, secondPool];
+          const finalToken = secondPool.token0.toLowerCase() === intermediateToken.toLowerCase()
+            ? secondPool.token1
+            : secondPool.token0;
+
+          const plan = estimatePairProfit(candidate.token_in, candidate.token_out, route);
+          plan.token_out_address = finalToken;
+
+          const atomicityResult = validator.validate6_Atomicity(plan);
+          plan.atomic = atomicityResult.valid;
+          plan.reasons_block = atomicityResult.data?.reasons || [];
+
+          plans.push(plan);
+
+          if (plans.length >= 10) break;
+        }
+        if (plans.length >= 10) break;
       }
     }
 
@@ -150,7 +200,7 @@ router.post("/validate", async (req, res) => {
       trace_id: asset.trace_id,
       op: "approve",
       result: { valid: true },
-      asset: { symbol: asset.symbol, pairs: atomicPlans.length }
+      asset: { symbol: asset.symbol, address: asset.address, chainId: asset.chainId }
     });
 
     const validatedAsset: AssetWithValidation = {
@@ -273,7 +323,7 @@ router.post("/pairs/plan", async (req, res) => {
       ts: Date.now(),
       trace_id: asset.trace_id,
       op: "generate_pairs",
-      asset: { symbol: asset.symbol, pairs: plans.length }
+      asset: { symbol: asset.symbol, address: asset.address, chainId: asset.chainId }
     });
 
     return res.json({

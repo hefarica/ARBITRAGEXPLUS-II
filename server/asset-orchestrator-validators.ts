@@ -147,11 +147,35 @@ export class AssetValidator {
     }
 
     const unsupportedDexes = pair.route.filter(dex =>
-      !["uniswapv2", "uniswapv3", "sushiswap", "pancakeswap", "aerodrome", "velodrome", "balancer", "curve"].includes(dex.toLowerCase())
+      !["uniswapv2", "uniswapv3", "uniswapv4", "sushiswap", "pancakeswap", "pancakeswapammv3", "aerodrome", "velodrome", "balancer", "curve"].includes(dex.toLowerCase())
     );
 
     if (unsupportedDexes.length > 0) {
       reasons.push(`DEX_UNSUPPORTED:${unsupportedDexes.join(",")}`);
+    }
+
+    if (pair.pools_used.length >= 2) {
+      let currentToken = pair.token_in_address;
+      
+      for (let i = 0; i < pair.pools_used.length; i++) {
+        const pool = pair.pools_used[i];
+        
+        const hasCurrentToken = pool.token0.toLowerCase() === currentToken.toLowerCase() || 
+                                pool.token1.toLowerCase() === currentToken.toLowerCase();
+        
+        if (!hasCurrentToken) {
+          reasons.push(`TOKEN_MISMATCH:hop${i}:expected=${currentToken.slice(0,8)}`);
+          break;
+        }
+        
+        currentToken = pool.token0.toLowerCase() === currentToken.toLowerCase()
+          ? pool.token1
+          : pool.token0;
+      }
+      
+      if (currentToken.toLowerCase() !== pair.token_out_address.toLowerCase()) {
+        reasons.push(`FINAL_TOKEN_MISMATCH:got=${currentToken.slice(0,8)},expected=${pair.token_out_address.slice(0,8)}`);
+      }
     }
 
     if (reasons.length > 0) {
@@ -181,7 +205,14 @@ export class AssetValidator {
     const r4 = this.validate4_GeneratePairs(asset);
     if (!r4.valid) return r4;
 
-    return { valid: true, data: { passed: "all_checks" } };
+    return { 
+      valid: true, 
+      data: { 
+        passed: "all_checks", 
+        pairCandidates: r4.data?.pairCandidates || [],
+        richPools: r2.data?.richPools || []
+      } 
+    };
   }
 }
 
