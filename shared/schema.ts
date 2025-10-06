@@ -169,6 +169,69 @@ export type InsertSimulation = typeof simulations.$inferInsert;
 export type PaperTradingAccount = typeof paperTradingAccounts.$inferSelect;
 export type InsertPaperTradingAccount = typeof paperTradingAccounts.$inferInsert;
 
+// Dry-Run Simulation Sessions
+export const dryRunSessions = pgTable("dry_run_sessions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar("name", { length: 200 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("active"), // active, paused, stopped
+  startCapitalUsd: decimal("start_capital_usd", { precision: 20, scale: 6 }).notNull().default("10000"),
+  currentCapitalUsd: decimal("current_capital_usd", { precision: 20, scale: 6 }).notNull().default("10000"),
+  totalOpportunities: integer("total_opportunities").notNull().default(0),
+  executedTrades: integer("executed_trades").notNull().default(0),
+  successfulTrades: integer("successful_trades").notNull().default(0),
+  failedTrades: integer("failed_trades").notNull().default(0),
+  totalProfitUsd: decimal("total_profit_usd", { precision: 20, scale: 6 }).notNull().default("0"),
+  totalLossUsd: decimal("total_loss_usd", { precision: 20, scale: 6 }).notNull().default("0"),
+  netProfitUsd: decimal("net_profit_usd", { precision: 20, scale: 6 }).notNull().default("0"),
+  avgProfitPerTrade: decimal("avg_profit_per_trade", { precision: 20, scale: 6 }),
+  winRate: doublePrecision("win_rate"), // Percentage 0-100
+  profitFactor: doublePrecision("profit_factor"), // Total Profit / Total Loss
+  maxDrawdown: decimal("max_drawdown", { precision: 20, scale: 6 }),
+  sharpeRatio: doublePrecision("sharpe_ratio"),
+  chains: jsonb("chains").default("[]"), // Array of chainIds being scanned
+  dexes: jsonb("dexes").default("[]"), // Array of dex names being scanned
+  minProfitUsd: decimal("min_profit_usd", { precision: 20, scale: 6 }).default("5"),
+  maxGasUsd: decimal("max_gas_usd", { precision: 20, scale: 6 }).default("10"),
+  riskPerTrade: decimal("risk_per_trade", { precision: 5, scale: 4 }).default("0.01"), // 1% risk per trade
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  stoppedAt: timestamp("stopped_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Individual Dry-Run Trades
+export const dryRunTrades = pgTable("dry_run_trades", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  sessionId: integer("session_id").notNull().references(() => dryRunSessions.id, { onDelete: "cascade" }),
+  opportunityId: text("opportunity_id"),
+  chainId: integer("chain_id").notNull(),
+  chainName: varchar("chain_name", { length: 100 }),
+  dexIn: varchar("dex_in", { length: 50 }).notNull(),
+  dexOut: varchar("dex_out", { length: 50 }).notNull(),
+  baseToken: varchar("base_token", { length: 42 }).notNull(),
+  quoteToken: varchar("quote_token", { length: 42 }).notNull(),
+  amountInUsd: decimal("amount_in_usd", { precision: 20, scale: 6 }).notNull(),
+  estimatedProfitUsd: decimal("estimated_profit_usd", { precision: 20, scale: 6 }).notNull(),
+  actualProfitUsd: decimal("actual_profit_usd", { precision: 20, scale: 6 }),
+  gasEstimatedUsd: decimal("gas_estimated_usd", { precision: 20, scale: 6 }).notNull(),
+  slippagePercent: doublePrecision("slippage_percent"),
+  priceImpactPercent: doublePrecision("price_impact_percent"),
+  executionStatus: varchar("execution_status", { length: 20 }).notNull().default("simulated"), // simulated, would_succeed, would_fail
+  failureReason: text("failure_reason"),
+  successProbability: integer("success_probability"), // 0-100
+  capitalBeforeUsd: decimal("capital_before_usd", { precision: 20, scale: 6 }),
+  capitalAfterUsd: decimal("capital_after_usd", { precision: 20, scale: 6 }),
+  metadata: jsonb("metadata").default("{}"), // Additional context
+  detectedAt: bigint("detected_at", { mode: "number" }).notNull(),
+  executedAt: timestamp("executed_at").notNull().defaultNow(),
+});
+
+export type DryRunSession = typeof dryRunSessions.$inferSelect;
+export type InsertDryRunSession = typeof dryRunSessions.$inferInsert;
+
+export type DryRunTrade = typeof dryRunTrades.$inferSelect;
+export type InsertDryRunTrade = typeof dryRunTrades.$inferInsert;
+
 // Alerts System Tables
 export const alerts = pgTable("alerts", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

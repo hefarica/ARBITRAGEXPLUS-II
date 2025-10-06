@@ -1,5 +1,6 @@
 import { arbitrageSimulator } from './arbitrage-simulator';
 import { getWebSocketServer } from './websocket-instance';
+import { dryRunProcessor } from './dry-run-processor';
 
 class ArbitrageScanner {
   private intervalId: NodeJS.Timeout | null = null;
@@ -54,6 +55,45 @@ class ArbitrageScanner {
 
         this.lastOpportunities = opportunities;
         this.broadcastOpportunities(opportunities);
+        
+        // Process each opportunity with dry-run simulator if enabled
+        // ONLY process opportunities with complete real data - NO fallbacks
+        for (const opp of opportunities) {
+          // Validate that ALL required fields have real data
+          if (!opp.chain_id || !opp.dex_in || !opp.dex_out || 
+              !opp.base_token || !opp.quote_token || !opp.amount_in ||
+              opp.profit_usd === undefined || opp.profit_usd === null ||
+              opp.gas_usd === undefined || opp.gas_usd === null) {
+            // Skip opportunity with missing real data - do not invent anything
+            continue;
+          }
+
+          try {
+            // Parse and validate numeric values with Number.isFinite to reject NaN
+            const profitUsd = parseFloat(opp.profit_usd);
+            const gasUsd = parseFloat(opp.gas_usd);
+            
+            if (!Number.isFinite(profitUsd) || !Number.isFinite(gasUsd)) {
+              // Skip if parsed values are NaN or Infinity
+              continue;
+            }
+
+            await dryRunProcessor.processOpportunity({
+              id: `${opp.chain_id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              chainId: opp.chain_id,
+              dexIn: opp.dex_in,
+              dexOut: opp.dex_out,
+              baseToken: opp.base_token,
+              quoteToken: opp.quote_token,
+              amountIn: opp.amount_in.toString(),
+              estProfitUsd: profitUsd,
+              gasUsd: gasUsd,
+              ts: Date.now(),
+            });
+          } catch (error) {
+            console.error('Error processing opportunity with dry-run:', error);
+          }
+        }
       } else {
         if (this.lastOpportunities.length > 0) {
           console.log(`ℹ️  No arbitrage opportunities found (scan took ${scanDuration}ms)`);
