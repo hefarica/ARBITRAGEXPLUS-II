@@ -80,7 +80,12 @@ engineApiRouter.get("/chains", async (req, res) => {
       return {
         ...chain,
         dexes: dexes.map(d => d.dex),
-        rpcs: rpcs.map(r => ({ url: r.rpcUrl, wss: r.wssUrl, healthStatus: r.healthStatus, avgLatency: r.avgLatency }))
+        rpcs: rpcs.map(r => ({
+          url: r.url,
+          isActive: r.isActive,
+          lastLatencyMs: r.lastLatencyMs,
+          lastOkAt: r.lastOkAt
+        }))
       };
     }));
     
@@ -1167,7 +1172,7 @@ engineApiRouter.post("/reload", async (req, res) => {
   }
 });
 
-// POST /api/engine/chains/toggle - Activate/Deactivate blockchain
+// POST /api/engine/chains/toggle - Activate/Deactivate blockchain (and all its RPCs)
 engineApiRouter.post("/chains/toggle", async (req, res) => {
   try {
     const { chainId, isActive } = req.body;
@@ -1176,6 +1181,7 @@ engineApiRouter.post("/chains/toggle", async (req, res) => {
       return res.status(400).json({ error: "chainId and isActive are required" });
     }
 
+    // Update blockchain state
     await db.update(chains)
       .set({ 
         isActive,
@@ -1183,8 +1189,17 @@ engineApiRouter.post("/chains/toggle", async (req, res) => {
       })
       .where(eq(chains.chainId, chainId));
 
+    // Automatically activate/deactivate ALL RPCs for this blockchain
+    // This ensures that when you activate a blockchain, all its RPCs are ready to use
+    const rpcUpdateResult = await db.update(chainRpcs)
+      .set({ 
+        isActive,
+        updatedAt: new Date()
+      })
+      .where(eq(chainRpcs.chainId, chainId));
+
     const action = isActive ? "activated" : "deactivated";
-    console.log(`✅ Chain ${chainId} ${action}`);
+    console.log(`✅ Chain ${chainId} ${action} (including all RPCs)`);
 
     // Auto-save and reload engine
     await autoSaveAndReload();
@@ -1193,7 +1208,7 @@ engineApiRouter.post("/chains/toggle", async (req, res) => {
       success: true,
       chainId,
       isActive,
-      message: `Chain ${action} successfully`
+      message: `Chain and all RPCs ${action} successfully`
     });
   } catch (error: any) {
     console.error("Error toggling chain:", error);
