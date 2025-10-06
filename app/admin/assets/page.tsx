@@ -21,6 +21,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { 
   Shield, 
   Search, 
@@ -184,6 +190,9 @@ export default function AssetOrchestratorPage() {
       case "validating":
         return <Badge variant="outline">⏳ Validando...</Badge>;
       default:
+        if (asset.score >= 70) {
+          return <Badge className="bg-blue-500">🔍 Listo para Validar</Badge>;
+        }
         return <Badge variant="secondary">⚠️ No Configurado</Badge>;
     }
   };
@@ -231,7 +240,8 @@ export default function AssetOrchestratorPage() {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <TooltipProvider>
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Asset & Pair Orchestrator v2.0</h1>
@@ -342,38 +352,61 @@ export default function AssetOrchestratorPage() {
                       <TableCell>
                         <div className="flex gap-2">
                           {asset.validation_status === "pending" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => validateAsset(asset)}
-                              disabled={validating === asset.trace_id}
-                            >
-                              {validating === asset.trace_id ? (
-                                <RefreshCw className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Shield className="h-4 w-4" />
-                              )}
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => validateAsset(asset)}
+                                  disabled={validating === asset.trace_id}
+                                >
+                                  {validating === asset.trace_id ? (
+                                    <RefreshCw className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Shield className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="font-semibold">Validar Asset</p>
+                                <p className="text-xs">Ejecuta las 6 reglas de validación:</p>
+                                <p className="text-xs">Config • Liquidez • Score • Pares • Profit • Atomicidad</p>
+                              </TooltipContent>
+                            </Tooltip>
                           )}
                           {asset.validation_status === "valid" && (
-                            <Button
-                              size="sm"
-                              onClick={() => addToTrading(asset)}
-                            >
-                              <Play className="h-4 w-4 mr-1" />
-                              Agregar
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  onClick={() => addToTrading(asset)}
+                                >
+                                  <Play className="h-4 w-4 mr-1" />
+                                  Agregar
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Agregar asset validado a trading activo</p>
+                              </TooltipContent>
+                            </Tooltip>
                           )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setSelectedAsset(asset);
-                              setShowValidationDetails(true);
-                            }}
-                          >
-                            <Info className="h-4 w-4" />
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setSelectedAsset(asset);
+                                  setShowValidationDetails(true);
+                                }}
+                              >
+                                <Info className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Ver detalles y razones de validación</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -480,6 +513,7 @@ export default function AssetOrchestratorPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
