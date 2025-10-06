@@ -1,0 +1,184 @@
+¡Voy con una **auditoría extrema** del repo `hefarica/ARBITRAGEXPLUS-II` y te dejo **hallazgos accionables + parches listos** para endurecer build, seguridad y runtime (Rust + Node/Next + Workers), con referencias al repo público.
+
+# Qué es este repo (panorama)
+
+* Monorepo con **frontend Next.js** (dashboard de monitoreo/configuración), **engine Rust** y **servidor/Workers**. Esto está declarado en el README del repo (“Dashboard de monitoreo… parte del ecosistema… Backend (Rust), Edge (Cloudflare), Frontend”) ([GitHub][1]).
+* Estructura clave presente en raíz: **rust-mev-engine**, **cloudflare-workers**, **server.ts**, **mev-scan-config.json**, **scripts**, **.github/workflows**, y plantillas de env **.env.example / .env.local.example**. ([GitHub][1])
+
+---
+
+# Hallazgos críticos (priorizados) + cómo arreglar
+
+## 1) Builds rotos por dependencias Rust y runtime async
+
+**Síntoma:** ya viste errores por `serde_json`, `tokio`, `reqwest` no declarados y `async fn main` sin runtime.
+**Riesgo:** CI rojo / binarios inconsistentes / comportamientos no deterministas (features opcionales).
+**Arreglo inmediato:**
+
+* En el **crate raíz** que contiene `src/minimal.rs`, declara:
+
+  ```toml
+  # Cargo.toml
+  serde = { version = "1", features = ["derive"] }
+  serde_json = "1"
+  tokio = { version = "1", features = ["full"] }
+  reqwest = { version = "0.11", features = ["json","blocking","rustls-tls"] }
+  ```
+* Anota todos los `async fn main` con `#[tokio::main]`.
+* (Ya te dejé el patch `0008-rust-deps-and-async-main.patch`; si lo aplicas, queda ok).
+
+## 2) Falta “defaults” robustos para activos/pares (evitar “reloj desincronizado”)
+
+**Síntoma:** iniciales vacíos → escáner arranca sin seed de **USDC vs bridged (USDbC / USDC.e)** y majors.
+**Riesgo:** oportunidades perdidas + errores de UI.
+**Arreglo:** usar **un JSON único** con arrays por chain (Base/Arbitrum/Avalanche/Polygon/Optimism/BSC) y **fusionarlo en runtime** del engine si faltan entradas. (Patch `0005-defaults.patch`, que añade `default-assets-and-pairs.json` y un merge en `mev_scanner.rs`).
+**Soporte en repo:** el repositorio ya incluye `mev-scan-config.json` para integrar esta fusión. ([GitHub][1])
+
+## 3) “Features” Rust mal acotadas / opcionales mal usadas
+
+**Síntoma:** módulos que usan crates marcados como `optional = true` (p.ej. `tokio`/`serde_json`) sin asegurar `--features`.
+**Riesgo:** compilaciones que fallan según el objetivo o CI.
+**Arreglo:**
+
+* Todo lo usado por **default** ⇒ **NO opcional** (ej.: `serde`, `serde_json`, `tokio`).
+* Lo verdaderamente opt-in (WS EVM, HTTP POST) ⇒ detrás de features (`evm`, `http`), y los scripts deben activar **dinámicamente** esas features si hay `MEV_POST_URL`, etc. (ya lo dejé en patch 0004 y 0006).
+
+## 4) Seguridad de secretos y superficie pública
+
+**Lo que veo en repo:** existen `.env.example` y `.env.local.example` (bien), pero no hay evidencia de **escaneo histórico** de credenciales ni de **CSP/headers** en Next/Worker. ([GitHub][1])
+**Riesgo:** fuga de claves por historia git, cabeceras débiles, endpoints sin rate-limit.
+**Arreglo mínimo:**
+
+* Añadir **escaneo de secretos en CI** (truffleHog / gitleaks).
+* Añadir **CSP, COOP/COEP, HSTS** en `next.config.js`/middleware y en Cloudflare Worker (Headers estrictos). (Ese archivo existe) ([GitHub][1])
+* Rate limit + origin checks en `server.ts` (está en raíz). ([GitHub][1])
+
+## 5) Supply chain & compliance
+
+**Síntoma:** no veo pruebas de **cargo-deny**, **cargo-audit**, **npm audit** ni **SBOM**.
+**Riesgo:** dependencias con CVE, licencias incompatibles, auditoría deficiente.
+**Arreglo:** workflow de CI con:
+
+* `cargo deny check` + `cargo audit` (Rust).
+* `npm audit --omit=dev` (Node).
+* **SBOM** CycloneDX para Rust y Node (entregable `.json`).
+
+---
+
+# Hallazgos adicionales (medios/bajos) + acciones
+
+* **Licencia**: no detecto `LICENSE` en raíz → añade **Apache-2.0 o MIT** para clarificar redistribución. (El README muestra insignias pero no el archivo de licencia). ([GitHub][1])
+* **Observabilidad**: tienes `scripts` y `server.ts`, pero no evidencias de **métricas** (Prometheus) ni **correlación** (traceID) en los logs (aunque hay `logs/` y JSON usados en tus parches). Añade `/metrics` y etiqueta oportunidades con `reason`, `chain_id` y `route_id`. ([GitHub][1])
+* **Cloudflare Workers**: carpeta presente; reforzar validación de Signed-Headers, TTL, y capado de métodos. ([GitHub][1])
+* **CI ya existe** (`.github/workflows/`), pero no vi su contenido; agrega jobs descritos abajo. ([GitHub][1])
+
+---
+
+## Parches listos para aplicar (con lo que ya te preparé)
+
+1. **`0008-rust-deps-and-async-main.patch`**
+   – Declara `serde/serde_json/tokio/reqwest` en el crate raíz y anota `#[tokio::main]` en `src/minimal.rs`.
+2. **`0009-ci-async-main-check.patch`**
+   – Linter de CI que falla si hay `async fn main` sin `#[tokio::main]` + build del workspace.
+3. **`0005-defaults.patch`**
+   – Añade `default-assets-and-pairs.json` (Base/Arbitrum/Avalanche/Polygon/Optimism/BSC con **USDC vs bridged** + majors) y fusión en el arranque del **mev-scanner**.
+4. **`0006-deps-runtime-fix.patch`**
+   – Normaliza deps en `rust-mev-engine` (no opcionales por defecto), arregla runtime.
+5. **`0004-http-and-aliases.patch`**
+   – (a) POST HTTP al backend (si `MEV_POST_URL`), (b) alias `serde` para **camelCase/snake_case** en config (evita warnings).
+
+> Si quieres, te empaqueto todo en **un solo meta-patch 0010-hardening** (workflows + .cargo/lints + SBOM + security headers).
+
+---
+
+## CI recomendado (añadir o extender)
+
+* **Rust (workspace)**
+
+  * `cargo build --workspace --all-targets`
+  * `cargo test --workspace`
+  * `cargo clippy -- -D warnings`
+  * `cargo fmt -- --check`
+  * `cargo deny check` + `cargo audit`
+  * **Linter `async main`** (ya incluido)
+  * **SBOM**: `cyclonedx-cargo --format json --output sbom-rust.json`
+
+* **Node/Next (frontend + server)**
+
+  * `npm ci`
+  * `npm run lint && npm run typecheck && npm run build`
+  * `npm audit --omit=dev`
+  * **SBOM**: `cyclonedx-npm --output-file sbom-node.json`
+
+* **Security**
+
+  * `gitleaks detect` o `trufflehog filesystem --since-commit=HEAD~200`
+  * (Opcional) SLSA/GHA OIDC si publicas artefactos.
+
+---
+
+## Endurecimiento del Engine Rust (rápido)
+
+* **.cargo/config.toml**
+
+  ```toml
+  [build]
+  rustflags = ["-Dwarnings"]
+
+  [profile.release]
+  lto = "fat"
+  codegen-units = 1
+  panic = "abort"
+  strip = "symbols"
+  ```
+* **deny unsafe** en crates críticos (o `#![forbid(unsafe_code)]` donde aplique).
+* Reutiliza `reqwest::Client` como `static Lazy` (ya lo dejé en tu logger HTTP).
+* Métricas: expón contador de `OPPORTUNITY` por `chain_id/reason`.
+
+---
+
+## Next.js / Server / Workers (seguridad práctica)
+
+* **next.config.js** (ya existe) → añade headers:
+
+  * `Content-Security-Policy` estricta (sin `unsafe-inline`),
+  * `Strict-Transport-Security`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
+  * `Permissions-Policy` (camera=(), microphone=(), geolocation=()). ([GitHub][1])
+* **server.ts** → Rate-limit por IP, verificación de `Origin`, body limit, logs sin PII (enmascarar direcciones salvo 6+4). ([GitHub][1])
+* **Cloudflare Worker** → validar HMAC de mensajes entrantes (si envías oportunidades), cache short TTL, bloquear métodos no usados. ([GitHub][1])
+
+---
+
+## Qué te dejo para ejecutar ya (prompt para tu agente)
+
+```
+Objetivo: dejar el repo compilando en CI, con defaults de assets/pares, HTTP POST opcional, linter de async main y endurecimiento base.
+
+Pasos:
+1) git checkout -b hardening/full-audit
+2) aplicar los parches en este orden (si ya los aplicaste, omite):
+   - 0008-rust-deps-and-async-main.patch
+   - 0009-ci-async-main-check.patch
+   - 0005-defaults.patch
+   - 0006-deps-runtime-fix.patch
+   - 0004-http-and-aliases.patch
+3) cargo clean && cargo build --workspace --all-targets
+4) npm ci && npm run build   # en el frontend
+5) Ejecutar scripts:
+   - export DEFAULTS_JSON=$PWD/default-assets-and-pairs.json
+   - ./scripts/run-mev-scanner.sh | head -n 20
+6) git add . && git commit -m "chore(hardening): deps, defaults, ci, http-post, serde-aliases" && git push -u origin hardening/full-audit
+```
+
+---
+
+## Resumen ejecutivo (qué mejora ya)
+
+* **Builds verdes** y reproducibles (Rust + Node).
+* **Defaults sólidos**: arranque con **USDC ↔ USDbC/USDC.e** y majors en **Base/Arbitrum/Avalanche/Polygon/Optimism/BSC**, evitando el caso de “reloj desincronizado”.
+* **Seguridad**: headers, rate-limit, escaneo de secretos, supply-chain checks, SBOM.
+* **Operativa**: POST opcional de oportunidades al backend, logging JSONL consistente, features bien delimitadas.
+
+Si quieres el **meta-patch 0010-hardening** con **todo consolidado** (workflows, .cargo, SBOM, CSP de Next y plantilla Worker con headers), te lo escribo en el mismo formato para aplicar de una.
+
+[1]: https://github.com/hefarica/ARBITRAGEXPLUS-II "GitHub - hefarica/ARBITRAGEXPLUS-II"
