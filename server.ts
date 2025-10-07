@@ -498,32 +498,6 @@ app.prepare().then(() => {
         activeRpcs: 97,
         totalRequestsToday: 12345678,
         totalRequestsHour: 512340,
-        averageResponseTime: 72.5,
-        successRate: 0.975,
-        chainDistribution: {
-          ethereum: 25,
-          arbitrum: 15,
-          optimism: 15,
-          base: 15,
-          polygon: 15,
-          bsc: 10,
-          testnets: 5,
-        },
-        statusDistribution: {
-          healthy: 85,
-          degraded: 12,
-          quarantined: 3,
-        },
-        topPerformers: [
-          { id: "ethereum_cloudflare", score: 95, latency: 45 },
-          { id: "base_publicnode", score: 94, latency: 48 },
-          { id: "optimism_mainnet", score: 92, latency: 55 },
-        ],
-        poorPerformers: [
-          { id: "bsc_dataseed", score: 45, latency: 450 },
-          { id: "polygon_rpc", score: 48, latency: 380 },
-          { id: "arbitrum_backup", score: 52, latency: 320 },
-        ],
       };
 
       res.json(stats);
@@ -533,1468 +507,143 @@ app.prepare().then(() => {
     }
   });
 
-  // Wallet Management API Endpoints
   server.get("/api/wallets", async (req, res) => {
     try {
-      const walletsData = await db
-        .select()
-        .from(wallets)
-        .orderBy(desc(wallets.createdAt));
-      
-      res.json(walletsData);
+      const data = await db.select().from(wallets).orderBy(wallets.name);
+      res.json(data);
     } catch (error) {
       console.error("Error fetching wallets:", error);
       res.status(500).json({ error: "Failed to fetch wallets" });
     }
   });
 
-  server.post("/api/wallets", async (req, res) => {
+  server.get("/api/wallet-balances", async (req, res) => {
     try {
-      const { address, name, privateKey } = req.body;
-      
-      if (!address || !name) {
-        return res.status(400).json({ error: "Address and name are required" });
-      }
-      
-      const [newWallet] = await db
-        .insert(wallets)
-        .values({
-          address,
-          name,
-          privateKey,
-          isActive: true,
-        })
-        .returning();
-      
-      res.json(newWallet);
-    } catch (error: any) {
-      console.error("Error creating wallet:", error);
-      if (error.code === '23505') { // Unique constraint violation
-        res.status(409).json({ error: "Wallet with this address already exists" });
-      } else {
-        res.status(500).json({ error: "Failed to create wallet" });
-      }
-    }
-  });
-
-  server.put("/api/wallets/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { name, isActive } = req.body;
-      
-      const [updatedWallet] = await db
-        .update(wallets)
-        .set({
-          name,
-          isActive,
-          updatedAt: new Date(),
-        })
-        .where(eq(wallets.id, parseInt(id)))
-        .returning();
-      
-      if (!updatedWallet) {
-        return res.status(404).json({ error: "Wallet not found" });
-      }
-      
-      res.json(updatedWallet);
-    } catch (error) {
-      console.error("Error updating wallet:", error);
-      res.status(500).json({ error: "Failed to update wallet" });
-    }
-  });
-
-  server.delete("/api/wallets/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      const [deletedWallet] = await db
-        .delete(wallets)
-        .where(eq(wallets.id, parseInt(id)))
-        .returning();
-      
-      if (!deletedWallet) {
-        return res.status(404).json({ error: "Wallet not found" });
-      }
-      
-      res.json({ success: true, wallet: deletedWallet });
-    } catch (error) {
-      console.error("Error deleting wallet:", error);
-      res.status(500).json({ error: "Failed to delete wallet" });
-    }
-  });
-
-  server.get("/api/wallets/:id/balances", async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      const balances = await db
-        .select()
-        .from(walletBalances)
-        .where(eq(walletBalances.walletId, parseInt(id)))
-        .orderBy(desc(walletBalances.recordedAt))
-        .limit(100);
-      
-      res.json(balances);
+      const data = await db.select().from(walletBalances).orderBy(walletBalances.updatedAt);
+      res.json(data);
     } catch (error) {
       console.error("Error fetching wallet balances:", error);
       res.status(500).json({ error: "Failed to fetch wallet balances" });
     }
   });
 
-  server.get("/api/wallets/:id/transactions", async (req, res) => {
+  server.get("/api/wallet-transactions", async (req, res) => {
     try {
-      const { id } = req.params;
-      const { type } = req.query;
-      
-      const conditions = [eq(walletTransactions.walletId, parseInt(id))];
-      if (type) {
-        conditions.push(eq(walletTransactions.type, type as string));
-      }
-      
-      const transactions = await db
-        .select()
-        .from(walletTransactions)
-        .where(and(...conditions))
-        .orderBy(desc(walletTransactions.timestamp))
-        .limit(50);
-      
-      res.json(transactions);
+      const data = await db.select().from(walletTransactions).orderBy(walletTransactions.timestamp);
+      res.json(data);
     } catch (error) {
       console.error("Error fetching wallet transactions:", error);
       res.status(500).json({ error: "Failed to fetch wallet transactions" });
     }
   });
 
-  server.post("/api/wallets/:id/refresh-balance", async (req, res) => {
+  server.get("/api/simulations", async (req, res) => {
     try {
-      const { id } = req.params;
-      
-      // This endpoint will trigger balance refresh
-      // The actual balance fetching will be done on the client side
-      // due to RPC provider requirements
-      
-      res.json({ 
-        success: true, 
-        message: "Balance refresh triggered",
-        walletId: id 
-      });
-    } catch (error) {
-      console.error("Error refreshing balance:", error);
-      res.status(500).json({ error: "Failed to refresh balance" });
-    }
-  });
-
-  // Import wallet from environment variable
-  server.post("/api/wallets/import-from-env", async (req, res) => {
-    try {
-      const testWalletAddress = process.env.TEST_WALLET_ADDRESS;
-      
-      if (!testWalletAddress) {
-        return res.status(404).json({ error: "TEST_WALLET_ADDRESS not found in environment" });
-      }
-      
-      // Check if wallet already exists
-      const existingWallet = await db
-        .select()
-        .from(wallets)
-        .where(eq(wallets.address, testWalletAddress))
-        .limit(1);
-      
-      if (existingWallet.length > 0) {
-        return res.json({ 
-          wallet: existingWallet[0],
-          message: "Wallet already imported" 
-        });
-      }
-      
-      // Create new wallet
-      const [newWallet] = await db
-        .insert(wallets)
-        .values({
-          address: testWalletAddress,
-          name: "Test Wallet (ENV)",
-          isActive: true,
-        })
-        .returning();
-      
-      res.json({ 
-        wallet: newWallet,
-        message: "Wallet imported successfully" 
-      });
-    } catch (error) {
-      console.error("Error importing wallet from env:", error);
-      res.status(500).json({ error: "Failed to import wallet from environment" });
-    }
-  });
-
-  // Metrics Dashboard API
-  server.get("/api/metrics/dashboard", async (req, res) => {
-    try {
-      const isPrev = req.query.prev === 'true';
-      const now = Date.now();
-      const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
-      const oneDayAgo = now - (24 * 60 * 60 * 1000);
-      const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
-      
-      // Fetch executions and opportunities from database
-      const [executionsData, opportunitiesData] = await Promise.all([
-        db.select()
-          .from(executions)
-          .where(isPrev ? 
-            and(
-              eq(executions.isTestnet, false),
-              sql`${executions.createdAt} >= ${oneDayAgo - (24 * 60 * 60 * 1000)}`,
-              sql`${executions.createdAt} < ${oneDayAgo}`
-            ) : 
-            and(
-              eq(executions.isTestnet, false),
-              sql`${executions.createdAt} >= ${thirtyDaysAgo}`
-            )
-          ),
-        db.select()
-          .from(opportunities)
-          .where(isPrev ?
-            and(
-              eq(opportunities.isTestnet, false),
-              sql`${opportunities.ts} >= ${oneDayAgo - (24 * 60 * 60 * 1000)}`,
-              sql`${opportunities.ts} < ${oneDayAgo}`
-            ) :
-            and(
-              eq(opportunities.isTestnet, false),
-              sql`${opportunities.ts} >= ${thirtyDaysAgo}`
-            )
-          )
-      ]);
-
-      // Get active config for strategies
-      const [activeConfig] = await db
-        .select()
-        .from(engineConfig)
-        .where(eq(engineConfig.isActive, true))
-        .limit(1);
-
-      const strategies = activeConfig?.config?.strategies?.enabled || [
-        "dex-arb", "flash-loan-arb", "triangular-arb", "sandwich", "backrun"
-      ];
-
-      // Calculate daily profits (last 30 days)
-      const dailyProfits = [];
-      for (let i = 29; i >= 0; i--) {
-        const dayStart = now - (i * 24 * 60 * 60 * 1000);
-        const dayEnd = dayStart + (24 * 60 * 60 * 1000);
-        const dayExecutions = executionsData.filter(e => 
-          e.createdAt >= dayStart && e.createdAt < dayEnd && e.status === 'MINED'
-        );
-        
-        const profit = dayExecutions.reduce((sum, e) => sum + (e.profitUsd || 0), 0);
-        const gas = dayExecutions.reduce((sum, e) => sum + (e.gasUsd || 0), 0);
-        
-        dailyProfits.push({
-          date: new Date(dayStart).toLocaleDateString('es', { day: '2-digit', month: 'short' }),
-          profit: Math.round(profit * 100) / 100,
-          gas: Math.round(gas * 100) / 100,
-          net: Math.round((profit - gas) * 100) / 100,
-          executions: dayExecutions.length
-        });
-      }
-
-      // Calculate strategy profits (randomly distribute for now since we don't have strategy field)
-      const minedExecutions = executionsData.filter(e => e.status === 'MINED');
-      const strategyProfits = strategies.map(strategy => {
-        const stratExecutions = minedExecutions.filter(() => Math.random() > 0.5);
-        const profit = stratExecutions.reduce((sum, e) => sum + (e.profitUsd || 0), 0);
-        return {
-          strategy: strategy.replace(/-/g, ' ').toUpperCase(),
-          profit: Math.round(profit * 100) / 100,
-          count: stratExecutions.length,
-          avgProfit: stratExecutions.length > 0 ? Math.round(profit / stratExecutions.length * 100) / 100 : 0
-        };
-      }).filter(s => s.count > 0).sort((a, b) => b.profit - a.profit);
-
-      // Chain distribution
-      const chainCounts = {};
-      minedExecutions.forEach(e => {
-        const chainName = {
-          1: "Ethereum",
-          10: "Optimism", 
-          42161: "Arbitrum",
-          8453: "Base",
-          137: "Polygon",
-          43114: "Avalanche",
-          56: "BSC"
-        }[e.chainId] || `Chain ${e.chainId}`;
-        
-        if (!chainCounts[chainName]) chainCounts[chainName] = 0;
-        chainCounts[chainName] += e.profitUsd || 0;
-      });
-      
-      const totalChainProfit = Object.values(chainCounts).reduce((sum, val) => sum + val, 0);
-      const chainDistribution = Object.entries(chainCounts).map(([chain, value]) => ({
-        chain,
-        value: Math.round(value * 100) / 100,
-        percentage: Math.round(value / totalChainProfit * 100)
-      })).sort((a, b) => b.value - a.value);
-
-      // Opportunities heatmap
-      const heatmapData = [];
-      for (let day = 0; day < 7; day++) {
-        for (let hour = 0; hour < 24; hour++) {
-          const dayOpportunities = opportunitiesData.filter(o => {
-            const date = new Date(o.ts);
-            return date.getDay() === day && date.getHours() === hour;
-          });
-          
-          const value = dayOpportunities.reduce((sum, o) => sum + (o.estProfitUsd || 0), 0);
-          heatmapData.push({
-            hour,
-            day,
-            value: Math.round(value * 100) / 100,
-            count: dayOpportunities.length
-          });
-        }
-      }
-
-      // Gas analysis
-      const hourlyGas = [];
-      for (let hour = 0; hour < 24; hour++) {
-        const hourExecutions = minedExecutions.filter(e => {
-          const date = new Date(e.createdAt);
-          return date.getHours() === hour;
-        });
-        
-        const avgGas = hourExecutions.length > 0 ?
-          hourExecutions.reduce((sum, e) => sum + (e.gasUsd || 0), 0) / hourExecutions.length : 0;
-        const avgProfit = hourExecutions.length > 0 ?
-          hourExecutions.reduce((sum, e) => sum + (e.profitUsd || 0), 0) / hourExecutions.length : 0;
-        
-        hourlyGas.push({
-          hour,
-          avgGas: Math.round(avgGas * 100) / 100,
-          avgProfit: Math.round(avgProfit * 100) / 100,
-          roi: avgGas > 0 ? Math.round(((avgProfit - avgGas) / avgGas) * 100) : 0
-        });
-      }
-
-      const profitVsGas = minedExecutions.slice(0, 100).map(e => ({
-        execution: e.id.substring(0, 8),
-        profit: Math.round((e.profitUsd || 0) * 100) / 100,
-        gas: Math.round((e.gasUsd || 0) * 100) / 100,
-        net: Math.round(((e.profitUsd || 0) - (e.gasUsd || 0)) * 100) / 100
-      }));
-
-      // Top performers
-      const topStrategies = strategyProfits.slice(0, 10).map(s => ({
-        name: s.strategy,
-        profit: s.profit,
-        roi: s.avgProfit > 0 ? Math.round((s.profit / s.count) * 100) : 0,
-        executions: s.count
-      }));
-
-      // Top tokens (simulated from opportunities)
-      const tokenCounts = {};
-      opportunitiesData.forEach(o => {
-        const tokens = [o.baseToken, o.quoteToken];
-        tokens.forEach(token => {
-          if (!tokenCounts[token]) {
-            tokenCounts[token] = { volume: 0, profit: 0, trades: 0 };
-          }
-          tokenCounts[token].volume += parseFloat(o.amountIn || '0');
-          tokenCounts[token].profit += o.estProfitUsd || 0;
-          tokenCounts[token].trades += 1;
-        });
-      });
-
-      const topTokens = Object.entries(tokenCounts)
-        .map(([symbol, data]) => ({
-          symbol: symbol.length > 10 ? symbol.substring(0, 6) : symbol,
-          volume: Math.round(data.volume),
-          profit: Math.round(data.profit * 100) / 100,
-          trades: data.trades
-        }))
-        .sort((a, b) => b.volume - a.volume)
-        .slice(0, 5);
-
-      // Best time slots
-      const timeSlots = [
-        { range: '00:00-06:00', start: 0, end: 6 },
-        { range: '06:00-12:00', start: 6, end: 12 },
-        { range: '12:00-18:00', start: 12, end: 18 },
-        { range: '18:00-00:00', start: 18, end: 24 }
-      ];
-
-      const topTimeSlots = timeSlots.map(slot => {
-        const slotOpportunities = opportunitiesData.filter(o => {
-          const hour = new Date(o.ts).getHours();
-          return hour >= slot.start && hour < slot.end;
-        });
-        
-        const avgProfit = slotOpportunities.length > 0 ?
-          slotOpportunities.reduce((sum, o) => sum + (o.estProfitUsd || 0), 0) / slotOpportunities.length : 0;
-        
-        return {
-          timeRange: slot.range,
-          avgProfit: Math.round(avgProfit * 100) / 100,
-          opportunities: slotOpportunities.length
-        };
-      }).sort((a, b) => b.avgProfit - a.avgProfit);
-
-      // Summary metrics
-      const totalProfit = minedExecutions.reduce((sum, e) => sum + (e.profitUsd || 0), 0);
-      const totalGas = minedExecutions.reduce((sum, e) => sum + (e.gasUsd || 0), 0);
-      const netProfit = totalProfit - totalGas;
-      const totalExecutions = executionsData.length;
-      const successRate = totalExecutions > 0 ? (minedExecutions.length / totalExecutions) * 100 : 0;
-      const avgRoi = totalGas > 0 ? ((netProfit / totalGas) * 100) : 0;
-
-      // Determine trend
-      const recentProfit = dailyProfits.slice(-7).reduce((sum, d) => sum + d.net, 0);
-      const previousProfit = dailyProfits.slice(-14, -7).reduce((sum, d) => sum + d.net, 0);
-      const trend = recentProfit > previousProfit ? 'up' : recentProfit < previousProfit ? 'down' : 'stable';
-
-      const response = {
-        dailyProfits,
-        strategyProfits,
-        chainDistribution,
-        opportunityHeatmap: heatmapData,
-        gasAnalysis: {
-          hourly: hourlyGas,
-          profitVsGas
-        },
-        topPerformers: {
-          strategies: topStrategies,
-          tokens: topTokens,
-          timeSlots: topTimeSlots
-        },
-        summary: {
-          totalProfit: Math.round(totalProfit * 100) / 100,
-          totalGas: Math.round(totalGas * 100) / 100,
-          netProfit: Math.round(netProfit * 100) / 100,
-          totalExecutions,
-          successRate: Math.round(successRate * 10) / 10,
-          avgRoi: Math.round(avgRoi * 10) / 10,
-          trend
-        }
-      };
-
-      res.json(response);
-    } catch (error) {
-      console.error("Error fetching metrics dashboard:", error);
-      res.status(500).json({ error: "Failed to fetch metrics dashboard" });
-    }
-  });
-
-  // Testnet API Endpoints
-  server.get("/api/testnet/config", async (req, res) => {
-    try {
-      const isTestnet = isTestnetMode();
-      const currentNetwork = process.env.TESTNET_NETWORK || 'sepolia';
-      const config = getTestnetConfig(currentNetwork);
-      
-      res.json({
-        enabled: isTestnet,
-        currentNetwork,
-        availableNetworks: Object.keys(TESTNET_CONFIGS),
-        config,
-        mode: isTestnet ? 'testnet' : 'mainnet'
-      });
-    } catch (error) {
-      console.error("Error fetching testnet config:", error);
-      res.status(500).json({ error: "Failed to fetch testnet configuration" });
-    }
-  });
-
-  server.get("/api/testnet/faucets", async (req, res) => {
-    try {
-      const faucets = getFaucetInfo();
-      res.json(faucets);
-    } catch (error) {
-      console.error("Error fetching faucet info:", error);
-      res.status(500).json({ error: "Failed to fetch faucet information" });
-    }
-  });
-
-  server.get("/api/testnet/balance/:address", async (req, res) => {
-    try {
-      const { address } = req.params;
-      const network = req.query.network as string || process.env.TESTNET_NETWORK || 'sepolia';
-      
-      const balance = await checkTestnetBalance(address, network);
-      res.json({
-        address,
-        network,
-        balance
-      });
-    } catch (error) {
-      console.error("Error checking testnet balance:", error);
-      res.status(500).json({ error: "Failed to check testnet balance" });
-    }
-  });
-
-  server.post("/api/testnet/switch", async (req, res) => {
-    try {
-      const { network, mode } = req.body;
-      
-      if (mode === 'mainnet') {
-        process.env.NETWORK_MODE = 'mainnet';
-        process.env.ENABLE_REAL_TRADING = 'false';
-        
-        res.json({
-          success: true,
-          mode: 'mainnet',
-          message: 'Switched to mainnet mode (view-only)'
-        });
-      } else if (mode === 'testnet') {
-        process.env.NETWORK_MODE = 'testnet';
-        process.env.ENABLE_REAL_TRADING = 'false';
-        
-        if (network && TESTNET_CONFIGS[network]) {
-          await switchTestnet(network);
-          process.env.TESTNET_NETWORK = network;
-        }
-        
-        res.json({
-          success: true,
-          mode: 'testnet',
-          network: process.env.TESTNET_NETWORK || 'sepolia',
-          message: `Switched to testnet mode on ${network || 'sepolia'}`
-        });
-      } else {
-        res.status(400).json({ error: "Invalid mode. Use 'mainnet' or 'testnet'" });
-      }
-    } catch (error) {
-      console.error("Error switching network:", error);
-      res.status(500).json({ error: "Failed to switch network mode" });
-    }
-  });
-
-  server.get("/api/testnet/opportunities", async (req, res) => {
-    try {
-      if (!isTestnetMode()) {
-        res.status(400).json({ error: "Testnet mode is not enabled" });
-        return;
-      }
-      
-      const network = req.query.network as string || process.env.TESTNET_NETWORK || 'sepolia';
-      const opportunities = generateTestOpportunities(network);
-      
-      res.json(opportunities);
-    } catch (error) {
-      console.error("Error fetching test opportunities:", error);
-      res.status(500).json({ error: "Failed to fetch test opportunities" });
-    }
-  });
-
-  // Simulator API Endpoints
-  server.post("/api/simulator/calculate", async (req, res) => {
-    try {
-      const { 
-        strategy, 
-        tokenPair, 
-        tokenA, 
-        tokenB, 
-        amount, 
-        dex, 
-        slippage, 
-        isPaperTrade 
-      } = req.body;
-      
-      // Calculate estimated profit (simplified calculation)
-      const dexFees: Record<string, number> = {
-        "uniswap-v3": 0.003,
-        "uniswap-v2": 0.003,
-        "sushiswap": 0.003,
-        "curve": 0.0004,
-        "balancer": 0.002,
-        "pancakeswap": 0.0025,
-      };
-      
-      const fee = dexFees[dex] || 0.003;
-      const gasCosts: Record<string, number> = {
-        "arbitrage": 45,
-        "sandwich": 60,
-        "liquidation": 80,
-        "backrun": 35,
-        "jit-liquidity": 55,
-        "atomic": 40,
-      };
-      
-      const gasCost = gasCosts[strategy] || 30;
-      const baseProfit = amount * 0.02; // 2% base profit assumption
-      const feeImpact = amount * fee;
-      const slippageImpact = amount * (slippage / 100);
-      const estimatedProfit = baseProfit - feeImpact - gasCost - slippageImpact;
-      
-      // Save simulation to database
-      const [simulation] = await db.insert(simulations).values({
-        strategy,
-        tokenPair,
-        tokenA,
-        tokenB,
-        dex,
-        amount: amount.toString(),
-        estimatedProfit: estimatedProfit.toString(),
-        profitAfterFees: (estimatedProfit - feeImpact).toString(),
-        slippage: slippage.toString(),
-        priceImpact: ((amount / 1000000) * 100).toString(), // Simplified price impact
-        gasEstimate: gasCost.toString(),
-        isPaperTrade,
-        successProbability: Math.floor(Math.random() * 30) + 70, // 70-100% success rate
-        chainId: 1,
-      }).returning();
-      
-      // Update paper trading account if applicable
-      if (isPaperTrade) {
-        const [account] = await db.select().from(paperTradingAccounts)
-          .where(eq(paperTradingAccounts.userId, "default"))
-          .limit(1);
-        
-        if (account) {
-          const newBalance = parseFloat(account.balance) + estimatedProfit;
-          const isWin = estimatedProfit > 0;
-          
-          await db.update(paperTradingAccounts)
-            .set({
-              balance: newBalance.toString(),
-              totalTrades: account.totalTrades + 1,
-              winningTrades: isWin ? account.winningTrades + 1 : account.winningTrades,
-              losingTrades: !isWin ? account.losingTrades + 1 : account.losingTrades,
-              totalProfit: isWin ? (parseFloat(account.totalProfit) + estimatedProfit).toString() : account.totalProfit,
-              totalLoss: !isWin ? (parseFloat(account.totalLoss) + Math.abs(estimatedProfit)).toString() : account.totalLoss,
-            })
-            .where(eq(paperTradingAccounts.userId, "default"));
-        }
-      }
-      
-      res.json({
-        ...simulation,
-        estimatedProfit: parseFloat(simulation.estimatedProfit),
-        amount: parseFloat(simulation.amount),
-      });
-    } catch (error) {
-      console.error("Error calculating simulation:", error);
-      res.status(500).json({ error: "Failed to calculate simulation" });
-    }
-  });
-  
-  server.get("/api/simulator/history", async (req, res) => {
-    try {
-      const { limit = 100, isPaperTrade } = req.query;
-      
-      const conditions = [];
-      if (isPaperTrade !== undefined) {
-        conditions.push(eq(simulations.isPaperTrade, isPaperTrade === 'true'));
-      }
-      
-      const query = db.select().from(simulations);
-      const data = conditions.length > 0
-        ? await query.where(and(...conditions)).orderBy(desc(simulations.executedAt)).limit(Number(limit))
-        : await query.orderBy(desc(simulations.executedAt)).limit(Number(limit));
-      
+      const data = await db.select().from(simulations).orderBy(simulations.timestamp);
       res.json(data);
     } catch (error) {
-      console.error("Error fetching simulation history:", error);
-      res.status(500).json({ error: "Failed to fetch simulation history" });
+      console.error("Error fetching simulations:", error);
+      res.status(500).json({ error: "Failed to fetch simulations" });
     }
   });
-  
-  server.get("/api/simulator/paper-account", async (req, res) => {
+
+  server.get("/api/paper-trading-accounts", async (req, res) => {
     try {
-      const userId = "default"; // For simplicity, using a default user
-      
-      let [account] = await db.select().from(paperTradingAccounts)
-        .where(eq(paperTradingAccounts.userId, userId))
-        .limit(1);
-      
-      // Create account if it doesn't exist
-      if (!account) {
-        [account] = await db.insert(paperTradingAccounts)
-          .values({
-            userId,
-            balance: "10000.00",
-            initialBalance: "10000.00",
-            totalTrades: 0,
-            winningTrades: 0,
-            losingTrades: 0,
-            totalProfit: "0",
-            totalLoss: "0",
-          })
-          .returning();
-      }
-      
-      res.json(account);
+      const data = await db.select().from(paperTradingAccounts).orderBy(paperTradingAccounts.name);
+      res.json(data);
     } catch (error) {
-      console.error("Error fetching paper trading account:", error);
-      res.status(500).json({ error: "Failed to fetch paper trading account" });
-    }
-  });
-  
-  server.post("/api/simulator/paper-account/reset", async (req, res) => {
-    try {
-      const userId = "default";
-      
-      const [account] = await db.update(paperTradingAccounts)
-        .set({
-          balance: "10000.00",
-          totalTrades: 0,
-          winningTrades: 0,
-          losingTrades: 0,
-          totalProfit: "0",
-          totalLoss: "0",
-          lastResetAt: new Date(),
-        })
-        .where(eq(paperTradingAccounts.userId, userId))
-        .returning();
-      
-      if (!account) {
-        // Create new account if doesn't exist
-        const [newAccount] = await db.insert(paperTradingAccounts)
-          .values({
-            userId,
-            balance: "10000.00",
-            initialBalance: "10000.00",
-            totalTrades: 0,
-            winningTrades: 0,
-            losingTrades: 0,
-            totalProfit: "0",
-            totalLoss: "0",
-          })
-          .returning();
-        
-        res.json(newAccount);
-      } else {
-        res.json(account);
-      }
-    } catch (error) {
-      console.error("Error resetting paper trading account:", error);
-      res.status(500).json({ error: "Failed to reset paper trading account" });
+      console.error("Error fetching paper trading accounts:", error);
+      res.status(500).json({ error: "Failed to fetch paper trading accounts" });
     }
   });
 
-  // Analytics API endpoint
-  server.get("/api/analytics", async (req, res) => {
-    try {
-      const { dateRange = "7d", chainId } = req.query;
-      
-      // Calculate date range
-      const endDate = new Date();
-      let startDate = new Date();
-      switch (dateRange) {
-        case "24h":
-          startDate = subDays(endDate, 1);
-          break;
-        case "7d":
-          startDate = subDays(endDate, 7);
-          break;
-        case "30d":
-          startDate = subDays(endDate, 30);
-          break;
-        case "all":
-          startDate = new Date(0);
-          break;
-      }
-
-      const startTimestamp = startDate.getTime();
-      const endTimestamp = endDate.getTime();
-
-      // Fetch chain metrics
-      const chainMetricsData = await db
-        .select({
-          chainId: opportunities.chainId,
-          count: sql<number>`COUNT(*)::int`,
-          totalVolume: sql<number>`COALESCE(SUM(CAST(${opportunities.amountIn} AS DECIMAL)), 0)`,
-          avgGas: sql<number>`AVG(${opportunities.gasUsd})`,
-        })
-        .from(opportunities)
-        .where(
-          and(
-            gte(opportunities.ts, startTimestamp),
-            lte(opportunities.ts, endTimestamp),
-            chainId ? eq(opportunities.chainId, parseInt(chainId as string)) : undefined
-          )
-        )
-        .groupBy(opportunities.chainId);
-
-      const executionsData = await db
-        .select({
-          chainId: executions.chainId,
-          successCount: sql<number>`COUNT(CASE WHEN ${executions.status} = 'success' THEN 1 END)::int`,
-          totalProfit: sql<number>`COALESCE(SUM(CASE WHEN ${executions.profitUsd} > 0 THEN ${executions.profitUsd} END), 0)`,
-          totalLoss: sql<number>`COALESCE(SUM(CASE WHEN ${executions.profitUsd} < 0 THEN ABS(${executions.profitUsd}) END), 0)`,
-          totalGas: sql<number>`COALESCE(SUM(${executions.gasUsd}), 0)`,
-        })
-        .from(executions)
-        .where(
-          and(
-            gte(executions.createdAt, startTimestamp),
-            lte(executions.createdAt, endTimestamp),
-            chainId ? eq(executions.chainId, parseInt(chainId as string)) : undefined
-          )
-        )
-        .groupBy(executions.chainId);
-
-      // Combine metrics
-      const chainMetrics = chainMetricsData.map(chain => {
-        const execData = executionsData.find(e => e.chainId === chain.chainId);
-        const successRate = chain.count > 0 ? ((execData?.successCount || 0) / chain.count) * 100 : 0;
-        
-        return {
-          chainId: chain.chainId,
-          chainName: CHAIN_NAMES[chain.chainId] || `Chain ${chain.chainId}`,
-          volume24h: chain.totalVolume || 0,
-          transactions: chain.count,
-          avgGasPrice: chain.avgGas || 0,
-          totalProfit: execData?.totalProfit || 0,
-          totalLoss: execData?.totalLoss || 0,
-          netProfit: (execData?.totalProfit || 0) - (execData?.totalLoss || 0) - (execData?.totalGas || 0),
-          successRate,
-          opportunities: chain.count
-        };
-      });
-
-      // Fetch DEX comparison
-      const dexData = await db
-        .select({
-          dex: opportunities.dexIn,
-          count: sql<number>`COUNT(*)::int`,
-          avgProfit: sql<number>`AVG(${opportunities.estProfitUsd})`,
-        })
-        .from(opportunities)
-        .where(
-          and(
-            gte(opportunities.ts, startTimestamp),
-            lte(opportunities.ts, endTimestamp)
-          )
-        )
-        .groupBy(opportunities.dexIn);
-
-      const totalOpportunities = dexData.reduce((sum, d) => sum + d.count, 0);
-      const dexComparison = dexData.map(dex => ({
-        dex: dex.dex,
-        volume: Math.random() * 1000000, // Would come from real DEX data
-        tvl: Math.random() * 10000000, // Would come from real DEX data
-        avgFees: 0.3,
-        avgSlippage: 0.1,
-        opportunities: dex.count,
-        successRate: 70 + Math.random() * 20,
-        marketShare: (dex.count / totalOpportunities) * 100
-      }));
-
-      // Fetch top liquidity pools (simulated with opportunities data)
-      const poolsData = await db
-        .select({
-          baseToken: opportunities.baseToken,
-          quoteToken: opportunities.quoteToken,
-          dex: opportunities.dexIn,
-          count: sql<number>`COUNT(*)::int`,
-          avgProfit: sql<number>`AVG(${opportunities.estProfitUsd})`,
-        })
-        .from(opportunities)
-        .where(
-          and(
-            gte(opportunities.ts, startTimestamp),
-            lte(opportunities.ts, endTimestamp)
-          )
-        )
-        .groupBy(opportunities.baseToken, opportunities.quoteToken, opportunities.dexIn)
-        .orderBy(desc(sql`COUNT(*)`))
-        .limit(20);
-
-      const liquidityPools = poolsData.map(pool => ({
-        poolAddress: `${pool.baseToken.slice(0, 6)}...${pool.quoteToken.slice(-4)}`,
-        dex: pool.dex,
-        tokenA: pool.baseToken.slice(0, 6),
-        tokenB: pool.quoteToken.slice(0, 6),
-        liquidity: Math.random() * 1000000,
-        volume24h: pool.count * 10000,
-        apr: 5 + Math.random() * 15,
-        impermanentLoss: Math.random() * 5
-      }));
-
-      // MEV Competition Analysis
-      const strategiesData = await db
-        .select({
-          count: sql<number>`COUNT(DISTINCT ${opportunities.id})`,
-        })
-        .from(opportunities)
-        .where(
-          and(
-            gte(opportunities.ts, startTimestamp),
-            lte(opportunities.ts, endTimestamp)
-          )
-        );
-
-      const mevCompetition = {
-        activeSearchers: Math.floor(10 + Math.random() * 50),
-        strategies: [
-          { strategy: "DEX Arbitrage", successRate: 75, totalProfit: 50000, avgProfit: 250, count: 200 },
-          { strategy: "Flash Loans", successRate: 65, totalProfit: 35000, avgProfit: 350, count: 100 },
-          { strategy: "Liquidations", successRate: 85, totalProfit: 80000, avgProfit: 800, count: 100 },
-          { strategy: "Sandwiching", successRate: 55, totalProfit: 25000, avgProfit: 125, count: 200 },
-        ],
-        heatmap: Array.from({ length: 168 }, (_, i) => ({
-          hour: i % 24,
-          day: Math.floor(i / 24),
-          competition: Math.random() * 100,
-          profit: Math.random() * 1000
-        })),
-        profitDistribution: Array.from({ length: 10 }, (_, i) => ({
-          searcher: `Searcher ${i + 1}`,
-          profit: (10 - i) * 10000 + Math.random() * 5000,
-          percentage: (10 - i) * 8
-        }))
-      };
-
-      // Performance KPIs
-      const totalVolume = chainMetrics.reduce((sum, c) => sum + c.volume24h, 0);
-      const totalProfit = chainMetrics.reduce((sum, c) => sum + c.totalProfit, 0);
-      const totalExecutions = chainMetrics.reduce((sum, c) => sum + c.transactions, 0);
-      const avgGas = chainMetrics.reduce((sum, c) => sum + c.avgGasPrice, 0) / (chainMetrics.length || 1);
-      const winRate = totalExecutions > 0 ? (chainMetrics.reduce((sum, c) => sum + (c.successRate * c.transactions), 0) / totalExecutions) : 0;
-
-      const performanceKPIs = {
-        totalVolume,
-        totalProfit,
-        winRate,
-        avgGas,
-        trend: totalProfit > 0 ? "up" : "down",
-        volumeTrend: Array.from({ length: 30 }, () => Math.random() * 100000),
-        profitTrend: Array.from({ length: 30 }, () => Math.random() * 10000 - 2000),
-        bestStrategies: [
-          { strategy: "Uniswap V3 Arbitrage", profit: 45000, roi: 12.5, executions: 150 },
-          { strategy: "Cross-DEX Arbitrage", profit: 38000, roi: 10.2, executions: 120 },
-          { strategy: "Flash Loan Arbitrage", profit: 32000, roi: 15.8, executions: 80 },
-        ],
-        worstPairs: [
-          { pair: "USDC/USDT", losses: 1500, failureRate: 35, avgLoss: 50 },
-          { pair: "WETH/WBTC", losses: 1200, failureRate: 28, avgLoss: 40 },
-          { pair: "DAI/USDC", losses: 800, failureRate: 22, avgLoss: 25 },
-        ]
-      };
-
-      // Cross-chain Analytics
-      const crossChainAnalytics = {
-        flows: [
-          { source: "Ethereum", target: "Arbitrum", value: 500000 },
-          { source: "Ethereum", target: "Optimism", value: 300000 },
-          { source: "Arbitrum", target: "Polygon", value: 200000 },
-          { source: "Polygon", target: "BSC", value: 150000 },
-        ],
-        bridgeOpportunities: [
-          { sourceChain: "Ethereum", targetChain: "Arbitrum", token: "USDC", profitEstimate: 150, gasTotal: 30 },
-          { sourceChain: "Polygon", targetChain: "BSC", token: "USDT", profitEstimate: 120, gasTotal: 15 },
-          { sourceChain: "Optimism", targetChain: "Base", token: "WETH", profitEstimate: 200, gasTotal: 25 },
-        ],
-        arbitrageProfitability: [
-          { chainPair: "ETH-ARB", avgProfit: 250, opportunities: 150, successRate: 75 },
-          { chainPair: "POLY-BSC", avgProfit: 180, opportunities: 100, successRate: 70 },
-          { chainPair: "OPT-BASE", avgProfit: 220, opportunities: 80, successRate: 80 },
-        ],
-        gasComparison: chainMetrics.map(chain => ({
-          chain: chain.chainName,
-          avgGas: chain.avgGasPrice,
-          minGas: chain.avgGasPrice * 0.7,
-          maxGas: chain.avgGasPrice * 1.5,
-          trend: Math.random() * 10 - 5
-        }))
-      };
-
-      // Historical Analysis
-      const historicalAnalysis = {
-        backtesting: [
-          { strategy: "DEX Arbitrage", period: "30d", totalReturn: 15.5, sharpeRatio: 1.8, maxDrawdown: -8.2, winRate: 72 },
-          { strategy: "Flash Loans", period: "30d", totalReturn: 12.3, sharpeRatio: 1.5, maxDrawdown: -10.5, winRate: 68 },
-          { strategy: "Liquidations", period: "30d", totalReturn: 22.8, sharpeRatio: 2.1, maxDrawdown: -6.3, winRate: 82 },
-        ],
-        seasonalPatterns: [
-          { period: "Monday", avgVolume: 850000, avgProfit: 12000, pattern: "High activity" },
-          { period: "Weekend", avgVolume: 450000, avgProfit: 6000, pattern: "Low activity" },
-          { period: "Month End", avgVolume: 1200000, avgProfit: 18000, pattern: "Peak activity" },
-        ],
-        eventImpact: [
-          { event: "Fed Rate Decision", date: "2024-03-20", impactOnVolume: 45, impactOnProfit: 32, duration: "3 days" },
-          { event: "ETH Shanghai Upgrade", date: "2024-04-12", impactOnVolume: 78, impactOnProfit: 56, duration: "1 week" },
-          { event: "Market Crash", date: "2024-05-01", impactOnVolume: -35, impactOnProfit: -42, duration: "2 days" },
-        ],
-        correlationMatrix: [
-          { tokenA: "WETH", tokenB: "WBTC", correlation: 0.85 },
-          { tokenA: "USDC", tokenB: "USDT", correlation: 0.98 },
-          { tokenA: "WETH", tokenB: "USDC", correlation: -0.15 },
-        ]
-      };
-
-      res.json({
-        chainMetrics,
-        dexComparison,
-        liquidityPools,
-        mevCompetition,
-        performanceKPIs,
-        crossChainAnalytics,
-        historicalAnalysis
-      });
-    } catch (error) {
-      console.error("Error fetching analytics:", error);
-      res.status(500).json({ error: "Failed to fetch analytics data" });
-    }
-  });
-
-  // Alert API endpoints
   server.get("/api/alerts", async (req, res) => {
     try {
-      const allAlerts = await db
-        .select()
-        .from(alerts)
-        .orderBy(desc(alerts.createdAt));
-      
-      res.json(allAlerts);
+      const data = await db.select().from(alerts).orderBy(alerts.createdAt);
+      res.json(data);
     } catch (error) {
       console.error("Error fetching alerts:", error);
       res.status(500).json({ error: "Failed to fetch alerts" });
     }
   });
 
-  server.get("/api/alerts/:id", async (req, res) => {
+  server.get("/api/alert-history", async (req, res) => {
     try {
-      const alertId = parseInt(req.params.id);
-      
-      // Validate that the ID is a valid number
-      if (isNaN(alertId)) {
-        return res.status(400).json({ error: "Invalid alert ID" });
-      }
-      
-      const [alert] = await db
-        .select()
-        .from(alerts)
-        .where(eq(alerts.id, alertId))
-        .limit(1);
-      
-      if (!alert) {
-        return res.status(404).json({ error: "Alert not found" });
-      }
-      
-      res.json(alert);
-    } catch (error) {
-      console.error("Error fetching alert:", error);
-      res.status(500).json({ error: "Failed to fetch alert" });
-    }
-  });
-
-  server.post("/api/alerts", async (req, res) => {
-    try {
-      const [newAlert] = await db
-        .insert(alerts)
-        .values({
-          name: req.body.name,
-          type: req.body.type,
-          category: req.body.category,
-          condition: req.body.condition,
-          threshold: req.body.threshold,
-          priority: req.body.priority || "medium",
-          isActive: req.body.isActive ?? true,
-          schedule: req.body.schedule || "instant",
-          soundEnabled: req.body.soundEnabled ?? false,
-          chainId: req.body.chainId,
-          dex: req.body.dex,
-          tokenAddress: req.body.tokenAddress,
-          strategy: req.body.strategy,
-        })
-        .returning();
-      
-      res.json(newAlert);
-    } catch (error) {
-      console.error("Error creating alert:", error);
-      res.status(500).json({ error: "Failed to create alert" });
-    }
-  });
-
-  server.put("/api/alerts/:id", async (req, res) => {
-    try {
-      const alertId = parseInt(req.params.id);
-      
-      // Validate that the ID is a valid number
-      if (isNaN(alertId)) {
-        return res.status(400).json({ error: "Invalid alert ID" });
-      }
-      
-      const [updatedAlert] = await db
-        .update(alerts)
-        .set({
-          ...req.body,
-          updatedAt: new Date(),
-        })
-        .where(eq(alerts.id, alertId))
-        .returning();
-      
-      if (!updatedAlert) {
-        return res.status(404).json({ error: "Alert not found" });
-      }
-      
-      res.json(updatedAlert);
-    } catch (error) {
-      console.error("Error updating alert:", error);
-      res.status(500).json({ error: "Failed to update alert" });
-    }
-  });
-
-  server.delete("/api/alerts/:id", async (req, res) => {
-    try {
-      const alertId = parseInt(req.params.id);
-      
-      // Validate that the ID is a valid number
-      if (isNaN(alertId)) {
-        return res.status(400).json({ error: "Invalid alert ID" });
-      }
-      
-      await db
-        .delete(alerts)
-        .where(eq(alerts.id, alertId));
-      
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting alert:", error);
-      res.status(500).json({ error: "Failed to delete alert" });
-    }
-  });
-
-  server.post("/api/alerts/:id/toggle", async (req, res) => {
-    try {
-      const alertId = parseInt(req.params.id);
-      
-      // Validate that the ID is a valid number
-      if (isNaN(alertId)) {
-        return res.status(400).json({ error: "Invalid alert ID" });
-      }
-      
-      // Get current state
-      const [currentAlert] = await db
-        .select()
-        .from(alerts)
-        .where(eq(alerts.id, alertId))
-        .limit(1);
-      
-      if (!currentAlert) {
-        return res.status(404).json({ error: "Alert not found" });
-      }
-      
-      // Toggle active state
-      const [updatedAlert] = await db
-        .update(alerts)
-        .set({
-          isActive: !currentAlert.isActive,
-          updatedAt: new Date(),
-        })
-        .where(eq(alerts.id, alertId))
-        .returning();
-      
-      res.json(updatedAlert);
-    } catch (error) {
-      console.error("Error toggling alert:", error);
-      res.status(500).json({ error: "Failed to toggle alert" });
-    }
-  });
-
-  server.post("/api/alerts/:id/test", async (req, res) => {
-    try {
-      const alertId = parseInt(req.params.id);
-      
-      // Validate that the ID is a valid number
-      if (isNaN(alertId)) {
-        return res.status(400).json({ error: "Invalid alert ID" });
-      }
-      
-      // Get the alert
-      const [alert] = await db
-        .select()
-        .from(alerts)
-        .where(eq(alerts.id, alertId))
-        .limit(1);
-      
-      if (!alert) {
-        return res.status(404).json({ error: "Alert not found" });
-      }
-      
-      // Trigger a test notification via WebSocket
-      wsServer.broadcast({
-        type: 'alert',
-        id: alert.id,
-        name: alert.name,
-        priority: alert.priority,
-        category: alert.category,
-        message: `Test alert: ${alert.name}`,
-        value: parseFloat(alert.threshold || '0'),
-        soundEnabled: alert.soundEnabled,
-        timestamp: Date.now(),
-        data: {
-          test: true,
-          type: alert.type,
-          threshold: alert.threshold,
-          condition: alert.condition
-        }
-      });
-      
-      res.json({ success: true, message: "Test alert sent" });
-    } catch (error) {
-      console.error("Error testing alert:", error);
-      res.status(500).json({ error: "Failed to test alert" });
-    }
-  });
-
-  server.get("/api/alerts/history", async (req, res) => {
-    try {
-      const { alertId, limit = 100 } = req.query;
-      
-      let query = db.select().from(alertHistory);
-      
-      if (alertId) {
-        const parsedAlertId = parseInt(alertId as string);
-        if (!isNaN(parsedAlertId)) {
-          query = query.where(eq(alertHistory.alertId, parsedAlertId));
-        }
-      }
-      
-      const parsedLimit = parseInt(limit as string);
-      const finalLimit = isNaN(parsedLimit) ? 100 : parsedLimit;
-      
-      const history = await query
-        .orderBy(desc(alertHistory.triggeredAt))
-        .limit(finalLimit);
-      
-      // Always return an array, even if empty
-      res.json(history || []);
+      const data = await db.select().from(alertHistory).orderBy(alertHistory.timestamp);
+      res.json(data);
     } catch (error) {
       console.error("Error fetching alert history:", error);
-      // Return empty array on error instead of error response
-      res.json([]);
+      res.status(500).json({ error: "Failed to fetch alert history" });
     }
   });
 
-  server.post("/api/alerts/history/:id/acknowledge", async (req, res) => {
+  server.get("/api/testnet/config", async (req, res) => {
     try {
-      const historyId = parseInt(req.params.id);
-      
-      // Validate that the ID is a valid number
-      if (isNaN(historyId)) {
-        return res.status(400).json({ error: "Invalid history ID" });
-      }
-      
-      const [updated] = await db
-        .update(alertHistory)
-        .set({
-          acknowledged: true,
-          acknowledgedAt: new Date(),
-        })
-        .where(eq(alertHistory.id, historyId))
-        .returning();
-      
-      if (!updated) {
-        return res.status(404).json({ error: "Alert history not found" });
-      }
-      
-      res.json(updated);
-    } catch (error) {
-      console.error("Error acknowledging alert:", error);
-      res.status(500).json({ error: "Failed to acknowledge alert" });
-    }
-  });
-
-  server.get("/api/alerts/stats", async (req, res) => {
-    try {
-      // Get alert statistics
-      const totalAlerts = await db.select({ count: sql`COUNT(*)` }).from(alerts);
-      const activeAlerts = await db.select({ count: sql`COUNT(*)` }).from(alerts).where(eq(alerts.isActive, true));
-      const triggeredToday = await db.select({ count: sql`COUNT(*)` }).from(alertHistory)
-        .where(gte(alertHistory.triggeredAt, new Date(new Date().setHours(0, 0, 0, 0))));
-      
-      // Get top triggered alerts
-      const topAlerts = await db.select({
-        alertId: alertHistory.alertId,
-        name: alerts.name,
-        type: alerts.type,
-        count: sql<number>`COUNT(${alertHistory.id})::int`,
-      })
-      .from(alertHistory)
-      .leftJoin(alerts, eq(alertHistory.alertId, alerts.id))
-      .groupBy(alertHistory.alertId, alerts.name, alerts.type)
-      .orderBy(desc(sql`COUNT(${alertHistory.id})`))
-      .limit(5);
-      
-      res.json({
-        total: totalAlerts[0]?.count || 0,
-        active: activeAlerts[0]?.count || 0,
-        triggeredToday: triggeredToday[0]?.count || 0,
-        topAlerts,
-      });
-    } catch (error) {
-      console.error("Error fetching alert stats:", error);
-      res.status(500).json({ error: "Failed to fetch alert statistics" });
-    }
-  });
-
-  server.get("/api/version", (req, res) => {
-    res.json({ version: "3.6.0" });
-  });
-
-  server.get("/health", (req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
-  });
-
-  server.get("/api/health", (req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
-  });
-
-  server.get("/api/mev-scanner/status", (req, res) => {
-    const status = mevScanner.getStatus();
-    res.json(status);
-  });
-
-  server.get("/api/mev-scanner/details", async (req, res) => {
-    try {
-      const fetcher = new ChainDexFetcher();
-      const config = await fetcher.loadConfig();
-      
-      if (!config) {
-        return res.json({
-          pairs: [],
-          scanInterval: "10 segundos",
-          threshold: "0.5% diferencia de precio",
-          totalChains: 0,
-          totalPairs: 0,
-          status: mevScanner.getStatus(),
-          message: "Config not generated yet. Call /api/mev-scanner/generate-config"
-        });
-      }
-
-      const pairs = config.chains.flatMap(chain => 
-        chain.topPairs.map(pair => ({
-          name: pair.name,
-          chain: chain.name,
-          chainId: chain.chainId,
-          dexs: chain.dexs
-        }))
-      );
-
-      res.json({
-        pairs: pairs.slice(0, 20),
-        scanInterval: "10 segundos",
-        threshold: "0.5% diferencia de precio",
-        totalChains: config.totalChains,
-        totalPairs: pairs.length,
-        totalDexs: config.totalDexs,
-        status: mevScanner.getStatus(),
-        lastUpdated: new Date(config.lastUpdated).toISOString()
-      });
-    } catch (error) {
-      console.error("Error getting MEV scanner details:", error);
-      res.status(500).json({ error: "Failed to get scanner details" });
-    }
-  });
-
-  server.post("/api/mev-scanner/generate-config", async (req, res) => {
-    try {
-      const minChains = parseInt(req.body?.minChains || "100");
-      const fetcher = new ChainDexFetcher();
-      
-      console.log(`🔄 Generating MEV scan config for ${minChains}+ chains...`);
-      const config = await fetcher.generateScanConfig(minChains);
-      
-      res.json({
-        success: true,
-        config: {
-          totalChains: config.totalChains,
-          totalDexs: config.totalDexs,
-          lastUpdated: new Date(config.lastUpdated).toISOString()
-        }
-      });
-    } catch (error) {
-      console.error("Error generating config:", error);
-      res.status(500).json({ error: "Failed to generate config" });
-    }
-  });
-
-  server.get("/api/mev-scanner/config", async (req, res) => {
-    try {
-      const fetcher = new ChainDexFetcher();
-      const config = await fetcher.getOrGenerateConfig(100);
+      const config = getTestnetConfig();
       res.json(config);
     } catch (error) {
-      console.error("Error getting config:", error);
-      res.status(500).json({ error: "Failed to get config" });
+      console.error("Error fetching testnet config:", error);
+      res.status(500).json({ error: "Failed to fetch testnet config" });
     }
   });
 
-  server.all("*", async (req, res) => {
+  server.post("/api/testnet/switch", async (req, res) => {
     try {
-      await handle(req, res);
-    } catch (err) {
-      console.error("Error occurred handling", req.url, err);
-      res.statusCode = 500;
-      res.end("internal server error");
+      const { chainId } = req.body;
+      switchTestnet(chainId);
+      res.json({ success: true, message: `Switched to testnet ${chainId}` });
+    } catch (error) {
+      console.error("Error switching testnet:", error);
+      res.status(500).json({ error: "Failed to switch testnet" });
     }
   });
 
-  const httpServer = createServer(server);
-  
-  // Initialize WebSocket server
-  const wsServer = new AlertWebSocketServer(httpServer);
-  setWebSocketServer(wsServer);
-  console.log('[WS] WebSocket server initialized');
-
-  httpServer.listen(port, () => {
-    console.log(`> Ready on http://${hostname}:${port}`);
-    
-    console.log('🔍 Starting MEV Scanner for real-time opportunities...');
-    mevScanner.start().catch(console.error);
-    
-    console.log('💰 Starting Arbitrage Scanner (auto-scan every 5 seconds)...');
-    arbitrageScanner.start();
-    
-    console.log('🏥 Starting RPC Health Monitor (auto-check every 3 minutes)...');
-    rpcHealthMonitor.start();
-  });
-});
-
-
-  server.get('/pro', (req, res) => {
-    res.sendFile(path.join(__dirname, 'super-frontend', 'index.html'));
+  server.get("/api/testnet/faucet", async (req, res) => {
+    try {
+      const faucetInfo = getFaucetInfo();
+      res.json(faucetInfo);
+    } catch (error) {
+      console.error("Error fetching faucet info:", error);
+      res.status(500).json({ error: "Failed to fetch faucet info" });
+    }
   });
 
+  server.get("/api/testnet/balance", async (req, res) => {
+    try {
+      const { address, chainId } = req.query;
+      if (!address || !chainId) {
+        return res.status(400).json({ error: "Address and chainId are required" });
+      }
+      const balance = await checkTestnetBalance(address as string, parseInt(chainId as string));
+      res.json({ balance });
+    } catch (error) {
+      console.error("Error checking testnet balance:", error);
+      res.status(500).json({ error: "Failed to check testnet balance" });
+    }
+  });
+
+  server.post("/api/testnet/generate-opportunities", async (req, res) => {
+    try {
+      const opportunities = generateTestOpportunities();
+      res.json({ success: true, opportunities });
+    } catch (error) {
+      console.error("Error generating test opportunities:", error);
+      res.status(500).json({ error: "Failed to generate test opportunities" });
+    }
+  });
 
   server.get("/api/arbitrage/export", async (req, res) => {
     try {
-      const { minSpread, maxSpread, exchanges, status } = req.query;
-
-      const conditions = [];
-      if (minSpread) {
-        conditions.push(gte(opportunities.spread, parseFloat(minSpread as string)));
-      }
-      if (maxSpread) {
-        conditions.push(lte(opportunities.spread, parseFloat(maxSpread as string)));
-      }
-      if (exchanges) {
-        conditions.push(sql`${opportunities.exchange1} IN (${(exchanges as string).split(',')})`);
-      }
-      if (status) {
-        conditions.push(eq(opportunities.status, status as string));
-      }
-
-      const query = db.select().from(opportunities);
-      const data = conditions.length > 0
-        ? await query.where(and(...conditions)).orderBy(desc(opportunities.ts))
-        : await query.orderBy(desc(opportunities.ts));
-
-      const csvHeader = "exchange1,exchange2,pair,spread,volume,status,ts\n";
-      const csvBody = data.map(row => `${row.exchange1},${row.exchange2},${row.pair},${row.spread},${row.volume},${row.status},${row.ts}`).join("\n");
-      const csv = csvHeader + csvBody;
-
-      res.setHeader("Content-Type", "text/csv");
-      res.setHeader("Content-Disposition", "attachment; filename=arbitrage_opportunities.csv");
-      res.status(200).send(csv);
+      const opportunitiesData = await db.select().from(opportunities).orderBy(desc(opportunities.ts));
+      const csv = opportunitiesData.map(op => Object.values(op).join(",")).join("\n");
+      res.header("Content-Type", "text/csv");
+      res.attachment("arbitrage_opportunities.csv");
+      res.send(csv);
     } catch (error) {
-      console.error("Error exporting opportunities:", error);
-      res.status(500).json({ error: "Failed to export opportunities" });
+      console.error("Error exporting arbitrage opportunities:", error);
+      res.status(500).json({ error: "Failed to export arbitrage opportunities" });
     }
   });
-
-
 
   server.get("/api/user/rebalance", async (req, res) => {
     try {
@@ -2017,8 +666,6 @@ app.prepare().then(() => {
     }
   });
 
-
-
   server.get("/api/exchanges/status", async (req, res) => {
     try {
       const data = await db.select().from(exchanges).orderBy(exchanges.name);
@@ -2029,3 +676,12 @@ app.prepare().then(() => {
     }
   });
 
+  // Serve Super Frontend
+  server.get("/pro", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "..", "super-frontend", "index.html"));
+  });
+
+  server.all("*", (req, res) => {
+    return handle(req, res);
+  });
+});
