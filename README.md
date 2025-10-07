@@ -36,15 +36,21 @@ Dashboard de monitoreo y configuración para el sistema de arbitraje automático
 
 ```bash
 # Clonar el repositorio
-git clone https://github.com/hefarica/show-my-github-gems.git
-cd show-my-github-gems
+git clone https://github.com/hefarica/ARBITRAGEXPLUS-II.git  
+cd ARBITRAGEXPLUS-II
+
+# Migrar configuraciones antiguas (legacy → canónico)
+npm run config:migrate
+
+# Variables de entorno
+cp .env.example .env.local
+# Edita .env.local con tus claves API/CF y credenciales del engine (RPC/DB/Flashbots/…)
 
 # Instalar dependencias
 npm install
 
-# Configurar variables de entorno
-cp .env.example .env.local
-# Editar .env.local con las URLs de la API y Cloudflare Workers
+# Arranque todo-en-uno (UI + server + motor MEV)
+npm run dev:all
 ```
 
 ## Variables de entorno
