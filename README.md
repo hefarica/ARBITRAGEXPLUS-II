@@ -12,6 +12,14 @@ Dashboard de monitoreo y configuración para el sistema de arbitraje automático
 
 ## Características
 
+- 🚀 **Super Frontend (Modo PRO)**: Una interfaz avanzada y unificada para monitorear y controlar el bot, accesible en `/pro`.
+  - **Filtros Dinámicos**: Personaliza la visualización de oportunidades por spread, exchanges y estado.
+  - **Exportación CSV**: Exporta datos de oportunidades filtradas a CSV para análisis externo.
+  - **Rebalanceo Automático**: Toggle para activar/desactivar el rebalanceo automático de activos.
+  - **Estado de Exchanges**: Monitoreo en tiempo real del estado y latencia de los exchanges configurados.
+
+
+
 - 📊 Dashboard en tiempo real para monitoreo de oportunidades de arbitraje
 - 🔒 Sistema Anti-Rugpull (Asset Safety) para evaluación de riesgo de tokens
 - 📈 Métricas detalladas de ejecuciones y rendimiento
@@ -51,6 +59,9 @@ npm install
 
 # Arranque todo-en-uno (UI + server + motor MEV)
 npm run dev:all
+
+# Acceder al Super Frontend (Modo PRO)
+El Super Frontend estará disponible en [http://localhost:5000/pro](http://localhost:5000/pro) una vez que el servidor esté corriendo.
 ```
 
 ## Variables de entorno

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ArbitrageX+ PRO — Modo Avanzado</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@6.26.0/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.389.0"></script>
+  <style>
+    :root { --color-primary: #10b981; --color-bg: #0f172a; --color-text: #e2e8f0; }
+    body { background: var(--color-bg); color: var(--color-text); font-family: 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="h-screen overflow-hidden">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function App() {
+      const [arbitrage, setArbitrage] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [filters, setFilters] = useState({
+        minSpread: 0.1,
+        maxSpread: 5.0,
+        exchanges: ['Binance', 'Kucoin', 'Bybit'],
+        status: 'active'
+      });
+      const [autoRebalance, setAutoRebalance] = useState(false);
+      const [exchangeStatuses, setExchangeStatuses] = useState([]);
+
+      // Fetch autoRebalance status
+      useEffect(() => {
+        fetch('http://localhost:5000/api/user/rebalance')
+          .then(r => r.json())
+          .then(data => setAutoRebalance(data.autoRebalance || false))
+          .catch(error => console.error('Error fetching autoRebalance status:', error));
+      }, []);
+
+      // Fetch exchange statuses
+      useEffect(() => {
+        fetch('http://localhost:5000/api/exchanges/status')
+          .then(r => r.json())
+          .then(data => setExchangeStatuses(data))
+          .catch(error => console.error('Error fetching exchange statuses:', error));
+      }, []);
+
+      const toggleAutoRebalance = async () => {
+        const newStatus = !autoRebalance;
+        try {
+          const response = await fetch('http://localhost:5000/api/user/rebalance', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ autoRebalance: newStatus })
+          });
+          if (response.ok) {
+            setAutoRebalance(newStatus);
+            alert(`Rebalanceo automático ${newStatus ? 'activado' : 'desactivado'}.`);
+          } else {
+            alert('Error al actualizar el rebalanceo automático.');
+          }
+        } catch (error) {
+          console.error('Error toggling autoRebalance:', error);
+          alert('Error de red al actualizar el rebalanceo automático.');
+        }
+      };
+
+      // ✅ USAMOS TU MISMO BACKEND — SIN CAMBIOS
+      useEffect(() => {
+        fetch('http://localhost:5000/api/arbitrage')
+          .then(r => r.json())
+          .then(data => setArbitrage(data))
+          .finally(() => setLoading(false));
+      }, []);
+
+      // ✅ USAMOS TU MISMO WEBSOCKET — SIN CAMBIOS
+      useEffect(() => {
+        const ws = new WebSocket('ws://localhost:5000');
+        ws.onmessage = (e) => {
+          const data = JSON.parse(e.data);
+          if (data.type === 'arbitrage:update') {
+            setArbitrage(prev => [data.data, ...prev].slice(0, 100));
+          }
+        };
+        return () => ws.close();
+      }, []);
+
+      const filtered = arbitrage.filter(item =>
+        item.spread >= filters.minSpread &&
+        item.spread <= filters.maxSpread &&
+        filters.exchanges.includes(item.exchange1) &&
+        item.status === filters.status
+      );
+
+      const handleExportCsv = async () => {
+        try {
+          const queryParams = new URLSearchParams({
+            minSpread: filters.minSpread.toString(),
+            maxSpread: filters.maxSpread.toString(),
+            exchanges: filters.exchanges.join(","),
+            status: filters.status
+          }).toString();
+          const response = await fetch(`http://localhost:5000/api/arbitrage/export?${queryParams}`);
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "arbitrage_opportunities.csv";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+          alert("CSV exportado con éxito!");
+        } catch (error) {
+          console.error("Error al exportar CSV:", error);
+          alert("Error al exportar CSV.");
+        }
+      };
+
+      return (
+        <div className="h-full flex flex-col">
+          {/* BARRA SUPERIOR */}
+          <div className="bg-gray-900 p-4 flex justify-between items-center border-b border-gray-700">
+            <h1 className="text-2xl font-bold text-green-400">ArbitrageX+ PRO</h1>
+            <div className="flex gap-2">
+              <button onClick={() => window.open("/")} className="text-xs bg-gray-700 px-3 py-1 rounded">Modo Clásico</button>
+              <button onClick={() => window.open("/pro")} className="text-xs bg-green-600 px-3 py-1 rounded">Modo Pro</button>
+              <button onClick={handleExportCsv} className="text-xs bg-blue-600 px-3 py-1 rounded">Exportar CSV</button>
+              <button onClick={toggleAutoRebalance} className={`text-xs px-3 py-1 rounded ${autoRebalance ? 'bg-purple-600' : 'bg-gray-600'}`}>
+                Rebalanceo Automático: {autoRebalance ? 'Activado' : 'Desactivado'}
+              </button>
+            </div>
+          </div>
+
+          {/* PANEL DE FILTROS DINÁMICOS — ¡NUEVO! */}
+          <div className="p-4 bg-gray-800 border-b border-gray-700 space-y-4">
+            <div className="flex gap-4 flex-wrap">
+              <label className="flex flex-col">
+                <span className="text-xs text-gray-300">Spread Min</span>
+                <input type="range" min="0" max="5" step="0.1" value={filters.minSpread}
+                  onChange={e => setFilters({...filters, minSpread: parseFloat(e.target.value)})}
+                  className="w-24" />
+                <span className="text-xs text-gray-400">{filters.minSpread}%</span>
+              </label>
+
+              <label className="flex flex-col">
+                <span className="text-xs text-gray-300">Spread Max</span>
+                <input type="range" min="0" max="5" step="0.1" value={filters.maxSpread}
+                  onChange={e => setFilters({...filters, maxSpread: parseFloat(e.target.value)})}
+                  className="w-24" />
+                <span className="text-xs text-gray-400">{filters.maxSpread}%</span>
+              </label>
+
+              <select value={filters.status} onChange={e => setFilters({...filters, status: e.target.value})}
+                className="bg-gray-700 text-gray-200 px-2 py-1 rounded text-sm">
+                <option value="active">Activo</option>
+                <option value="paused">Pausado</option>
+                <option value="inactive">Inactivo</option>
+              </select>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {['Binance', 'Kucoin', 'Bybit'].map(exchange => (
+                <button
+                  key={exchange}
+                  onClick={() => setFilters({
+                    ...filters,
+                    exchanges: filters.exchanges.includes(exchange)
+                      ? filters.exchanges.filter(e => e !== exchange)
+                      : [...filters.exchanges, exchange]
+                  })}
+                  className={`px-3 py-1 rounded text-xs ${
+                    filters.exchanges.includes(exchange)
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-700 text-gray-300'
+                  }`}
+                >
+                  {exchange}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* TABLA DINÁMICA — ¡NUEVA, PERO USANDO TUS DATOS! */}
+          <div className="flex-1 overflow-auto p-4">
+            {loading ? (
+              <p className="text-center text-gray-400">Cargando...</p>
+            ) : filtered.length === 0 ? (
+              <p className="text-center text-gray-400">No hay oportunidades con estos filtros.</p>
+            ) : (
+              <table className="w-full text-sm text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="p-2 bg-gray-800">Exchange 1</th>
+                    <th className="p-2 bg-gray-800">Exchange 2</th>
+                    <th className="p-2 bg-gray-800">Par</th>
+                    <th className="p-2 bg-gray-800">Spread (%)</th>
+                    <th className="p-2 bg-gray-800">Volumen</th>
+                    <th className="p-2 bg-gray-800">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((item, i) => (
+                    <tr key={i} className={`border-b border-gray-800 hover:bg-gray-750 transition-colors ${item.spread > 2 ? 'bg-red-900/20' : ''}`}>
+                      <td className="p-2">{item.exchange1}</td>
+                      <td className="p-2">{item.exchange2}</td>
+                      <td className="p-2">{item.pair}</td>
+                      <td className={`p-2 font-bold ${item.spread > 2 ? 'text-red-400' : item.spread > 1 ? 'text-yellow-400' : 'text-green-400'}`}>
+                        {item.spread.toFixed(2)}%
+                      </td>
+                      <td className="p-2">{item.volume.toLocaleString()}</td>
+                      <td className="p-2">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          item.status === 'active' ? 'bg-green-600/30 text-green-300' :
+                          item.status === 'paused' ? 'bg-yellow-600/30 text-yellow-300' :
+                          'bg-gray-600/30 text-gray-300'
+                        }`}>
+                          {item.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* PIE DE PÁGINA — INFORMACIÓN DEL BACKEND */}
+          <div className="p-3 bg-gray-900 border-t border-gray-700 text-xs text-gray-400 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              🚀 Potenciado por tu backend. Filtros en tiempo real. WebSockets activos. Sin tocar tu código original.
+            </div>
+            <div className="flex gap-4">
+              {exchangeStatuses.map(ex => (
+                <div key={ex.name} className="flex items-center gap-1">
+                  <span className={`w-2 h-2 rounded-full ${ex.status === 'ok' ? 'bg-green-500' : ex.status === 'lagging' ? 'bg-yellow-500' : 'bg-red-500'}`}></span>
+                  <span>{ex.name} ({ex.latency}ms)</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

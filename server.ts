@@ -1,9 +1,10 @@
 import express from "express";
+import path from "path";
 import next from "next";
 import cors from "cors";
 import { createServer } from "http";
 import { db } from "./server/db";
-import { opportunities, assetSafety, executions, engineConfig, wallets, walletBalances, walletTransactions, simulations, paperTradingAccounts, alerts, alertHistory } from "@shared/schema";
+import { opportunities, assetSafety, executions, engineConfig, wallets, walletBalances, walletTransactions, simulations, paperTradingAccounts, alerts, alertHistory, users, exchanges } from "@shared/schema";
 import { desc, eq, and, sql, gte, lte } from "drizzle-orm";
 import { subDays } from "date-fns";
 import { AlertWebSocketServer } from "./server/websocket";
@@ -1950,3 +1951,81 @@ app.prepare().then(() => {
     rpcHealthMonitor.start();
   });
 });
+
+
+  server.get('/pro', (req, res) => {
+    res.sendFile(path.join(__dirname, 'super-frontend', 'index.html'));
+  });
+
+
+  server.get("/api/arbitrage/export", async (req, res) => {
+    try {
+      const { minSpread, maxSpread, exchanges, status } = req.query;
+
+      const conditions = [];
+      if (minSpread) {
+        conditions.push(gte(opportunities.spread, parseFloat(minSpread as string)));
+      }
+      if (maxSpread) {
+        conditions.push(lte(opportunities.spread, parseFloat(maxSpread as string)));
+      }
+      if (exchanges) {
+        conditions.push(sql`${opportunities.exchange1} IN (${(exchanges as string).split(',')})`);
+      }
+      if (status) {
+        conditions.push(eq(opportunities.status, status as string));
+      }
+
+      const query = db.select().from(opportunities);
+      const data = conditions.length > 0
+        ? await query.where(and(...conditions)).orderBy(desc(opportunities.ts))
+        : await query.orderBy(desc(opportunities.ts));
+
+      const csvHeader = "exchange1,exchange2,pair,spread,volume,status,ts\n";
+      const csvBody = data.map(row => `${row.exchange1},${row.exchange2},${row.pair},${row.spread},${row.volume},${row.status},${row.ts}`).join("\n");
+      const csv = csvHeader + csvBody;
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=arbitrage_opportunities.csv");
+      res.status(200).send(csv);
+    } catch (error) {
+      console.error("Error exporting opportunities:", error);
+      res.status(500).json({ error: "Failed to export opportunities" });
+    }
+  });
+
+
+
+  server.get("/api/user/rebalance", async (req, res) => {
+    try {
+      const [userConfig] = await db.select().from(users).limit(1);
+      res.json({ autoRebalance: userConfig?.autoRebalance || false });
+    } catch (error) {
+      console.error("Error fetching user rebalance config:", error);
+      res.status(500).json({ error: "Failed to fetch user rebalance config" });
+    }
+  });
+
+  server.patch("/api/user/rebalance", async (req, res) => {
+    try {
+      const { autoRebalance } = req.body;
+      await db.update(users).set({ autoRebalance }).where(eq(users.id, 1)); // Assuming a single user for simplicity
+      res.json({ success: true, autoRebalance });
+    } catch (error) {
+      console.error("Error updating user rebalance config:", error);
+      res.status(500).json({ error: "Failed to update user rebalance config" });
+    }
+  });
+
+
+
+  server.get("/api/exchanges/status", async (req, res) => {
+    try {
+      const data = await db.select().from(exchanges).orderBy(exchanges.name);
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching exchange statuses:", error);
+      res.status(500).json({ error: "Failed to fetch exchange statuses" });
+    }
+  });
+
