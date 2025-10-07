@@ -41,9 +41,6 @@ pub struct ScanConfig {
     pub postApiKey: Option<String>,
 }
 
-
-use ethers::types::Address;
-
 // Representación de una Blockchain
 #[derive(Debug, Clone)]
 pub struct Blockchain {

@@ -182,21 +182,21 @@ impl MevScanner {
         let mut opportunities = Vec::new();
 
         // Sandwich attack detection
-        if strategies.sandwich.enabled && strategies.is_strategy_enabled("sandwich") {
+        if strategies.sandwich.enabled && config.is_strategy_enabled("sandwich") {
             if let Some(opp) = self.detect_sandwich_opportunity(chain, chain_id, tx).await {
                 opportunities.push(opp);
             }
         }
 
         // Backrun opportunity detection
-        if strategies.backrun.enabled && strategies.is_strategy_enabled("backrun") {
+        if strategies.backrun.enabled && config.is_strategy_enabled("backrun") {
             if let Some(opp) = self.detect_backrun_opportunity(chain, chain_id, tx).await {
                 opportunities.push(opp);
             }
         }
 
         // JIT liquidity opportunity
-        if strategies.jit_liquidity.enabled && strategies.is_strategy_enabled("jit-liquidity") {
+        if strategies.jit_liquidity.enabled && config.is_strategy_enabled("jit-liquidity") {
             if let Some(opp) = self.detect_jit_opportunity(chain, chain_id, tx).await {
                 opportunities.push(opp);
             }
