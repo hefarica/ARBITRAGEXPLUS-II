@@ -112,7 +112,8 @@ impl RpcManager {
             .await
             .context(format!("Failed to connect to {}", endpoint.url))?;
 
-        let quota = Quota::per_second(nonzero!(endpoint.max_requests_per_second));
+        let rate = std::num::NonZeroU32::new(endpoint.max_requests_per_second).unwrap_or(nonzero!(10u32));
+        let quota = Quota::per_second(rate);
         let rate_limiter = Arc::new(RateLimiter::direct(quota));
 
         let health = Arc::new(RwLock::new(RpcHealth {

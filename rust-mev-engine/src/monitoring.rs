@@ -37,7 +37,7 @@ pub struct Monitoring {
     chain_metrics: Arc<RwLock<HashMap<String, ChainMetrics>>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct StrategyMetrics {
     pub opportunities_found: u64,
     pub opportunities_executed: u64,
@@ -46,7 +46,7 @@ pub struct StrategyMetrics {
     pub average_profit_usd: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ChainMetrics {
     pub last_scanned_block: u64,
     pub transactions_processed: u64,

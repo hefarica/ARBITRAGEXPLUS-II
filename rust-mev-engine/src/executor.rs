@@ -558,30 +558,6 @@ impl Executor {
             Err(anyhow::anyhow!("No private relays enabled or configured"))
         }
     }
-                        Ok(hash) => {
-                            self.monitoring.increment_transactions_sent();
-                            info!("Sent private transaction via Flashbots: {:?}", hash);
-                            return Ok(hash);
-                        },
-                        Err(e) => {
-                            self.monitoring.increment_transactions_failed();
-                            error!("Failed to send private transaction via Flashbots: {}", e);
-                        }
-                    }
-                }
-                "bloxroute" => {
-                    // Similar logic for bloxroute
-                    self.monitoring.increment_transactions_failed(); // Placeholder for now
-                }
-                _ => {
-                    warn!("Unknown private relay configured: {}");
-                }
-            }
-        }
-        Err(anyhow::anyhow!("All private relays failed or no valid relay configured"))   }
-        
-        anyhow::bail!("Failed to send private transaction to any relay")
-    }
 
     async fn send_to_flashbots(&self, tx: TypedTransaction, chain: &str) -> Result<H256> {
         // Simplified - would use actual Flashbots API
@@ -667,15 +643,6 @@ impl GasOracle {
         // Higher gas for urgent transactions
         Ok(U256::from(50) * U256::exp10(9)) // 50 Gwei
     }
-}
-
-struct Bundle {
-    transactions: Vec<TypedTransaction>,
-    block_number: u64,
-    min_timestamp: Option<u64>,
-    max_timestamp: Option<u64>,
-}
-
 
     async fn build_kit_de_armado_bundle(
         &self,
@@ -722,3 +689,12 @@ struct Bundle {
         Ok((gas_used, U256::zero())) // Placeholder for profit
     }
 
+
+} // Cierre de impl Executor
+
+struct Bundle {
+    transactions: Vec<TypedTransaction>,
+    block_number: u64,
+    min_timestamp: Option<u64>,
+    max_timestamp: Option<u64>,
+}

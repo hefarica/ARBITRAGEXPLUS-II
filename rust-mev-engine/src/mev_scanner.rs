@@ -15,7 +15,6 @@ use crate::multicall::{MulticallManager, PriceResult};
 use crate::data_fetcher::DataFetcher;
 use crate::rpc_manager::RpcManager;
 use crate::math_engine;
-use crate::math_engine;
 use crate::types::{PoolReserves, DexFees, GasCostEstimator};
 use crate::address_validator::AddressValidator;
 
@@ -44,7 +43,7 @@ impl MevScanner {
             config,
             multicall: Arc::new(MulticallManager::new()),
             dex_registry: DexRegistry::new(),
-            address_validator: AddressValidator::new(),
+            address_validator: AddressValidator::new(db.clone()),
             data_fetcher: DataFetcher::new(rpc_manager.clone()),
         }
     }
@@ -413,23 +412,17 @@ impl MevScanner {
                             if let Err(e) = self.db.insert_opportunity(opp).await {
                                 error!("Failed to save arbitrage opportunity: {}", e);
                             }
-                        }
-                    } else { 
-                            debug!("No profitable opportunity after optimization for {} -> {}", prices[i].0, prices[j].0);
-                        }
-                    } else {
-                        debug!("Could not find optimal amount for arbitrage opportunity: {} -> {}", prices[i].0, prices[j].0);
-                    }                   } else { 
+                        } else {
                             debug!("No profitable opportunity after optimization for {} -> {}", prices[i].0, prices[j].0);
                         }
                     } else {
                         debug!("Could not find optimal amount for arbitrage opportunity: {} -> {}", prices[i].0, prices[j].0);
                     }
-                    }
+                    } // Cierre del bucle for j
                 }
             }
         }
-    }
+    } // Cierre de scan_dex_arbitrage
 
     async fn scan_liquidations(
         &self,

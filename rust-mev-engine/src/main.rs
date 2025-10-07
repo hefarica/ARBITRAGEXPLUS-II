@@ -6,20 +6,13 @@ use tokio::sync::RwLock;
 use tracing::{info, error};
 use warp::Filter;
 
-mod config;
-mod database;
-mod executor;
-mod mev_scanner;
-mod monitoring;
-mod multicall;
-mod opportunity_detector;
-mod rpc_health;
-mod rpc_manager;
-
-use config::Config;
-use database::Database;
-use monitoring::Monitoring;
-use rpc_manager::RpcManager;
+use crate::config::Config;
+use crate::database::Database;
+use crate::monitoring::Monitoring;
+use crate::rpc_manager::RpcManager;
+use crate::mev_scanner::MevScanner;
+use crate::opportunity_detector::OpportunityDetector;
+use crate::executor::Executor;
 
 #[derive(Clone)]
 struct AppState {
@@ -33,10 +26,7 @@ struct AppState {
 async fn main() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("rust_mev_engine=info".parse()?)
-        )
+        .with_max_level(tracing::Level::INFO)
         .with_target(false)
         .json()
         .init();

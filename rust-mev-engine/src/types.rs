@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct AssetCfg {
@@ -66,7 +66,7 @@ pub struct DexProtocol {
 }
 
 // Representación de un Activo (Token)
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Asset {
     pub symbol: String,
     pub address: Address,
@@ -159,3 +159,6 @@ impl GasCostEstimator {
     }
 }
 
+
+// Type alias para compatibilidad con código existente
+pub type KitDeArmado = ArbitrageKit;
