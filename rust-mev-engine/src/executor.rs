@@ -591,6 +591,49 @@ impl Executor {
         self.monitoring.increment_bundles_sent();
         Ok(())
     }
+
+    pub async fn build_kit_de_armado_bundle(
+        &self,
+        kit: &KitDeArmado,
+        config: &Config,
+    ) -> Result<Vec<TypedTransaction>> {
+        let mut bundle = Vec::new();
+
+        for step in &kit.pasos {
+            let mut tx = TransactionRequest::new();
+            tx = tx.to(step.contrato.parse::<Address>()?);
+            tx = tx.value(step.valor.parse::<U256>()?);
+            tx = tx.data(step.calldata.parse::<Bytes>()?);
+
+            // Configurar gas y nonce (esto es una simplificación)
+            let gas_oracle = GasOracle::new(self.rpc_manager.clone());
+            let gas_price = gas_oracle.get_gas_price(&kit.chain).await?;
+            tx = tx.gas_price(gas_price);
+            tx = tx.gas(U256::from(500000)); // Gas estimado por paso
+
+            bundle.push(tx.into());
+        }
+
+        Ok(bundle)
+    }
+
+    pub async fn simulate_transaction(
+        &self,
+        tx: &TypedTransaction,
+        chain: &str,
+    ) -> Result<(U256, U256)> { // Returns (estimated_gas_used, estimated_profit)
+        let provider = self.rpc_manager.get_provider(chain).await?;
+
+        // Estimate gas usage
+        let gas_used = provider.estimate_gas(tx, None).await
+            .context("Failed to estimate gas for transaction")?;
+
+        // For profit estimation, we would need to run a local EVM fork or a more sophisticated simulation
+        // For now, we'll return a placeholder profit based on the opportunity's estimated profit
+        // In a real scenario, this would involve replaying the transaction on a local fork
+        // and analyzing the state changes.
+        Ok((gas_used, U256::zero())) // Placeholder for profit
+    }
 }
 
 impl Clone for Executor {
@@ -622,49 +665,6 @@ impl NonceTracker {
         let current = *nonce;
         *nonce = current + 1;
         Ok(current)
-    }
-
-    async fn build_kit_de_armado_bundle(
-        &self,
-        kit: &KitDeArmado,
-        config: &Config,
-    ) -> Result<Vec<TypedTransaction>> {
-        let mut bundle = Vec::new();
-
-        for step in &kit.pasos {
-            let mut tx = TransactionRequest::new();
-            tx = tx.to(step.contrato.parse::<Address>()?);
-            tx = tx.value(step.valor.parse::<U256>()?);
-            tx = tx.data(step.calldata.parse::<Bytes>()?);
-
-            // Configurar gas y nonce (esto es una simplificación)
-            let gas_oracle = GasOracle::new(self.rpc_manager.clone());
-            let gas_price = gas_oracle.get_gas_price(&kit.chain).await?;
-            tx = tx.gas_price(gas_price);
-            tx = tx.gas(U256::from(500000)); // Gas estimado por paso
-
-            bundle.push(tx.into());
-        }
-
-        Ok(bundle)
-    }
-
-    async fn simulate_transaction(
-        &self,
-        tx: &TypedTransaction,
-        chain: &str,
-    ) -> Result<(U256, U256)> { // Returns (estimated_gas_used, estimated_profit)
-        let provider = self.rpc_manager.get_provider(chain).await?;
-
-        // Estimate gas usage
-        let gas_used = provider.estimate_gas(tx, None).await
-            .context("Failed to estimate gas for transaction")?;
-
-        // For profit estimation, we would need to run a local EVM fork or a more sophisticated simulation
-        // For now, we'll return a placeholder profit based on the opportunity's estimated profit
-        // In a real scenario, this would involve replaying the transaction on a local fork
-        // and analyzing the state changes.
-        Ok((gas_used, U256::zero())) // Placeholder for profit
     }
 }
 
