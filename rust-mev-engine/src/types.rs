@@ -1,5 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
+use ethers::types::Address;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct AssetCfg {
@@ -55,28 +56,48 @@ pub struct Blockchain {
 }
 
 // Representación de un Protocolo DEX
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DexProtocol {
     pub id: String,
     pub name: String,
+    #[serde(serialize_with = "serialize_address", deserialize_with = "deserialize_address")]
     pub router_address: Address, // Dirección del router del DEX
+    #[serde(serialize_with = "serialize_address", deserialize_with = "deserialize_address")]
     pub factory_address: Address, // Dirección de la fábrica de pools
     // Otros detalles específicos del DEX (ej. tipo de AMM, fees)
     pub fee_rate: f64, // Tasa de comisión por swap
 }
 
 // Representación de un Activo (Token)
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Asset {
     pub symbol: String,
+    #[serde(serialize_with = "serialize_address", deserialize_with = "deserialize_address")]
     pub address: Address,
     pub decimals: u8,
     pub price_usd: f64, // Precio en tiempo real
 }
 
+// Helper functions para serializar Address
+fn serialize_address<S>(address: &Address, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&format!("{:?}", address))
+}
+
+fn deserialize_address<'de, D>(deserializer: D) -> Result<Address, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    s.parse().map_err(serde::de::Error::custom)
+}
+
 // Representación de un Pool de Liquidez
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LiquidityPool {
+    #[serde(serialize_with = "serialize_address", deserialize_with = "deserialize_address")]
     pub address: Address,
     pub token0: Asset,
     pub token1: Asset,
@@ -87,12 +108,13 @@ pub struct LiquidityPool {
 }
 
 // Una operación atómica dentro de un kit de armado
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ArbitrageOperation {
     Flashloan {
         token: Asset,
         amount: f64,
         provider: String,
+        #[serde(serialize_with = "serialize_address", deserialize_with = "deserialize_address")]
         provider_address: Address,
     },
     Swap {
@@ -101,10 +123,12 @@ pub enum ArbitrageOperation {
         amount_in: f64,
         token_out: Asset,
         min_amount_out: f64,
+        #[serde(serialize_with = "serialize_address", deserialize_with = "deserialize_address")]
         pool_address: Address,
     },
     Liquidation {
         protocol: String,
+        #[serde(serialize_with = "serialize_address", deserialize_with = "deserialize_address")]
         protocol_address: Address,
         collateral: Asset,
         debt: Asset,
@@ -114,15 +138,26 @@ pub enum ArbitrageOperation {
 }
 
 // Un Kit de Armado de Arbitraje
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArbitrageKit {
     pub id: String,
+    pub chain: String,  // Chain donde se ejecutará
     pub operations: Vec<ArbitrageOperation>,
+    pub pasos: Vec<Paso>,  // Pasos de ejecución
     pub estimated_profit: f64,
     pub estimated_gas_cost: f64,
     pub blockchain_id: String,
     pub timestamp: u64,
+    #[serde(skip)]
     pub validated_addresses: HashMap<String, Address>, // Direcciones validadas para el kit
+}
+
+// Paso de ejecución para el kit de armado
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Paso {
+    pub contrato: String,
+    pub valor: String,
+    pub calldata: String,
 }
 
 // HashMap para almacenar y acceder rápidamente a los datos

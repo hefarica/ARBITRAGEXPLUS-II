@@ -36,6 +36,9 @@ impl MevScanner {
         monitoring: Arc<Monitoring>,
         config: Arc<RwLock<Config>>,
     ) -> Self {
+        let address_validator = AddressValidator::new(db.clone());
+        let data_fetcher = DataFetcher::new(rpc_manager.clone());
+        
         MevScanner {
             rpc_manager,
             db,
@@ -43,8 +46,8 @@ impl MevScanner {
             config,
             multicall: Arc::new(MulticallManager::new()),
             dex_registry: DexRegistry::new(),
-            address_validator: AddressValidator::new(db.clone()),
-            data_fetcher: DataFetcher::new(rpc_manager.clone()),
+            address_validator,
+            data_fetcher,
         }
     }
 

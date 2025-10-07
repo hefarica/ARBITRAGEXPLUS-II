@@ -1,0 +1,1 @@
+cargo:rustc-env=MIME_TYPES_GENERATED_PATH=/home/ubuntu/ARBITRAGEXPLUS-II/rust-mev-engine/target/debug/build/mime_guess-90bb0e204a074bd8/out/mime_types_generated.rs

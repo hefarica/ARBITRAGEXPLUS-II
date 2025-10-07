@@ -658,7 +658,7 @@ impl GasOracle {
             tx = tx.data(step.calldata.parse::<Bytes>()?);
 
             // Configurar gas y nonce (esto es una simplificación)
-            let gas_price = self.gas_oracle.get_gas_price(&kit.chain).await?;
+            let gas_price = GasOracle::get_gas_price(&kit.chain).await?;
             tx = tx.gas_price(gas_price);
             tx = tx.gas(U256::from(500000)); // Gas estimado por paso
 

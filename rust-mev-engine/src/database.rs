@@ -55,6 +55,7 @@ pub struct Execution {
     pub created_at: i64,
     pub updated_at: i64,
     pub metadata: Option<serde_json::Value>,
+    pub kit_de_armado: Option<serde_json::Value>,
 }
 
 /// Configuración del motor MEV
@@ -379,5 +380,63 @@ impl Database {
                 Ok(false)
             }
         }
+    }
+
+    /// Obtener ejecuciones pendientes
+    pub async fn get_pending_executions(&self, limit: i64) -> Result<Vec<Execution>> {
+        let query = r#"
+            SELECT id, opportunity_id, status, strategy, chain, target_chain, 
+                   tx_hash, chain_id, amount_in, profit_usd, gas_usd, 
+                   created_at, updated_at, metadata
+            FROM executions 
+            WHERE status = 'pending' 
+            ORDER BY created_at ASC 
+            LIMIT $1
+        "#;
+        
+        let rows = self.client.query(query, &[&limit]).await?;
+        
+        let mut executions = Vec::new();
+        for row in rows {
+            executions.push(Execution {
+                id: row.get(0),
+                opportunity_id: row.get(1),
+                status: row.get(2),
+                strategy: row.get(3),
+                chain: row.get(4),
+                target_chain: row.get(5),
+                tx_hash: row.get(6),
+                chain_id: row.get(7),
+                amount_in: row.get(8),
+                profit_usd: row.get(9),
+                gas_usd: row.get(10),
+                created_at: row.get(11),
+                updated_at: row.get(12),
+                metadata: row.get(13),
+                kit_de_armado: None,
+            });
+        }
+        
+        Ok(executions)
+    }
+
+    /// Marcar oportunidad como pendiente
+    pub async fn mark_opportunity_pending(&self, opportunity_id: &str) -> Result<()> {
+        let query = r#"
+            UPDATE opportunities 
+            SET metadata = jsonb_set(
+                COALESCE(metadata, '{}'::jsonb), 
+                '{status}', 
+                '"pending"'
+            ),
+            ts = $2 
+            WHERE id = $1
+        "#;
+        
+        let now = chrono::Utc::now().timestamp_millis();
+        self.client.execute(query, &[&opportunity_id, &now]).await?;
+        
+        info!("Marked opportunity {} as pending", opportunity_id);
+        Ok(())
     }
 }

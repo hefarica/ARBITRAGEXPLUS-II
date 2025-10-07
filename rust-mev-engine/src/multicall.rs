@@ -102,8 +102,8 @@ impl MulticallManager {
         for (i, result) in results.iter().enumerate() {
             responses.push(MulticallResponse {
                 target: calls[i].target,
-                success: result.success,
-                return_data: result.return_data.clone(),
+                success: result.0,
+                return_data: result.1.clone(),
             });
         }
 

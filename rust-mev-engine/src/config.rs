@@ -186,6 +186,9 @@ pub struct ExecutionConfig {
     pub gas_strategy: String,
     pub max_priority_fee_gwei: f64,
     pub target_block_delay: u32,
+    pub flashbots_enabled: bool,
+    pub bloxroute_enabled: bool,
+    pub mev_share_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
