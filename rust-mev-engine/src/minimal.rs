@@ -1,10 +1,11 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+#![allow(non_snake_case)]
+
 use anyhow::Result;
 use chrono::Utc;
-use postgres::{Client, NoTls};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::env;
-use std::thread;
 use std::time::Duration;
 use std::fs;
 use std::path::Path;

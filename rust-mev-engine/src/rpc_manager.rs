@@ -1,21 +1,18 @@
 use anyhow::{Result, Context};
 use dashmap::DashMap;
-use ethers::providers::{Provider, Ws, Http, Middleware};
+use ethers::providers::{Provider, Ws, Middleware};
 use governor::{Quota, RateLimiter};
 use parking_lot::RwLock;
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
-use std::fs;
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, AtomicU64, AtomicBool, Ordering};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicUsize, AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 use tokio::time;
 use tracing::{info, warn, error, debug};
 use futures::future::join_all;
 use nonzero_ext::nonzero;
 
 use crate::config::RpcEndpoint;
-use crate::rpc_health::{HealthChecker, HealthMetrics, HealthStatus};
 
 #[derive(Debug, Clone)]
 pub struct RpcHealth {
@@ -38,7 +35,7 @@ pub struct RpcConnection {
 
 pub struct RpcManager {
     connections: HashMap<String, Vec<Arc<RpcConnection>>>,
-    round_robin_indices: DashMap<String, AtomicUsize>,
+    round_robin_indices: Arc<DashMap<String, AtomicUsize>>,
     total_requests: Arc<AtomicU64>,
 }
 
@@ -52,7 +49,7 @@ impl RpcManager {
         for endpoint in endpoints {
             endpoints_by_chain
                 .entry(endpoint.chain.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(endpoint);
         }
 
@@ -94,7 +91,7 @@ impl RpcManager {
 
         let manager = RpcManager {
             connections,
-            round_robin_indices,
+            round_robin_indices: Arc::new(round_robin_indices),
             total_requests: Arc::new(AtomicU64::new(0)),
         };
 
@@ -313,7 +310,7 @@ impl Clone for RpcManager {
     fn clone(&self) -> Self {
         RpcManager {
             connections: self.connections.clone(),
-            round_robin_indices: self.round_robin_indices.clone(),
+            round_robin_indices: Arc::clone(&self.round_robin_indices),
             total_requests: self.total_requests.clone(),
         }
     }

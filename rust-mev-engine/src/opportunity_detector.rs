@@ -1,11 +1,11 @@
-use anyhow::{Result, Context};
+use anyhow::Result;
 use priority_queue::PriorityQueue;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{RwLock, Mutex};
 use tokio::time::{self, Duration};
-use tracing::{info, warn, error, debug};
+use tracing::{info, error, debug};
 
 use crate::config::Config;
 use crate::database::{Database, Opportunity};
@@ -172,7 +172,7 @@ impl OpportunityDetector {
     }
 
     fn calculate_risk_score(&self, opp: &Opportunity, config: &Config) -> f64 {
-        let mut risk_score = 100.0;
+        let mut risk_score: f64 = 100.0;
         
         // Deduct points for high gas costs
         if opp.gas_usd > 100.0 {
@@ -348,10 +348,11 @@ impl OpportunityDetector {
             risk_level = risk_level.max(RiskLevel::Medium);
         }
         
+        let risk_level_clone = risk_level.clone();
         ExecutionRisk {
             level: risk_level,
             factors: risk_factors,
-            recommended_action: match risk_level {
+            recommended_action: match risk_level_clone {
                 RiskLevel::Low => "Execute with standard parameters".to_string(),
                 RiskLevel::Medium => "Execute with increased slippage tolerance".to_string(),
                 RiskLevel::High => "Consider skipping or use minimal position size".to_string(),

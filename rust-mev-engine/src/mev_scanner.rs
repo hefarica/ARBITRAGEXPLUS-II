@@ -1,7 +1,7 @@
-use anyhow::{Result, Context};
+use anyhow::Result;
 use ethers::prelude::*;
 use ethers::types::{Transaction, H256, U256, Address};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::time::{self, Duration};
@@ -11,11 +11,11 @@ use futures::StreamExt;
 use crate::config::Config;
 use crate::database::{Database, Opportunity};
 use crate::monitoring::Monitoring;
-use crate::multicall::{MulticallManager, PriceResult};
+use crate::multicall::MulticallManager;
 use crate::data_fetcher::DataFetcher;
 use crate::rpc_manager::RpcManager;
 use crate::math_engine;
-use crate::types::{PoolReserves, DexFees, GasCostEstimator};
+use crate::types::{DexFees, GasCostEstimator};
 use crate::address_validator::AddressValidator;
 
 pub struct MevScanner {
@@ -217,7 +217,8 @@ impl MevScanner {
     ) -> Option<Opportunity> {
         // Check if transaction is a large swap on a known DEX
                 if let Some(to_addr) = tx.to {
-            if !self.address_validator.is_address_safe(&to_addr).await {
+            let to_addr_str = format!("{:?}", to_addr);
+            if !self.address_validator.is_address_safe(chain, &to_addr_str).await.unwrap_or(false) {
                 return None;
             }
             if !self.dex_registry.is_dex_router(&to_addr) {
@@ -246,11 +247,11 @@ impl MevScanner {
             est_profit_usd: 100.0, // Simplified estimate
             gas_usd: 50.0,
             ts: chrono::Utc::now().timestamp_millis(),
-            metadata: serde_json::json!({
+            metadata: Some(serde_json::json!({
                 "type": "sandwich",
                 "target_tx": format!("{:?}", tx.hash),
                 "target_value": value.to_string(),
-            }),
+            })),
         })
     }
 
@@ -264,7 +265,8 @@ impl MevScanner {
         // For example, after a large swap that moves the price
         
         if let Some(to_addr) = tx.to {
-            if !self.address_validator.is_address_safe(&to_addr).await {
+            let to_addr_str = format!("{:?}", to_addr);
+            if !self.address_validator.is_address_safe(chain, &to_addr_str).await.unwrap_or(false) {
                 return None;
             }
             if !self.dex_registry.is_dex_router(&to_addr) {
@@ -286,10 +288,10 @@ impl MevScanner {
             est_profit_usd: 75.0,
             gas_usd: 30.0,
             ts: chrono::Utc::now().timestamp_millis(),
-            metadata: serde_json::json!({
+            metadata: Some(serde_json::json!({
                 "type": "backrun",
                 "target_tx": format!("{:?}", tx.hash),
-            }),
+            })),
         })
     }
 
@@ -303,7 +305,8 @@ impl MevScanner {
         let uniswap_v3_positions = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88".parse::<Address>().ok()?;
         
         if let Some(to_addr) = tx.to {
-            if !self.address_validator.is_address_safe(&to_addr).await {
+            let to_addr_str = format!("{:?}", to_addr);
+            if !self.address_validator.is_address_safe(chain, &to_addr_str).await.unwrap_or(false) {
                 return None;
             }
             if to_addr != uniswap_v3_positions {
@@ -325,10 +328,10 @@ impl MevScanner {
             est_profit_usd: 150.0,
             gas_usd: 80.0,
             ts: chrono::Utc::now().timestamp_millis(),
-            metadata: serde_json::json!({
+            metadata: Some(serde_json::json!({
                 "type": "jit-liquidity",
                 "target_tx": format!("{:?}", tx.hash),
-            }),
+            })),
         })
     }
 
@@ -405,11 +408,11 @@ impl MevScanner {
                                 est_profit_usd: max_profit,
                                 gas_usd: gas_estimator.estimate_cost(optimal_x),
                                 ts: chrono::Utc::now().timestamp_millis(),
-                                metadata: serde_json::json!({
+                                metadata: Some(serde_json::json!({
                                     "type": "dex-arb",
                                     "optimal_amount_in": optimal_x,
                                     "estimated_profit_usd": max_profit,
-                                }),
+                                })),
                             };
                             
                             if let Err(e) = self.db.insert_opportunity(opp).await {
@@ -449,11 +452,11 @@ impl MevScanner {
             est_profit_usd: 250.0,
             gas_usd: 100.0,
             ts: chrono::Utc::now().timestamp_millis(),
-            metadata: serde_json::json!({
+            metadata: Some(serde_json::json!({
                 "type": "liquidation",
                 "protocol": "aave-v3",
                 "health_factor": 1.02,
-            }),
+            })),
         };
         
         if let Err(e) = self.db.insert_opportunity(sample_liquidation).await {
@@ -492,6 +495,8 @@ impl Clone for MevScanner {
             config: self.config.clone(),
             multicall: self.multicall.clone(),
             dex_registry: self.dex_registry.clone(),
+            address_validator: self.address_validator.clone(),
+            data_fetcher: self.data_fetcher.clone(),
         }
     }
 }

@@ -3,9 +3,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio_postgres::{Client, NoTls, Row};
-use tracing::{info, error, debug, warn};
+use tracing::{info, error, debug};
 
-use crate::types::KitDeArmado;
 
 /// Estructura principal para manejar la conexión a PostgreSQL
 pub struct Database {

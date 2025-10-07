@@ -1,6 +1,6 @@
 use anyhow::{Result, Context};
 use ethers::prelude::*;
-use ethers::types::{Transaction, TransactionRequest, H256, U256, Address, Bytes};
+use ethers::types::{TransactionRequest, H256, U256, Address, Bytes};
 use ethers::core::types::transaction::eip2718::TypedTransaction;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -11,8 +11,7 @@ use crate::config::Config;
 use crate::database::{Database, Execution};
 use crate::monitoring::Monitoring;
 use crate::rpc_manager::RpcManager;
-use crate::math_engine;
-use crate::types::{KitDeArmado, PoolReserves, DexFees, GasCostEstimator};
+use crate::types::KitDeArmado;
 
 // Flashbots bundle relay
 const FLASHBOTS_RELAY: &str = "https://relay.flashbots.net";
@@ -114,11 +113,21 @@ impl Executor {
         let chain = &execution.chain;
 
         // Asegurarse de que el kit de armado está presente
-        let kit = execution.kit_de_armado.as_ref()
+        let kit_value = execution.kit_de_armado.as_ref()
             .ok_or_else(|| anyhow::anyhow!("Kit de Armado no encontrado para la ejecución {}", execution.id))?;
+        
+        let kit: KitDeArmado = serde_json::from_value(kit_value.clone())
+            .context("Failed to deserialize kit_de_armado")?;
 
         // Construir el bundle de transacciones a partir del kit de armado
-        let bundle = self.build_kit_de_armado_bundle(kit, config).await?;
+        let transactions = self.build_kit_de_armado_bundle(&kit, config).await?;
+        
+        let bundle = Bundle {
+            transactions,
+            block_number: 0, // Will be set by Flashbots
+            min_timestamp: None,
+            max_timestamp: None,
+        };
 
         // Enviar el bundle a través de un relay privado como Flashbots
         self.send_flashbots_bundle(bundle, chain).await?;

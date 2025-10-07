@@ -1,4 +1,3 @@
-use anyhow::{Result, Context};
 use prometheus::{
     Encoder, TextEncoder, Counter, Gauge, Histogram, HistogramOpts,
     register_counter, register_gauge, register_histogram,
@@ -6,7 +5,6 @@ use prometheus::{
 use std::collections::HashMap;
 use std::sync::Arc;
 use parking_lot::RwLock;
-use tracing::{info, warn, error, debug};
 use warp::Reply;
 
 pub struct Monitoring {
@@ -53,6 +51,12 @@ pub struct ChainMetrics {
     pub opportunities_found: u64,
     pub average_gas_price: f64,
     pub is_healthy: bool,
+}
+
+impl Default for Monitoring {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Monitoring {
@@ -431,6 +435,8 @@ impl Clone for Monitoring {
             rpc_latency_histogram: self.rpc_latency_histogram.clone(),
             strategy_metrics: self.strategy_metrics.clone(),
             chain_metrics: self.chain_metrics.clone(),
+            reverted_transactions: self.reverted_transactions.clone(),
+            validation_failures: self.validation_failures.clone(),
         }
     }
 }

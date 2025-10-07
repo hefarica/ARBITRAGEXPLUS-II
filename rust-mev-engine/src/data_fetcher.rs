@@ -1,10 +1,10 @@
 use anyhow::{Result, Context, bail};
 use ethers::prelude::*;
-use ethers::types::{Address, U256, H160};
-use ethers::abi::{Abi, Token};
+use ethers::types::{Address, U256};
+use ethers::abi::Abi;
 use std::sync::Arc;
 use std::str::FromStr;
-use tracing::{info, warn, error, debug};
+use tracing::{info, debug};
 
 use crate::rpc_manager::RpcManager;
 use crate::types::PoolReserves;
@@ -69,6 +69,7 @@ const ERC20_ABI: &str = r#"[
     }
 ]"#;
 
+#[derive(Clone)]
 pub struct DataFetcher {
     rpc_manager: Arc<RpcManager>,
 }

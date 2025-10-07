@@ -1,3 +1,10 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+#![allow(non_snake_case)]
+#![allow(deprecated)]
+#![allow(hidden_glob_reexports)]
+
 pub mod address_validator;
 pub mod config;
 pub mod data_fetcher;

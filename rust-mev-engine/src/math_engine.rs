@@ -62,7 +62,7 @@ where
     let h = 1e-6; // Pequeño paso para la derivada numérica
 
     for _ in 0..max_iterations {
-        let derivative = numerical_derivative(&profit_fn, x, h);
+        let derivative = numerical_derivative(profit_fn, x, h);
 
         if derivative.abs() < tolerance {
             // Si la derivada es cercana a cero, hemos encontrado un punto crítico

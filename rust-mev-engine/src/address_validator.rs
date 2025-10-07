@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use ethers::types::Address;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::{HashSet, HashMap};
 use std::sync::Arc;
 use std::str::FromStr;

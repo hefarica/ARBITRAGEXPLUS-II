@@ -120,6 +120,12 @@ pub struct PriceInfo {
     pub timestamp: i64,
 }
 
+impl Default for PriceFeedClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PriceFeedClient {
     pub fn new() -> Self {
         let http_client = Client::builder()

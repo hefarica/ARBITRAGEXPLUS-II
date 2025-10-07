@@ -2,7 +2,7 @@ use anyhow::{Result, Context};
 use ethers::prelude::*;
 use ethers::types::{Address, Bytes, U256};
 use std::sync::Arc;
-use tracing::{info, debug, warn};
+use tracing::debug;
 
 // Multicall3 ABI
 abigen!(
@@ -25,6 +25,12 @@ abigen!(
 pub struct MulticallManager {
     contracts: std::collections::HashMap<u64, Address>,
     max_batch_size: usize,
+}
+
+impl Default for MulticallManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MulticallManager {

@@ -1,11 +1,10 @@
-use anyhow::{Result, Context};
+use anyhow::Result;
 use ethers::providers::{Provider, Ws, Middleware};
-use ethers::types::{BlockNumber, U256};
+use ethers::types::BlockNumber;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tracing::{info, warn, error, debug};
+use std::time::{Duration, Instant};
+use tracing::{warn, debug};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HealthStatus {
@@ -46,6 +45,12 @@ enum CircuitState {
     Closed,
     Open,
     HalfOpen,
+}
+
+impl Default for CircuitBreaker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CircuitBreaker {
@@ -124,6 +129,12 @@ impl CircuitBreaker {
 
 pub struct HealthChecker {
     circuit_breakers: dashmap::DashMap<String, CircuitBreaker>,
+}
+
+impl Default for HealthChecker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HealthChecker {
@@ -296,13 +307,13 @@ impl HealthChecker {
     where
         F: Fn(Arc<Provider<Ws>>) -> Fut + Clone,
         Fut: std::future::Future<Output = Result<T>>,
-        T: PartialEq + Clone,
+        T: PartialEq + Clone + std::fmt::Display,
     {
         if providers.is_empty() {
             anyhow::bail!("No providers available for quorum check");
         }
 
-        let required_agreements = (providers.len() * 2 + 2) / 3; // 2/3 quorum
+        let required_agreements = (providers.len() * 2).div_ceil(3); // 2/3 quorum
         let mut results = Vec::new();
 
         // Execute operation on all providers
@@ -315,14 +326,12 @@ impl HealthChecker {
         // Count successful responses and find consensus
         let mut response_counts: std::collections::HashMap<String, (usize, T)> = std::collections::HashMap::new();
         
-        for result in results {
-            if let Ok(value) = result {
-                let key = format!("{:?}", &value);
-                if let Some((count, _)) = response_counts.get_mut(&key) {
-                    *count += 1;
-                } else {
-                    response_counts.insert(key, (1, value));
-                }
+        for value in results.into_iter().flatten() {
+            let key = format!("{}", &value);
+            if let Some((count, _)) = response_counts.get_mut(&key) {
+                *count += 1;
+            } else {
+                response_counts.insert(key, (1, value));
             }
         }
 
@@ -350,6 +359,12 @@ impl HealthChecker {
 pub struct LatencyHistogram {
     buckets: Vec<f64>,
     counts: Vec<usize>,
+}
+
+impl Default for LatencyHistogram {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LatencyHistogram {
